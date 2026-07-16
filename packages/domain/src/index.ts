@@ -6,4 +6,5 @@ export * from "./channel-document-collab.ts";
 export * from "./collaboration.ts";
 export * from "./daemon-api.ts";
 export * from "./daemon-provider.ts";
+export * from "./execution-binding.ts";
 export * from "./agent-templates.ts";

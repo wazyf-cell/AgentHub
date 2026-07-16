@@ -117,6 +117,7 @@ export interface StoredAgentGoogleWorkspaceDelegationRecord {
 }
 
 import type { DaemonProvider } from "@agent-space/domain";
+import type { ExecutionBinding } from "@agent-space/domain";
 import type { KnowledgeAssignmentMode } from "@agent-space/domain/workspace";
 
 export interface DaemonConnectionRecord {
@@ -188,6 +189,7 @@ export interface EmployeeRuntimeBindingRecord {
   runtimeId: string;
   provider: DaemonProvider;
   runtimeName: string;
+  executionBinding: ExecutionBinding;
   boundAt: string;
   updatedAt: string;
 }

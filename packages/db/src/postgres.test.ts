@@ -20,6 +20,16 @@ test("postgres schema includes the expected core and derived tables", () => {
   assert.match(statements, /workspace_snapshot_ledger/);
   assert.match(
     statements,
+    /CREATE TABLE IF NOT EXISTS employee_runtime_binding.*binding_version INTEGER NOT NULL DEFAULT 1.*model_id TEXT.*capability_ids_json JSONB NOT NULL DEFAULT '\[\]'::jsonb/s,
+  );
+  assert.match(statements, /ALTER TABLE employee_runtime_binding\s+ADD COLUMN IF NOT EXISTS binding_version INTEGER NOT NULL DEFAULT 1/);
+  assert.match(statements, /ALTER TABLE employee_runtime_binding\s+ADD COLUMN IF NOT EXISTS model_id TEXT/);
+  assert.match(
+    statements,
+    /ALTER TABLE employee_runtime_binding\s+ADD COLUMN IF NOT EXISTS capability_ids_json JSONB NOT NULL DEFAULT '\[\]'::jsonb/,
+  );
+  assert.match(
+    statements,
     /WITH ranked_active_attempts AS.*PARTITION BY task_queue_id\s+ORDER BY created_at DESC, id DESC.*SET status = 'failed'.*finished_at = COALESCE\(attempt\.finished_at, CURRENT_TIMESTAMP\).*error_text = COALESCE\(.*attempt\.error_text,.*Schema v19 migration: superseded duplicate active attempt\./s,
   );
   assert.ok(

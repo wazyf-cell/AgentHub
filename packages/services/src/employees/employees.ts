@@ -1,5 +1,5 @@
 import {
-  bindEmployeeRuntimeSync as bindEmployeeRuntimeRecordSync,
+  bindEmployeeExecutionSync as bindEmployeeExecutionRecordSync,
   DEFAULT_WORKSPACE_ID,
   createStoredEmployeeSync,
   deleteStoredEmployeeSync,
@@ -81,6 +81,19 @@ export function bindEmployeeRuntimeSync(
   workspaceId?: string,
   actorUserId?: string,
 ): AgentSpaceState {
+  return bindEmployeeExecutionSync(employeeName, { runtimeId }, workspaceId, actorUserId);
+}
+
+export function bindEmployeeExecutionSync(
+  employeeName: string,
+  input: {
+    runtimeId: string;
+    modelId?: string;
+    capabilityIds?: string[];
+  },
+  workspaceId?: string,
+  actorUserId?: string,
+): AgentSpaceState {
   const state = ensureWorkspaceStateSync(workspaceId);
   const employee = state.activeEmployees.find((item) => sameValue(item.name, employeeName));
   if (!employee) {
@@ -88,13 +101,15 @@ export function bindEmployeeRuntimeSync(
   }
   if (actorUserId) {
     assertCanManageEmployeeForActorSync({ workspaceId, employeeName: employee.name, actorUserId });
-    assertCanUseRuntimeForActorSync({ workspaceId, runtimeId, actorUserId });
+    assertCanUseRuntimeForActorSync({ workspaceId, runtimeId: input.runtimeId, actorUserId });
   }
 
-  const binding = bindEmployeeRuntimeRecordSync({
+  const binding = bindEmployeeExecutionRecordSync({
     workspaceId,
     employeeName: employee.name,
-    runtimeId,
+    runtimeId: input.runtimeId,
+    modelId: input.modelId,
+    capabilityIds: input.capabilityIds,
   });
 
   state.ledger.unshift({

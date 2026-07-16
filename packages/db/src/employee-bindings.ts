@@ -7,10 +7,22 @@ export function bindEmployeeRuntimeSync(input: {
   employeeName: string;
   runtimeId: string;
 }): EmployeeRuntimeBindingRecord {
+  return bindEmployeeExecutionSync(input);
+}
+
+export function bindEmployeeExecutionSync(input: {
+  workspaceId?: string;
+  employeeName: string;
+  runtimeId: string;
+  modelId?: string;
+  capabilityIds?: string[];
+}): EmployeeRuntimeBindingRecord {
   const db = getDatabase();
   const workspaceId = input.workspaceId ?? DEFAULT_WORKSPACE_ID;
   const employeeName = input.employeeName.trim();
   const runtimeId = input.runtimeId.trim();
+  const modelId = normalizeModelId(input.modelId);
+  const capabilityIds = normalizeCapabilityIds(input.capabilityIds ?? []);
   const now = new Date().toISOString();
 
   if (!employeeName) {
@@ -39,13 +51,19 @@ export function bindEmployeeRuntimeSync(input: {
       workspace_id,
       employee_name,
       runtime_id,
+      binding_version,
+      capability_ids_json,
+      model_id,
       created_at,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(workspace_id, employee_name) DO UPDATE SET
       runtime_id = excluded.runtime_id,
+      binding_version = excluded.binding_version,
+      model_id = excluded.model_id,
+      capability_ids_json = excluded.capability_ids_json,
       updated_at = excluded.updated_at`,
-  ).run(workspaceId, employeeName, runtimeId, now, now);
+  ).run(workspaceId, employeeName, runtimeId, 1, JSON.stringify(capabilityIds), modelId ?? null, now, now);
 
   return readEmployeeRuntimeBindingSync(employeeName, workspaceId)!;
 }
@@ -102,6 +120,9 @@ export function readEmployeeRuntimeBindingSync(
         erb.workspace_id AS workspaceId,
         erb.employee_name AS employeeName,
         erb.runtime_id AS runtimeId,
+        erb.binding_version AS bindingVersion,
+        erb.model_id AS modelId,
+        erb.capability_ids_json AS capabilityIdsJson,
         ar.provider AS provider,
         ar.name AS runtimeName,
         erb.created_at AS boundAt,
@@ -123,6 +144,9 @@ export function listEmployeeRuntimeBindingsSync(workspaceId = DEFAULT_WORKSPACE_
         erb.workspace_id AS workspaceId,
         erb.employee_name AS employeeName,
         erb.runtime_id AS runtimeId,
+        erb.binding_version AS bindingVersion,
+        erb.model_id AS modelId,
+        erb.capability_ids_json AS capabilityIdsJson,
         ar.provider AS provider,
         ar.name AS runtimeName,
         erb.created_at AS boundAt,
@@ -158,7 +182,54 @@ function mapEmployeeRuntimeBindingRecord(value: Record<string, unknown>): Employ
     runtimeId: value.runtimeId,
     provider: value.provider as EmployeeRuntimeBindingRecord["provider"],
     runtimeName: value.runtimeName,
+    executionBinding: {
+      version: 1,
+      runtimeId: value.runtimeId,
+      provider: value.provider as EmployeeRuntimeBindingRecord["provider"],
+      ...normalizeStoredModelId(value.modelId),
+      capabilityIds: parseCapabilityIdsJson(value.capabilityIdsJson),
+    },
     boundAt: value.boundAt,
     updatedAt: value.updatedAt,
   };
+}
+
+function normalizeModelId(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function normalizeStoredModelId(value: unknown): { modelId?: string } {
+  if (typeof value !== "string") {
+    return {};
+  }
+  const modelId = normalizeModelId(value);
+  return modelId ? { modelId } : {};
+}
+
+function normalizeCapabilityIds(values: string[]): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    ),
+  ).sort();
+}
+
+function parseCapabilityIdsJson(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return normalizeCapabilityIds(value.filter((item): item is string => typeof item === "string"));
+  }
+  if (typeof value !== "string") {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? normalizeCapabilityIds(parsed.filter((item): item is string => typeof item === "string"))
+      : [];
+  } catch {
+    return [];
+  }
 }

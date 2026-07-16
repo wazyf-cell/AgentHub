@@ -1,4 +1,4 @@
-export const POSTGRES_SCHEMA_VERSION = "19";
+export const POSTGRES_SCHEMA_VERSION = "20";
 
 export const POSTGRES_TABLE_NAMES = [
   "app_metadata",
@@ -504,10 +504,25 @@ export function getPostgresSchemaStatements(): string[] {
         workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
         employee_name TEXT NOT NULL,
         runtime_id TEXT NOT NULL REFERENCES agent_runtime(id) ON DELETE CASCADE,
+        binding_version INTEGER NOT NULL DEFAULT 1,
+        model_id TEXT,
+        capability_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL,
         PRIMARY KEY (workspace_id, employee_name)
       )
+    `,
+    `
+      ALTER TABLE employee_runtime_binding
+        ADD COLUMN IF NOT EXISTS binding_version INTEGER NOT NULL DEFAULT 1
+    `,
+    `
+      ALTER TABLE employee_runtime_binding
+        ADD COLUMN IF NOT EXISTS model_id TEXT
+    `,
+    `
+      ALTER TABLE employee_runtime_binding
+        ADD COLUMN IF NOT EXISTS capability_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb
     `,
     `
       CREATE TABLE IF NOT EXISTS runtime_app_catalog_item (

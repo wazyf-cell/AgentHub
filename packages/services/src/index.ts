@@ -49,6 +49,7 @@ export {
   listEmployeeSkillIdsMapSync,
   listEmployeeSkillIdsSync,
   listEmployeeRuntimeBindingsForWorkspaceSync,
+  bindEmployeeExecutionSync,
   bindEmployeeRuntimeSync,
   unbindEmployeeRuntimeSync,
   deleteEmployeeSync,

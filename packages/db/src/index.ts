@@ -220,6 +220,7 @@ export {
 
 // Employee bindings
 export {
+  bindEmployeeExecutionSync,
   bindEmployeeRuntimeSync,
   unbindEmployeeRuntimeSync,
   deleteEmployeeExecutionStateSync,
