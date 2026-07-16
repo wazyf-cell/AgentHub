@@ -18,6 +18,18 @@ test("postgres schema includes the expected core and derived tables", () => {
   assert.match(statements, /CREATE TABLE IF NOT EXISTS attachment/);
   assert.match(statements, /CREATE TABLE IF NOT EXISTS audit_log/);
   assert.match(statements, /workspace_snapshot_ledger/);
+  assert.match(
+    statements,
+    /WITH ranked_active_attempts AS.*PARTITION BY task_queue_id\s+ORDER BY created_at DESC, id DESC.*SET status = 'failed'.*finished_at = COALESCE\(attempt\.finished_at, CURRENT_TIMESTAMP\).*error_text = COALESCE\(.*attempt\.error_text,.*Schema v19 migration: superseded duplicate active attempt\./s,
+  );
+  assert.ok(
+    statements.indexOf("WITH ranked_active_attempts AS")
+      < statements.indexOf("CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_task_attempt_one_active_per_task"),
+  );
+  assert.match(
+    statements,
+    /CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_task_attempt_one_active_per_task\s+ON agent_task_attempt\(task_queue_id\)\s+WHERE status IN \('claimed', 'running'\)/,
+  );
 });
 
 test("collectSqliteMigrationSnapshotSync extracts relational rows and derived attachments/audit logs", () => {

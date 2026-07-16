@@ -1,4 +1,4 @@
-export const POSTGRES_SCHEMA_VERSION = "18";
+export const POSTGRES_SCHEMA_VERSION = "19";
 
 export const POSTGRES_TABLE_NAMES = [
   "app_metadata",
@@ -1213,6 +1213,34 @@ export function getPostgresSchemaStatements(): string[] {
     `
       CREATE INDEX IF NOT EXISTS idx_agent_task_attempt_router_created
         ON agent_task_attempt(workspace_id, router_session_id, created_at DESC)
+    `,
+    `
+      WITH ranked_active_attempts AS (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (
+            PARTITION BY task_queue_id
+            ORDER BY created_at DESC, id DESC
+          ) AS active_rank
+        FROM agent_task_attempt
+        WHERE status IN ('claimed', 'running')
+      )
+      UPDATE agent_task_attempt AS attempt
+      SET status = 'failed',
+          finished_at = COALESCE(attempt.finished_at, CURRENT_TIMESTAMP),
+          error_text = COALESCE(
+            attempt.error_text,
+            'Schema v19 migration: superseded duplicate active attempt.'
+          ),
+          updated_at = CURRENT_TIMESTAMP
+      FROM ranked_active_attempts AS ranked
+      WHERE attempt.id = ranked.id
+        AND ranked.active_rank > 1
+    `,
+    `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_task_attempt_one_active_per_task
+        ON agent_task_attempt(task_queue_id)
+        WHERE status IN ('claimed', 'running')
     `,
     `
       CREATE INDEX IF NOT EXISTS idx_agent_router_event_router_created

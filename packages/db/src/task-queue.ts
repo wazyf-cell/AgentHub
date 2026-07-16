@@ -245,7 +245,10 @@ export function readQueuedTaskSync(taskId: string): QueuedTaskRecord | null {
 export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId?: string): QueuedTaskRecord | null {
   const db = getDatabase();
   const now = new Date().toISOString();
-  let claimedId: string | null = null;
+  let task: QueuedTaskRecord | null = null;
+  let attemptId: string | undefined;
+  let providerSessionId: string | undefined;
+  let provider: DaemonProvider | undefined;
   let fallbackReason: string | undefined;
 
   db.exec("BEGIN");
@@ -256,24 +259,56 @@ export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId
       if (fallback) {
         row = fallback.row;
         fallbackReason = fallback.reason;
-        db.prepare(
-          `UPDATE agent_task_queue
-           SET runtime_id = ?,
-               updated_at = ?
-           WHERE id = ? AND status = 'queued'`,
-        ).run(runtimeId, now, row.id);
       }
     }
 
     if (row && typeof row.id === "string") {
-      db.prepare(
-        `UPDATE agent_task_queue
-         SET status = 'claimed',
-             claimed_at = ?,
-             updated_at = ?
-         WHERE id = ? AND status = 'queued'`,
-      ).run(now, now, row.id);
-      claimedId = row.id;
+      const claimResult = fallbackReason
+        ? db.prepare(
+            `UPDATE agent_task_queue
+             SET runtime_id = ?,
+                 status = 'claimed',
+                 claimed_at = ?,
+                 updated_at = ?
+             WHERE id = ? AND status = 'queued'`,
+          ).run(runtimeId, now, now, row.id)
+        : db.prepare(
+            `UPDATE agent_task_queue
+             SET status = 'claimed',
+                 claimed_at = ?,
+                 updated_at = ?
+             WHERE id = ? AND status = 'queued'`,
+          ).run(now, now, row.id);
+
+      if (claimResult.changes === 1) {
+        const claimedTask = readQueuedTaskSync(row.id);
+        if (!claimedTask) {
+          throw new Error(`Claimed task "${row.id}" could not be read after update.`);
+        }
+        const runtime = readAgentRuntimeSync(claimedTask.runtimeId);
+        if (!runtime || !claimedTask.routerSessionId) {
+          throw new Error(`Claimed task "${row.id}" is missing its runtime or router session.`);
+        }
+        const providerSession = chooseProviderSessionForTaskSync({ task: claimedTask });
+        const attempt = createAgentTaskAttemptSync({
+          workspaceId: claimedTask.workspaceId,
+          taskQueueId: claimedTask.id,
+          routerSessionId: claimedTask.routerSessionId,
+          runtimeId: claimedTask.runtimeId,
+          provider: runtime.provider,
+          providerSessionId: providerSession?.providerSessionId,
+          status: "claimed",
+          metadata: {
+            routingMode: providerSession ? "same_provider_resume" : fallbackReason ? "cold_rebuild_fallback" : "cold_rebuild",
+            fallbackReason,
+            previousRuntimeId: fallbackReason ? readStringFromTaskInput(claimedTask.inputJson, "__previousRuntimeId") : undefined,
+          },
+        });
+        task = claimedTask;
+        attemptId = attempt.id;
+        providerSessionId = providerSession?.providerSessionId;
+        provider = runtime.provider;
+      }
     }
     db.exec("COMMIT");
   } catch (error) {
@@ -281,56 +316,13 @@ export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId
     throw error;
   }
 
-  const task = claimedId ? readQueuedTaskSync(claimedId) : null;
   if (task) {
-    const runtime = readAgentRuntimeSync(task.runtimeId);
-    const providerSession = chooseProviderSessionForTaskSync({ task });
-    const attempt = runtime && task.routerSessionId
-      ? createAgentTaskAttemptSync({
-          workspaceId: task.workspaceId,
-          taskQueueId: task.id,
-          routerSessionId: task.routerSessionId,
-          runtimeId: task.runtimeId,
-          provider: runtime.provider,
-          providerSessionId: providerSession?.providerSessionId,
-          status: "claimed",
-          metadata: {
-            routingMode: providerSession ? "same_provider_resume" : fallbackReason ? "cold_rebuild_fallback" : "cold_rebuild",
-            fallbackReason,
-            previousRuntimeId: fallbackReason ? readStringFromTaskInput(task.inputJson, "__previousRuntimeId") : undefined,
-          },
-        })
-      : null;
-    recordRouterLifecycleEvent(task, {
-      attemptId: attempt?.id,
-      type: fallbackReason ? "runtime_fallback_selected" : "runtime_selected",
-      actorType: "system",
-      runtimeId: task.runtimeId,
-      provider: runtime?.provider,
-      summary: fallbackReason
-        ? `Task was reassigned to runtime ${task.runtimeId}: ${fallbackReason}.`
-        : `Task was assigned to runtime ${task.runtimeId}.`,
-      data: {
-        attemptId: attempt?.id,
-        providerSessionId: providerSession?.providerSessionId,
-        routingMode: providerSession ? "same_provider_resume" : fallbackReason ? "cold_rebuild_fallback" : "cold_rebuild",
-        fallbackReason,
-      },
-    });
-    recordQueueLifecycleEvent(task, {
-      type: "assigned",
-      title: "Runtime claimed the task",
-      summary: fallbackReason
-        ? `${task.agentId} fell back to runtime ${task.runtimeId}.`
-        : `${task.agentId} is assigned to runtime ${task.runtimeId}.`,
-      status: "running",
-      data: {
-        claimedAt: task.claimedAt,
-        attemptId: attempt?.id,
-        routingMode: providerSession ? "same_provider_resume" : fallbackReason ? "cold_rebuild_fallback" : "cold_rebuild",
-        fallbackReason,
-        providerSessionId: providerSession?.providerSessionId,
-      },
+    recordClaimLifecycleEventsBestEffort({
+      task,
+      attemptId,
+      providerSessionId,
+      provider,
+      fallbackReason,
     });
   }
   return task;
@@ -718,6 +710,65 @@ function recordRouterLifecycleEvent(
   });
 }
 
+function recordClaimLifecycleEventsBestEffort(input: {
+  task: QueuedTaskRecord;
+  attemptId?: string;
+  providerSessionId?: string;
+  provider?: DaemonProvider;
+  fallbackReason?: string;
+}): void {
+  const routingMode = input.providerSessionId
+    ? "same_provider_resume"
+    : input.fallbackReason
+      ? "cold_rebuild_fallback"
+      : "cold_rebuild";
+  try {
+    recordRouterLifecycleEvent(input.task, {
+      attemptId: input.attemptId,
+      type: input.fallbackReason ? "runtime_fallback_selected" : "runtime_selected",
+      actorType: "system",
+      runtimeId: input.task.runtimeId,
+      provider: input.provider,
+      summary: input.fallbackReason
+        ? `Task was reassigned to runtime ${input.task.runtimeId}: ${input.fallbackReason}.`
+        : `Task was assigned to runtime ${input.task.runtimeId}.`,
+      data: {
+        attemptId: input.attemptId,
+        providerSessionId: input.providerSessionId,
+        routingMode,
+        fallbackReason: input.fallbackReason,
+      },
+    });
+  } catch (error) {
+    reportPostClaimLifecycleEventFailure(input.task.id, "router", error);
+  }
+
+  try {
+    recordQueueLifecycleEvent(input.task, {
+      type: "assigned",
+      title: "Runtime claimed the task",
+      summary: input.fallbackReason
+        ? `${input.task.agentId} fell back to runtime ${input.task.runtimeId}.`
+        : `${input.task.agentId} is assigned to runtime ${input.task.runtimeId}.`,
+      status: "running",
+      data: {
+        claimedAt: input.task.claimedAt,
+        attemptId: input.attemptId,
+        routingMode,
+        fallbackReason: input.fallbackReason,
+        providerSessionId: input.providerSessionId,
+      },
+    });
+  } catch (error) {
+    reportPostClaimLifecycleEventFailure(input.task.id, "queue", error);
+  }
+}
+
+function reportPostClaimLifecycleEventFailure(taskId: string, eventKind: "router" | "queue", error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`Failed to record post-claim ${eventKind} lifecycle event for task "${taskId}": ${message}`);
+}
+
 function recordArtifactEvents(task: QueuedTaskRecord, resultJson: Record<string, unknown> | undefined): void {
   if (!resultJson) {
     return;
@@ -844,7 +895,8 @@ function selectQueuedTaskForRuntime(
        WHERE runtime_id = ? AND status = 'queued'
        ${typeof workspaceId === "string" ? "AND workspace_id = ?" : ""}
        ORDER BY priority DESC, created_at ASC
-       LIMIT 1`,
+       LIMIT 1
+       FOR UPDATE SKIP LOCKED`,
     )
     .get(...(typeof workspaceId === "string" ? [runtimeId, workspaceId] : [runtimeId])) as Record<string, unknown> | undefined;
 }
