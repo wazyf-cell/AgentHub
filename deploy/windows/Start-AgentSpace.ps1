@@ -5,6 +5,7 @@ param(
   [int]$Port = 1455,
   [switch]$Install,
   [switch]$NoBrowser,
+  [string]$DatabaseUrl = "",
   [switch]$StartDaemon,
   [ValidateSet("local", "remote")]
   [string]$DaemonMode = "local",
@@ -95,6 +96,12 @@ $node = Resolve-RequiredCommand @("node.exe", "node")
 Write-LauncherStep "Repository: $repoRoot"
 Write-LauncherStep "Mode: $Mode"
 
+if ($DatabaseUrl.Trim()) {
+  $env:AGENT_SPACE_DEPLOYMENT_MODE = "self_hosted"
+  $env:SELF_HOSTED_DATABASE_URL = $DatabaseUrl.Trim()
+  $env:SELF_HOSTED_DATABASE_DIRECT_URL = $DatabaseUrl.Trim()
+}
+
 if ($Install -or -not (Test-Path $webNodeModules)) {
   Write-LauncherStep "Installing dependencies with npm run setup..."
   & $npm --prefix $repoRoot run setup
@@ -113,7 +120,7 @@ if ($Mode -eq "start" -and -not (Test-Path $nextBuildDir)) {
 
 if (Test-Path $preflightScript) {
   Write-LauncherStep "Running runtime preflight..."
-  & $preflightScript -Mode $Mode -RepoRoot $repoRoot
+  & $preflightScript -Mode $Mode -RepoRoot $repoRoot -DatabaseUrl $DatabaseUrl
   if ($LASTEXITCODE -ne 0) {
     throw "Runtime preflight failed with exit code $LASTEXITCODE."
   }

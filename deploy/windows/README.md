@@ -34,6 +34,20 @@ If port `1455` is already in use, pass another port:
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSpace.ps1 -Port 1456
 ```
 
+AgentSpace requires PostgreSQL at startup. For the default local Docker database:
+
+```powershell
+docker compose -f deploy\postgres\docker-compose.yml up -d
+Copy-Item .env.example .env
+npm run db:pg:init
+```
+
+Or pass a database URL directly:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSpace.ps1 -DatabaseUrl "postgres://agent_space:agent_space@127.0.0.1:5432/agent_space"
+```
+
 ## First run / dependency install
 
 If dependencies are missing, run:
@@ -68,6 +82,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-AgentSpa
 ```
 
 The preflight reports Node/npm, dependencies, environment hints, provider CLI readiness, and local daemon pid/log status.
+Missing or unreachable PostgreSQL is reported as an error because the web app reads the database on the home page.
 
 For desktop packaging checks:
 

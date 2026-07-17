@@ -38,6 +38,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSp
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSpace.ps1 -NoBrowser
 ```
 
+如果不想写 `.env`，也可以临时传入数据库 URL：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSpace.ps1 -DatabaseUrl "postgres://agent_space:agent_space@127.0.0.1:5432/agent_space"
+```
+
 可选：启动 Web 前先启动本机 daemon：
 
 ```powershell
@@ -56,6 +62,44 @@ powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-AgentSpa
 
 它会检查 Node/npm、依赖、`.env`、PostgreSQL URL、provider CLI、daemon pid 和 daemon log。
 
+如果 PostgreSQL URL 缺失或 PostgreSQL 端口不可连接，启动器会直接失败。这是预期行为，因为 AgentSpace 首页会立即访问数据库。
+
+## 本地 PostgreSQL 初始化
+
+### 方案 A：Docker Desktop
+
+在项目根目录运行：
+
+```powershell
+docker compose -f deploy\postgres\docker-compose.yml up -d
+Copy-Item .env.example .env
+npm run db:pg:init
+```
+
+`.env.example` 默认使用：
+
+```text
+SELF_HOSTED_DATABASE_URL=postgres://agent_space:agent_space@127.0.0.1:5432/agent_space
+```
+
+这和 `deploy/postgres/docker-compose.yml` 里的默认账号一致。
+
+### 方案 B：已有本机 PostgreSQL
+
+创建数据库和用户后，在项目根目录新建 `.env`，至少写入：
+
+```text
+AGENT_SPACE_DEPLOYMENT_MODE=self_hosted
+SELF_HOSTED_DATABASE_URL=postgres://<user>:<password>@127.0.0.1:5432/<database>
+SELF_HOSTED_DATABASE_DIRECT_URL=postgres://<user>:<password>@127.0.0.1:5432/<database>
+```
+
+然后初始化 schema：
+
+```powershell
+npm run db:pg:init
+```
+
 如果要检查桌面 exe 构建条件：
 
 ```powershell
@@ -64,10 +108,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-AgentSpa
 
 ## 构建 exe
 
-先安装 root 依赖：
+先确保 PostgreSQL 配置和 Web production build 可用，然后安装 root 依赖：
 
 ```powershell
 npm install --no-audit --no-fund
+npm run setup
 ```
 
 优先尝试生成 unpacked exe：
@@ -99,8 +144,8 @@ dist-electron-out\AgentSpace.exe
 - 当前环境 Electron 二进制/打包辅助文件下载超时，暂时还没有生成新的 `AgentSpace.exe`。
 - `.cmd/.ps1` Web 启动器已经可用，是目前最快试用路径。
 - 默认端口是 `1455`；如果端口被占用，启动器会直接报错。可以用 `-Port 1456` 等参数换端口。
-- `.env` 缺失会产生 warning；如果需要本地密钥或数据库配置，从 `.env.example` 复制一份 `.env` 后填写。
-- PostgreSQL URL 缺失会产生 warning；如果要使用 PostgreSQL，配置 `AGENT_SPACE_PG_URL` 或 `DATABASE_URL`。
+- `.env` 或 `-DatabaseUrl` 必须提供 PostgreSQL URL，否则 Web 首页会报 `PostgreSQL database URL is required`。
+- PostgreSQL 服务必须已启动并可连接，否则 Web 首页无法读取数据。
 - 多 agent runtime / daemon 的完整一键启动还没并入桌面壳，后续 P5 继续完善。
 - `-StartDaemon` 只是可选启动 native daemon，不会自动配置 provider CLI、模型密钥或 PostgreSQL。
 
