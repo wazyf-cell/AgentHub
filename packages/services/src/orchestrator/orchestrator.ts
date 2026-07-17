@@ -508,14 +508,90 @@ function readAndValidateLinkedCollaborationNode(
 class CollaborationLinkValidationError extends Error {}
 
 function buildCollaborationResultFromTask(task: QueuedTaskRecord): Record<string, unknown> {
+  const taskResult = task.resultJson ? parseJsonObject(task.resultJson) : {};
   return {
-    ...(task.resultJson ? parseJsonObject(task.resultJson) : {}),
+    ...taskResult,
+    evidence: buildCollaborationEvidenceBundle(task, taskResult),
     taskQueueId: task.id,
     runtimeId: task.runtimeId,
     sessionId: task.sessionId,
     workDir: task.workDir,
     finishedAt: task.finishedAt,
   };
+}
+
+function buildCollaborationEvidenceBundle(
+  task: QueuedTaskRecord,
+  taskResult: Record<string, unknown>,
+): Record<string, unknown> {
+  const sources = [
+    ...readEvidenceSources("attachment", taskResult.attachments),
+    ...readEvidenceSources("document_update", taskResult.documentUpdates),
+    ...readEvidenceSources("external_document_link", taskResult.externalDocumentLinks),
+    ...readEvidenceSources("document_permission_request", taskResult.documentPermissionRequests),
+    ...readEvidenceSources("skill_import", taskResult.skillImports),
+    ...readEvidenceSources("knowledge_proposal", taskResult.knowledgeProposals),
+    ...readEvidenceSources("external_sheet_operation", taskResult.externalSheetOperations),
+    ...readEvidenceSources("external_google_doc_operation", taskResult.externalGoogleDocOperations),
+  ];
+  const summary = truncateEvidenceSummary(
+    readString(taskResult.summary) ??
+    readString(taskResult.output) ??
+    readString(taskResult.taskOutput) ??
+    "Task completed without a textual summary.",
+  );
+
+  return {
+    version: 1,
+    status: "completed",
+    summary,
+    sourceCount: sources.length,
+    sources: sources.slice(0, 20),
+    runtime: {
+      taskQueueId: task.id,
+      runtimeId: task.runtimeId,
+      sessionId: task.sessionId,
+      workDir: task.workDir,
+      finishedAt: task.finishedAt,
+    },
+  };
+}
+
+function readEvidenceSources(kind: string, value: unknown): Array<Record<string, string>> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+    .map((item, index) => ({
+      kind,
+      label: readEvidenceLabel(item) ?? `${kind} ${index + 1}`,
+      ref: readEvidenceRef(item) ?? `${kind}:${index + 1}`,
+    }));
+}
+
+function readEvidenceLabel(item: Record<string, unknown>): string | undefined {
+  return readString(item.fileName) ??
+    readString(item.title) ??
+    readString(item.name) ??
+    readString(item.skillName) ??
+    readString(item.operation) ??
+    readString(item.kind) ??
+    readString(item.id);
+}
+
+function readEvidenceRef(item: Record<string, unknown>): string | undefined {
+  return readString(item.id) ??
+    readString(item.documentId) ??
+    readString(item.fileId) ??
+    readString(item.url) ??
+    readString(item.path) ??
+    readString(item.storedPath);
+}
+
+function truncateEvidenceSummary(value: string): string {
+  const normalized = value.trim();
+  return normalized.length > 280 ? `${normalized.slice(0, 277)}...` : normalized;
 }
 
 function parseJsonObject(value: string): Record<string, unknown> {

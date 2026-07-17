@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { MessageAttachment } from "@agent-space/domain/workspace";
 import {
+  completeCollaborationTaskNodeSync,
   completeQueuedTaskSync,
   createCollaborationRunSync,
   createDaemonApiTokenSync,
@@ -1091,6 +1092,23 @@ describe("dashboard data", () => {
         },
       ],
     });
+    completeCollaborationTaskNodeSync({
+      workspaceId: "default",
+      nodeId: "collab-node-plan",
+      result: {
+        output: "Release plan drafted.",
+        evidence: {
+          version: 1,
+          status: "completed",
+          summary: "Release plan drafted with supporting notes.",
+          sourceCount: 2,
+          sources: [
+            { kind: "attachment", label: "release-plan.md", ref: "attachment-1" },
+            { kind: "document_update", label: "Release doc", ref: "doc-1" },
+          ],
+        },
+      },
+    });
 
     const automationsPage = getAutomationsPageData();
 
@@ -1107,13 +1125,15 @@ describe("dashboard data", () => {
       expect.objectContaining({
         id: "collab-node-plan",
         agentId: "Atlas",
-        status: "ready",
+        status: "completed",
         dependsOnNodeIds: [],
+        evidenceSummary: "Release plan drafted with supporting notes.",
+        evidenceSourceCount: 2,
       }),
       expect.objectContaining({
         id: "collab-node-review",
         agentId: "Nova",
-        status: "pending",
+        status: "ready",
         dependsOnNodeIds: ["collab-node-plan"],
       }),
     ]);

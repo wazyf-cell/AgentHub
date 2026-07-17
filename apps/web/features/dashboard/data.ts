@@ -4233,6 +4233,34 @@ function readCollaborationResultSummary(value: string | undefined): string | und
   return undefined;
 }
 
+function readCollaborationEvidenceSummary(value: string | undefined): string | undefined {
+  const evidence = readCollaborationEvidence(value);
+  const summary = evidence?.summary;
+  return typeof summary === "string" && summary.trim() ? summary.trim() : undefined;
+}
+
+function readCollaborationEvidenceSourceCount(value: string | undefined): number | undefined {
+  const evidence = readCollaborationEvidence(value);
+  if (!evidence) {
+    return undefined;
+  }
+  if (typeof evidence.sourceCount === "number") {
+    return evidence.sourceCount;
+  }
+  return Array.isArray(evidence.sources) ? evidence.sources.length : undefined;
+}
+
+function readCollaborationEvidence(value: string | undefined): Record<string, unknown> | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = safeParseJson(value);
+  const evidence = parsed.evidence;
+  return evidence && typeof evidence === "object" && !Array.isArray(evidence)
+    ? evidence as Record<string, unknown>
+    : undefined;
+}
+
 function resolveDaemonMode(
   runtimeMetadata: Record<string, unknown>,
   daemonMetadata: Record<string, unknown>,
@@ -5342,6 +5370,8 @@ export interface CollaborationTaskNodeViewRecord {
   status: CollaborationTaskNodeStatus;
   taskQueueId?: string;
   resultSummary?: string;
+  evidenceSummary?: string;
+  evidenceSourceCount?: number;
   errorText?: string;
   sortOrder: number;
   updatedAt: string;
@@ -5434,6 +5464,8 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
         status: node.status,
         taskQueueId: node.taskQueueId,
         resultSummary: readCollaborationResultSummary(node.resultJson),
+        evidenceSummary: readCollaborationEvidenceSummary(node.resultJson),
+        evidenceSourceCount: readCollaborationEvidenceSourceCount(node.resultJson),
         errorText: node.errorText,
         sortOrder: node.sortOrder,
         updatedAt: node.updatedAt,

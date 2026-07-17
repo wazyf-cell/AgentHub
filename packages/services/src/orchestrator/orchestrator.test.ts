@@ -338,7 +338,7 @@ test("completion dispatch is idempotent and reports unbound downstream nodes as 
 });
 
 test("native task completion advances the linked collaboration node and dispatches downstream", () => {
-  const { workspaceId } = seedWorkspaceRuntime("orchestrator-native-complete", ["Atlas", "Nova"]);
+  const { workspaceId, runtimeId } = seedWorkspaceRuntime("orchestrator-native-complete", ["Atlas", "Nova"]);
   const run = createAndDispatchCollaborationRunSync({
     workspaceId,
     title: "Native completion bridge",
@@ -364,7 +364,21 @@ test("native task completion advances the linked collaboration node and dispatch
 
   const advanced = completeQueuedTaskAndAdvanceCollaborationSync({
     taskId: rootTaskId,
-    resultJson: { output: "root completed by runtime" },
+    resultJson: {
+      output: "root completed by runtime",
+      attachments: [
+        {
+          id: "attachment-root",
+          fileName: "root-summary.md",
+        },
+      ],
+      documentUpdates: [
+        {
+          id: "doc-update-root",
+          title: "Root plan",
+        },
+      ],
+    },
     sessionId: "provider-session-root",
     workDir: "runtime-root",
     requestedByDisplayName: "Tianyu",
@@ -377,6 +391,31 @@ test("native task completion advances the linked collaboration node and dispatch
   assert.equal(rootNode?.status, "completed");
   assert.equal(JSON.parse(rootNode!.resultJson!).output, "root completed by runtime");
   assert.equal(JSON.parse(rootNode!.resultJson!).sessionId, "provider-session-root");
+  assert.deepEqual(JSON.parse(rootNode!.resultJson!).evidence, {
+    version: 1,
+    status: "completed",
+    summary: "root completed by runtime",
+    sourceCount: 2,
+    sources: [
+      {
+        kind: "attachment",
+        label: "root-summary.md",
+        ref: "attachment-root",
+      },
+      {
+        kind: "document_update",
+        label: "Root plan",
+        ref: "doc-update-root",
+      },
+    ],
+    runtime: {
+      taskQueueId: rootTaskId,
+      runtimeId,
+      sessionId: "provider-session-root",
+      workDir: "runtime-root",
+      finishedAt: advanced.task.finishedAt,
+    },
+  });
   assert.equal(listQueuedTasksSync({ workspaceId }).length, 2);
 
   const repeated = completeQueuedTaskAndAdvanceCollaborationSync({

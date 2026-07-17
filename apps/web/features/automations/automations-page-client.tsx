@@ -570,13 +570,14 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                           );
                         })}
                       </div>
-                      {run.nodes.some((node) => node.errorText || node.resultSummary) ? (
+                      {run.nodes.some((node) => node.errorText || node.evidenceSummary || node.resultSummary) ? (
                         <div className="automations-run-list">
                           {run.nodes
-                            .filter((node) => node.errorText || node.resultSummary)
+                            .filter((node) => node.errorText || node.evidenceSummary || node.resultSummary)
                             .map((node) => (
                               <small key={`${node.id}:summary`}>
-                                {node.title}: {node.errorText ?? node.resultSummary}
+                                {node.title}: {node.errorText ?? node.evidenceSummary ?? node.resultSummary}
+                                {node.evidenceSourceCount ? ` · ${tx("证据", "Evidence")}: ${node.evidenceSourceCount}` : ""}
                               </small>
                             ))}
                         </div>
