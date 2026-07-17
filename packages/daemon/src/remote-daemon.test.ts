@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
   buildRemoteDaemonConfig,
   buildRemoteDaemonRelaunchCommand,
+  resolveCodeDevelopmentExecutionCwd,
   resolveRemoteTaskProviderSessionId,
 } from "./remote-daemon.ts";
 
@@ -161,3 +164,57 @@ test("resolveRemoteTaskProviderSessionId reads channel session from task payload
   assert.equal(resolveRemoteTaskProviderSessionId(JSON.stringify({ channelSessionId: "" })), undefined);
   assert.equal(resolveRemoteTaskProviderSessionId("{not-json"), undefined);
 });
+
+test("resolveCodeDevelopmentExecutionCwd marks valid worktrees active", () => {
+  const worktreePath = mkdtempSync(join(tmpdir(), "agent-space-valid-worktree-"));
+  try {
+    const resolution = resolveCodeDevelopmentExecutionCwd(buildInputBundle({
+      sessionId: "code-session-1",
+      worktreePath,
+    }));
+
+    assert.equal(resolution.status, "active");
+    assert.equal(resolution.executionCwd, resolve(worktreePath));
+    assert.equal(resolution.requestedWorktreePath, resolve(worktreePath));
+    assert.equal(resolution.warning, undefined);
+  } finally {
+    rmSync(worktreePath, { recursive: true, force: true });
+  }
+});
+
+test("resolveCodeDevelopmentExecutionCwd reports invalid worktrees instead of silently falling back", () => {
+  const missingPath = resolve(join(tmpdir(), "agent-space-missing-worktree"));
+  const missing = resolveCodeDevelopmentExecutionCwd(buildInputBundle({
+    sessionId: "code-session-missing",
+    worktreePath: missingPath,
+  }));
+  assert.equal(missing.status, "invalid");
+  assert.equal(missing.executionCwd, undefined);
+  assert.equal(missing.requestedWorktreePath, missingPath);
+  assert.equal(missing.invalidReason, "worktree path does not exist or is not a directory");
+  assert.match(missing.warning ?? "", /code-session-missing/);
+
+  const relative = resolveCodeDevelopmentExecutionCwd(buildInputBundle({
+    sessionId: "code-session-relative",
+    worktreePath: "relative/worktree",
+  }));
+  assert.equal(relative.status, "invalid");
+  assert.equal(relative.executionCwd, undefined);
+  assert.equal(relative.invalidReason, "worktree path is not absolute");
+  assert.match(relative.warning ?? "", /staging work directory/);
+});
+
+test("resolveCodeDevelopmentExecutionCwd ignores tasks without code development metadata", () => {
+  const resolution = resolveCodeDevelopmentExecutionCwd(buildInputBundle(undefined));
+  assert.equal(resolution.status, "none");
+  assert.equal(resolution.executionCwd, undefined);
+  assert.equal(resolution.warning, undefined);
+});
+
+function buildInputBundle(codeDevelopment: { sessionId?: string; worktreePath?: string } | undefined) {
+  return {
+    metadata: {
+      codeDevelopment,
+    },
+  } as Parameters<typeof resolveCodeDevelopmentExecutionCwd>[0];
+}

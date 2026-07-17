@@ -557,9 +557,18 @@ async function executeRemoteTask(
     try {
       const bundle = await client.getInputBundle(task.id);
       materializeInputBundle(workDir, bundle);
-      const executionCwd = runtime.provider === "openclaw"
-        ? undefined
+      const codeDevelopmentExecution = runtime.provider === "openclaw"
+        ? { status: "none" as const }
         : resolveCodeDevelopmentExecutionCwd(bundle);
+      if (codeDevelopmentExecution.warning) {
+        await client.reportMessages(task.id, {
+          messages: [{ type: "status", content: codeDevelopmentExecution.warning }],
+        }).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`Failed to report code development worktree warning for ${task.id}: ${message}`);
+        });
+      }
+      const executionCwd = codeDevelopmentExecution.executionCwd;
 
       const result = await runProviderTask(
         runtime,
@@ -573,7 +582,7 @@ async function executeRemoteTask(
             AGENT_SPACE_CONTEXT_TASK_ID: task.id,
             AGENT_SPACE_CONTEXT_AGENT_NAME: readRemoteTaskAgentName(task),
             AGENT_SPACE_CONTEXT_TRIGGER_TYPE: task.triggerType,
-            ...buildCodeDevelopmentContextEnv(bundle.metadata.codeDevelopment, executionCwd),
+            ...buildCodeDevelopmentContextEnv(bundle.metadata.codeDevelopment, codeDevelopmentExecution),
           }, bundle.metadata.googleWorkspace),
           runtimeApps: bundle.metadata.runtimeApps?.apps ?? [],
           runtimeToolCapabilities: bundle.metadata.runtimeToolCapabilities?.capabilities ?? [],
@@ -659,27 +668,72 @@ function buildRuntimeContextEnv(
   };
 }
 
-function resolveCodeDevelopmentExecutionCwd(bundle: DaemonTaskInputBundle): string | undefined {
+export interface CodeDevelopmentExecutionCwdResolution {
+  status: "none" | "active" | "invalid";
+  executionCwd?: string;
+  requestedWorktreePath?: string;
+  invalidReason?: string;
+  warning?: string;
+}
+
+export function resolveCodeDevelopmentExecutionCwd(bundle: DaemonTaskInputBundle): CodeDevelopmentExecutionCwdResolution {
+  const sessionId = bundle.metadata.codeDevelopment?.sessionId?.trim();
   const worktreePath = bundle.metadata.codeDevelopment?.worktreePath?.trim();
   if (!worktreePath || !isAbsolute(worktreePath)) {
-    return undefined;
+    if (!bundle.metadata.codeDevelopment) {
+      return { status: "none" };
+    }
+    return buildInvalidCodeDevelopmentExecutionCwdResolution(
+      sessionId,
+      worktreePath,
+      worktreePath ? "worktree path is not absolute" : "worktree path is missing",
+    );
   }
 
   const resolvedWorktreePath = resolve(worktreePath);
   try {
     if (!existsSync(resolvedWorktreePath) || !statSync(resolvedWorktreePath).isDirectory()) {
-      return undefined;
+      return buildInvalidCodeDevelopmentExecutionCwdResolution(
+        sessionId,
+        resolvedWorktreePath,
+        "worktree path does not exist or is not a directory",
+      );
     }
   } catch {
-    return undefined;
+    return buildInvalidCodeDevelopmentExecutionCwdResolution(
+      sessionId,
+      resolvedWorktreePath,
+      "worktree path could not be inspected",
+    );
   }
 
-  return resolvedWorktreePath;
+  return {
+    status: "active",
+    executionCwd: resolvedWorktreePath,
+    requestedWorktreePath: resolvedWorktreePath,
+  };
+}
+
+function buildInvalidCodeDevelopmentExecutionCwdResolution(
+  sessionId: string | undefined,
+  requestedWorktreePath: string | undefined,
+  invalidReason: string,
+): CodeDevelopmentExecutionCwdResolution {
+  const target = requestedWorktreePath?.trim() || "(missing)";
+  const session = sessionId ? ` for session ${sessionId}` : "";
+  return {
+    status: "invalid",
+    requestedWorktreePath: requestedWorktreePath?.trim() || undefined,
+    invalidReason,
+    warning:
+      `Code development worktree${session} is invalid (${invalidReason}): ${target}. `
+      + "The provider will run in the daemon staging work directory instead.",
+  };
 }
 
 function buildCodeDevelopmentContextEnv(
   codeDevelopment: DaemonTaskInputBundle["metadata"]["codeDevelopment"],
-  executionCwd: string | undefined,
+  execution: CodeDevelopmentExecutionCwdResolution,
 ): Record<string, string> {
   if (!codeDevelopment) {
     return {};
@@ -702,9 +756,16 @@ function buildCodeDevelopmentContextEnv(
   if (baseRef) {
     env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_BASE_REF = baseRef;
   }
-  if (executionCwd) {
-    env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_WORKTREE_PATH = executionCwd;
-    env.AGENT_SPACE_CONTEXT_EXECUTION_CWD = executionCwd;
+  env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_WORKTREE_STATUS = execution.status;
+  if (execution.requestedWorktreePath) {
+    env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_REQUESTED_WORKTREE_PATH = execution.requestedWorktreePath;
+  }
+  if (execution.invalidReason) {
+    env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_WORKTREE_INVALID_REASON = execution.invalidReason;
+  }
+  if (execution.executionCwd) {
+    env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_WORKTREE_PATH = execution.executionCwd;
+    env.AGENT_SPACE_CONTEXT_EXECUTION_CWD = execution.executionCwd;
   }
 
   return env;
