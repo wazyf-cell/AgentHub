@@ -42,6 +42,8 @@ import {
   listStoredSkillImportEventsSync,
   listAgentRouterProviderSessionsSync,
   listAgentTaskAttemptsSync,
+  listCollaborationRunsSync,
+  listCollaborationTaskNodesSync,
   readAgentRouterSessionSync,
   listTaskMessagesForTaskSync,
   listTaskExecutionEventsSync,
@@ -49,7 +51,17 @@ import {
   listWorkspaceMemberUsersSync,
   readActiveGoogleOAuthCredentialSync,
 } from "@agent-space/db";
-import type { BudgetAction, BudgetPeriod, BudgetScope, TaskExecutionEventRecord, TaskExecutionEventType, WorkspaceMemberUserRecord, WorkspaceRole } from "@agent-space/db";
+import type {
+  BudgetAction,
+  BudgetPeriod,
+  BudgetScope,
+  CollaborationRunStatus,
+  CollaborationTaskNodeStatus,
+  TaskExecutionEventRecord,
+  TaskExecutionEventType,
+  WorkspaceMemberUserRecord,
+  WorkspaceRole,
+} from "@agent-space/db";
 import type {
   ActiveEmployee,
   AgentSpaceState,
@@ -99,6 +111,10 @@ const listKnowledgeAssignmentsCached = cache((workspaceId: string) => listKnowle
 const listDaemonSnapshotsCached = cache((workspaceId: string) => listDaemonSnapshotsSync(workspaceId));
 const listEmployeeRuntimeBindingsCached = cache((workspaceId: string) => listEmployeeRuntimeBindingsSync(workspaceId));
 const listQueuedTasksCached = cache((workspaceId: string) => listQueuedTasksSync({ workspaceId }));
+const listCollaborationRunsCached = cache((workspaceId: string) => listCollaborationRunsSync({ workspaceId }));
+const listCollaborationTaskNodesCached = cache((workspaceId: string, runId: string) =>
+  listCollaborationTaskNodesSync(runId, workspaceId)
+);
 const readAgentRouterSessionCached = cache((routerSessionId: string) => readAgentRouterSessionSync(routerSessionId));
 const listAgentTaskAttemptsCached = cache((workspaceId: string, taskQueueId: string) =>
   listAgentTaskAttemptsSync({ workspaceId, taskQueueId, limit: 20 })
@@ -4186,6 +4202,35 @@ function safeParseJson(value: string): Record<string, unknown> {
   }
 }
 
+function readStringListJson(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function readCollaborationResultSummary(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = safeParseJson(value);
+  const directSummary = parsed.summary;
+  if (typeof directSummary === "string" && directSummary.trim()) {
+    return directSummary.trim();
+  }
+  const output = parsed.output;
+  if (typeof output === "string" && output.trim()) {
+    return output.trim();
+  }
+  const taskOutput = parsed.taskOutput;
+  if (typeof taskOutput === "string" && taskOutput.trim()) {
+    return taskOutput.trim();
+  }
+  return undefined;
+}
+
 function resolveDaemonMode(
   runtimeMetadata: Record<string, unknown>,
   daemonMetadata: Record<string, unknown>,
@@ -5264,12 +5309,40 @@ export interface AutomationsPageData {
   rules: AutomationRule[];
   documentRuns: ChannelDocumentRunRecord[];
   autoContinuationRuns: AutoContinuationRunRecord[];
+  collaborationRuns: CollaborationRunViewRecord[];
   totalCount: number;
   enabledCount: number;
   documentRunCount: number;
   autoContinuationRunCount: number;
+  collaborationRunCount: number;
   channels: Array<{ name: string }>;
   agents: Array<{ id: string; name: string }>;
+}
+
+export interface CollaborationRunViewRecord {
+  id: string;
+  title: string;
+  goal: string;
+  status: CollaborationRunStatus;
+  createdByDisplayName?: string;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt?: string;
+  nodes: CollaborationTaskNodeViewRecord[];
+}
+
+export interface CollaborationTaskNodeViewRecord {
+  id: string;
+  agentId: string;
+  title: string;
+  instruction: string;
+  dependsOnNodeIds: string[];
+  status: CollaborationTaskNodeStatus;
+  taskQueueId?: string;
+  resultSummary?: string;
+  errorText?: string;
+  sortOrder: number;
+  updatedAt: string;
 }
 
 export interface AutoContinuationRunRecord {
@@ -5339,15 +5412,42 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
       lastTaskQueueId: workspace.lastTaskQueueId,
       lastTaskStatus: workspace.lastTaskQueueId ? queuedTaskById.get(workspace.lastTaskQueueId)?.status : undefined,
     }) satisfies AutoContinuationRunRecord);
+  const collaborationRuns = listCollaborationRunsCached(workspaceId)
+    .slice(0, 20)
+    .map((run) => ({
+      id: run.id,
+      title: run.title,
+      goal: run.goal,
+      status: run.status,
+      createdByDisplayName: run.createdByDisplayName,
+      createdAt: run.createdAt,
+      updatedAt: run.updatedAt,
+      finishedAt: run.finishedAt,
+      nodes: listCollaborationTaskNodesCached(workspaceId, run.id).map((node) => ({
+        id: node.id,
+        agentId: node.agentId,
+        title: node.title,
+        instruction: node.instruction,
+        dependsOnNodeIds: readStringListJson(node.dependsOnNodeIdsJson),
+        status: node.status,
+        taskQueueId: node.taskQueueId,
+        resultSummary: readCollaborationResultSummary(node.resultJson),
+        errorText: node.errorText,
+        sortOrder: node.sortOrder,
+        updatedAt: node.updatedAt,
+      })),
+    }) satisfies CollaborationRunViewRecord);
 
   return {
     rules,
     documentRuns,
     autoContinuationRuns,
-    totalCount: rules.length + 2,
-    enabledCount: rules.filter((r) => r.enabled).length + 2,
+    collaborationRuns,
+    totalCount: rules.length + 3,
+    enabledCount: rules.filter((r) => r.enabled).length + 3,
     documentRunCount: documentRuns.length,
     autoContinuationRunCount: autoContinuationRuns.length,
+    collaborationRunCount: collaborationRuns.length,
     channels: state.channels.map((ch) => ({ name: ch.name })),
     agents: state.activeEmployees.map((e) => ({
       id: e.name,

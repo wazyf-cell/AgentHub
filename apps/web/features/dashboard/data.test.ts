@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { MessageAttachment } from "@agent-space/domain/workspace";
 import {
   completeQueuedTaskSync,
+  createCollaborationRunSync,
   createDaemonApiTokenSync,
   createUserSync,
   createWorkspaceSync,
@@ -84,6 +85,15 @@ function ensureTestWorkspace(id: string, slug: string, name: string): void {
 }
 
 function clearWorkspaceScopedTestRows(): void {
+  getDatabase()
+    .prepare("DELETE FROM collaboration_run_event WHERE workspace_id IN (?, ?)")
+    .run("default", "workspace-mars");
+  getDatabase()
+    .prepare("DELETE FROM collaboration_task_node WHERE workspace_id IN (?, ?)")
+    .run("default", "workspace-mars");
+  getDatabase()
+    .prepare("DELETE FROM collaboration_run WHERE workspace_id IN (?, ?)")
+    .run("default", "workspace-mars");
   getDatabase()
     .prepare("DELETE FROM daemon_api_token WHERE workspace_id IN (?, ?)")
     .run("default", "workspace-mars");
@@ -1004,8 +1014,8 @@ describe("dashboard data", () => {
 
     const automationsPage = getAutomationsPageData();
 
-    expect(automationsPage.totalCount).toBe(2);
-    expect(automationsPage.enabledCount).toBe(2);
+    expect(automationsPage.totalCount).toBe(3);
+    expect(automationsPage.enabledCount).toBe(3);
     expect(automationsPage.documentRunCount).toBe(1);
     expect(automationsPage.documentRuns[0]).toMatchObject({
       id: "run-planning-1",
@@ -1045,8 +1055,8 @@ describe("dashboard data", () => {
 
     const automationsPage = getAutomationsPageData();
 
-    expect(automationsPage.totalCount).toBe(2);
-    expect(automationsPage.enabledCount).toBe(2);
+    expect(automationsPage.totalCount).toBe(3);
+    expect(automationsPage.enabledCount).toBe(3);
     expect(automationsPage.autoContinuationRunCount).toBe(1);
     expect(automationsPage.autoContinuationRuns[0]).toMatchObject({
       channelName: "planning",
@@ -1056,6 +1066,57 @@ describe("dashboard data", () => {
       iteration: 2,
       until: "2026-04-29T22:00:00.000Z",
     });
+  });
+
+  it("includes collaboration runs in automations page data", () => {
+    createCollaborationRunSync({
+      id: "collab-run-planning",
+      workspaceId: "default",
+      title: "Feature release swarm",
+      goal: "Atlas plans the release, then Nova reviews it.",
+      status: "running",
+      nodes: [
+        {
+          id: "collab-node-plan",
+          agentId: "Atlas",
+          title: "Draft release plan",
+          instruction: "Draft a concise release plan.",
+        },
+        {
+          id: "collab-node-review",
+          agentId: "Nova",
+          title: "Review release plan",
+          instruction: "Review the release plan and identify risks.",
+          dependsOnNodeIds: ["collab-node-plan"],
+        },
+      ],
+    });
+
+    const automationsPage = getAutomationsPageData();
+
+    expect(automationsPage.totalCount).toBe(3);
+    expect(automationsPage.enabledCount).toBe(3);
+    expect(automationsPage.collaborationRunCount).toBe(1);
+    expect(automationsPage.collaborationRuns[0]).toMatchObject({
+      id: "collab-run-planning",
+      title: "Feature release swarm",
+      goal: "Atlas plans the release, then Nova reviews it.",
+      status: "running",
+    });
+    expect(automationsPage.collaborationRuns[0]?.nodes).toEqual([
+      expect.objectContaining({
+        id: "collab-node-plan",
+        agentId: "Atlas",
+        status: "ready",
+        dependsOnNodeIds: [],
+      }),
+      expect.objectContaining({
+        id: "collab-node-review",
+        agentId: "Nova",
+        status: "pending",
+        dependsOnNodeIds: ["collab-node-plan"],
+      }),
+    ]);
   });
 
   it("hides channel documents when the current user lacks document access even if the channel is visible", () => {

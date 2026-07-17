@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { AutoContinuationRunRecord, AutomationsPageData, ChannelDocumentRunRecord } from "@/features/dashboard/data";
+import type {
+  AutoContinuationRunRecord,
+  AutomationsPageData,
+  ChannelDocumentRunRecord,
+  CollaborationRunViewRecord,
+} from "@/features/dashboard/data";
 import { refreshWorkspaceModule } from "@/features/dashboard/workspace-module-refresh";
 import type {
   AutomationRule,
@@ -86,8 +91,29 @@ const AUTO_CONTINUATION_STATUS_LABELS: Record<AutoContinuationRunRecord["status"
   stopped: { label: "已停止", labelEn: "Stopped", badge: "disabled" },
 };
 
+const COLLABORATION_RUN_STATUS_LABELS: Record<CollaborationRunViewRecord["status"], { label: string; labelEn: string; badge: string }> = {
+  draft: { label: "草稿", labelEn: "Draft", badge: "disabled" },
+  approved: { label: "已批准", labelEn: "Approved", badge: "queued" },
+  running: { label: "运行中", labelEn: "Running", badge: "running" },
+  completed: { label: "已完成", labelEn: "Completed", badge: "completed" },
+  failed: { label: "失败", labelEn: "Failed", badge: "failed" },
+  cancelled: { label: "已取消", labelEn: "Cancelled", badge: "cancelled" },
+};
+
+const COLLABORATION_NODE_STATUS_LABELS: Record<CollaborationRunViewRecord["nodes"][number]["status"], { label: string; labelEn: string; badge: string }> = {
+  pending: { label: "等待依赖", labelEn: "Pending", badge: "disabled" },
+  ready: { label: "可派发", labelEn: "Ready", badge: "queued" },
+  queued: { label: "已入队", labelEn: "Queued", badge: "queued" },
+  running: { label: "执行中", labelEn: "Running", badge: "running" },
+  completed: { label: "已完成", labelEn: "Completed", badge: "completed" },
+  failed: { label: "失败", labelEn: "Failed", badge: "failed" },
+  blocked: { label: "已阻断", labelEn: "Blocked", badge: "failed" },
+  cancelled: { label: "已取消", labelEn: "Cancelled", badge: "cancelled" },
+};
+
 const BUILTIN_SEQUENCE_RULE_ID = "builtin:channel-sequential-then";
 const BUILTIN_AUTO_CONTINUATION_RULE_ID = "builtin:auto-continuation-until";
+const BUILTIN_COLLABORATION_ORCHESTRATOR_RULE_ID = "builtin:collaboration-orchestrator";
 
 function getConditionFieldLabel(field: string, tx: (zh: string, en: string) => string): string {
   const option = CONDITION_FIELDS.find((item) => item.value === field);
@@ -134,7 +160,9 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
   const selectedRule = data.rules.find((rule) => rule.id === selectedId);
   const selectedBuiltinSequenceRule = selectedId === BUILTIN_SEQUENCE_RULE_ID;
   const selectedBuiltinAutoContinuationRule = selectedId === BUILTIN_AUTO_CONTINUATION_RULE_ID;
+  const selectedBuiltinCollaborationRule = selectedId === BUILTIN_COLLABORATION_ORCHESTRATOR_RULE_ID;
   const activeAutoContinuationRuns = data.autoContinuationRuns.filter((run) => run.status === "active");
+  const activeCollaborationRuns = data.collaborationRuns.filter((run) => run.status === "running" || run.status === "approved");
   const selectedConditionField = CONDITION_FIELDS.find((field) => field.value === createConditionField) ?? CONDITION_FIELDS[0]!;
   const selectedTriggerLabel = TRIGGER_TYPES.find((trigger) => trigger.value === createTriggerType);
   const selectedOperatorLabel = CONDITION_OPERATORS.find((operator) => operator.value === createConditionOperator);
@@ -294,6 +322,37 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                   ))}
                 </div>
               ) : null}
+            </div>
+
+            <div
+              className={`automations-card${selectedBuiltinCollaborationRule ? " automations-card--selected" : ""}`}
+              onClick={() => setSelectedId(selectedBuiltinCollaborationRule ? null : BUILTIN_COLLABORATION_ORCHESTRATOR_RULE_ID)}
+            >
+              <div className="automations-card__header">
+                <div className="automations-card__title">
+                  <strong>{tx("多 Agent 编排", "Multi-agent orchestration")}</strong>
+                  <span className="automations-card__badge automations-card__badge--enabled">
+                    {tx("内置", "Built-in")}
+                  </span>
+                  {activeCollaborationRuns.length > 0 ? (
+                    <span className="automations-card__badge automations-card__badge--run-running">
+                      {tx(`${activeCollaborationRuns.length} 个运行中`, `${activeCollaborationRuns.length} active`)}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <p className="automations-card__description">
+                {tx("通过 CollaborationRun DAG 按依赖调度多个 Agent，daemon 完成节点后自动推进下游任务。", "Creates CollaborationRun DAGs, dispatches agents by dependency, and advances downstream tasks after daemon completion.")}
+              </p>
+              <div className="automations-card__flow">
+                <span className="automations-card__trigger">{tx("API 创建", "API create")}</span>
+                <span className="automations-card__conditions">→ {tx("依赖 DAG", "dependency DAG")}</span>
+                <span className="automations-card__arrow">→</span>
+                <span className="automations-card__action">{tx("自动派发与推进", "Dispatch and advance")}</span>
+              </div>
+              <div className="automations-card__meta">
+                {tx("运行实例", "Runs")}: {data.collaborationRunCount}
+              </div>
             </div>
 
               {data.rules.map((rule) => (
@@ -462,6 +521,66 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                           → {tx("截止", "Until")}: {formatCompactTimestamp(run.until, { emptyFallback: run.until })}
                         </span>
                       </div>
+                      <small>{tx("最近更新", "Updated")}: {formatCompactTimestamp(run.updatedAt, { emptyFallback: run.updatedAt })}</small>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {selectedBuiltinCollaborationRule ? (
+          <div className="automations-detail">
+            <div className="automations-detail__header">
+              <h2>{tx("多 Agent 编排", "Multi-agent orchestration")}</h2>
+              <span>{tx("内置规则", "Built-in rule")}</span>
+            </div>
+            <p>
+              {tx("这条入口用于查看由 Orchestrator API 创建的 CollaborationRun。每个 run 由多个节点组成，节点完成后系统会按依赖自动派发后续节点。", "This entry shows CollaborationRuns created by the Orchestrator API. Each run contains task nodes; when a node completes, the system dispatches downstream nodes by dependency.")}
+            </p>
+            <div className="automations-run-list">
+              {data.collaborationRuns.length === 0 ? (
+                <EmptyState
+                  body={tx("还没有通过 Orchestrator API 创建的多 Agent 编排运行。", "No multi-agent orchestration runs have been created through the Orchestrator API yet.")}
+                  eyebrow={tx("运行实例", "Runs")}
+                  title={tx("暂无运行记录", "No runs yet")}
+                  variant="warm"
+                />
+              ) : (
+                data.collaborationRuns.map((run) => {
+                  const statusLabel = COLLABORATION_RUN_STATUS_LABELS[run.status];
+                  return (
+                    <div className="automations-run" key={run.id}>
+                      <div className="automations-run__header">
+                        <strong>{run.title}</strong>
+                        <span className={`automations-card__badge automations-card__badge--run-${statusLabel.badge}`}>
+                          {tx(statusLabel.label, statusLabel.labelEn)}
+                        </span>
+                      </div>
+                      <p>{run.goal}</p>
+                      <div className="automations-card__flow">
+                        {run.nodes.map((node, index) => {
+                          const nodeStatus = COLLABORATION_NODE_STATUS_LABELS[node.status];
+                          return (
+                            <span className="automations-card__action" key={node.id} title={node.instruction}>
+                              {index + 1}. {node.title} · {node.agentId} · {tx(nodeStatus.label, nodeStatus.labelEn)}
+                              {node.taskQueueId ? ` · ${tx("队列", "Queue")}: ${node.taskQueueId.slice(0, 12)}` : ""}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {run.nodes.some((node) => node.errorText || node.resultSummary) ? (
+                        <div className="automations-run-list">
+                          {run.nodes
+                            .filter((node) => node.errorText || node.resultSummary)
+                            .map((node) => (
+                              <small key={`${node.id}:summary`}>
+                                {node.title}: {node.errorText ?? node.resultSummary}
+                              </small>
+                            ))}
+                        </div>
+                      ) : null}
                       <small>{tx("最近更新", "Updated")}: {formatCompactTimestamp(run.updatedAt, { emptyFallback: run.updatedAt })}</small>
                     </div>
                   );

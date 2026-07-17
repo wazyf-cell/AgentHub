@@ -155,6 +155,10 @@ export function listCollaborationRunsSync(options: {
   status?: CollaborationRunStatus;
 } = {}): CollaborationRunRecord[] {
   const workspaceId = options.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  const statusFilter = options.status
+    ? "WHERE workspace_id = ? AND status = ?"
+    : "WHERE workspace_id = ?";
+  const params = options.status ? [workspaceId, options.status] : [workspaceId];
   const rows = getDatabase().prepare(
     `SELECT
       id,
@@ -171,10 +175,9 @@ export function listCollaborationRunsSync(options: {
       created_at AS createdAt,
       updated_at AS updatedAt
      FROM collaboration_run
-     WHERE workspace_id = ?
-       AND (? IS NULL OR status = ?)
+     ${statusFilter}
      ORDER BY updated_at DESC, created_at DESC`,
-  ).all(workspaceId, options.status ?? null, options.status ?? null) as Array<Record<string, unknown>>;
+  ).all(...params) as Array<Record<string, unknown>>;
 
   return rows.map(mapCollaborationRunRecord).filter((run): run is CollaborationRunRecord => run !== null);
 }
