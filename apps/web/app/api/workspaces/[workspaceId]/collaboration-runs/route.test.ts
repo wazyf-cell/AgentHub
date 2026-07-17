@@ -160,6 +160,123 @@ describe("workspace collaboration runs route", () => {
     });
   });
 
+  it("creates collaboration runs with code development node configuration", async () => {
+    const createdRun = buildRun({
+      id: "run-code",
+      title: "Router hardening",
+      planJson: JSON.stringify({
+        codeDevelopment: {
+          version: 1,
+          sessions: [
+            {
+              nodeId: "router",
+              sessionId: "code-dev-router",
+              worktreePath: "F:/repo/.worktrees/router-hardening",
+              branchName: "agent-space/router-hardening",
+            },
+          ],
+        },
+      }),
+    });
+    const node = buildNode({ id: "router", runId: "run-code", title: "Router hardening", taskQueueId: "queue-router" });
+    mockCreateAndDispatchCollaborationRunSync.mockReturnValue({
+      run: createdRun,
+      nodes: [node],
+      dispatched: [{ node, taskQueueId: "queue-router" }],
+      skipped: [],
+    });
+    mockListCollaborationTaskNodesSync.mockReturnValue([node]);
+
+    const response = await POST(
+      new Request("http://localhost/api/workspaces/workspace-alpha/collaboration-runs", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Router hardening",
+          goal: "Prepare a safe patch in an isolated worktree.",
+          nodes: [
+            {
+              id: "router",
+              agentId: "Atlas",
+              title: "Router hardening",
+              instruction: "Prepare router hardening patch.",
+              codeDevelopment: {
+                repositoryRoot: "F:/repo",
+                worktreeRoot: "F:/repo/.worktrees",
+                branchPrefix: "agent-space",
+                branchName: "agent-space/router-hardening",
+                baseRef: "main",
+                title: "Router code session",
+                goal: "Prepare router hardening patch.",
+                assignedAgentIds: ["Atlas", "Nova"],
+              },
+            },
+          ],
+        }),
+      }),
+      { params: Promise.resolve({ workspaceId: "workspace-alpha" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(mockCreateAndDispatchCollaborationRunSync).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: "workspace-1",
+      title: "Router hardening",
+      nodes: [
+        {
+          id: "router",
+          agentId: "Atlas",
+          title: "Router hardening",
+          instruction: "Prepare router hardening patch.",
+          dependsOnNodeIds: undefined,
+          codeDevelopment: {
+            repositoryRoot: "F:/repo",
+            worktreeRoot: "F:/repo/.worktrees",
+            branchPrefix: "agent-space",
+            branchName: "agent-space/router-hardening",
+            baseRef: "main",
+            title: "Router code session",
+            goal: "Prepare router hardening patch.",
+            assignedAgentIds: ["Atlas", "Nova"],
+          },
+        },
+      ],
+    }));
+    expect(payload.run.nodes[0]).toMatchObject({
+      id: "router",
+      codeDevelopmentSessionId: "code-dev-router",
+      codeDevelopmentWorktreePath: "F:/repo/.worktrees/router-hardening",
+      codeDevelopmentBranchName: "agent-space/router-hardening",
+    });
+  });
+
+  it("rejects code development nodes without repositoryRoot", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/workspaces/workspace-alpha/collaboration-runs", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Bad code run",
+          goal: "Missing repository root",
+          nodes: [
+            {
+              id: "router",
+              agentId: "Atlas",
+              title: "Router hardening",
+              instruction: "Prepare router hardening patch.",
+              codeDevelopment: { baseRef: "main" },
+            },
+          ],
+        }),
+      }),
+      { params: Promise.resolve({ workspaceId: "workspace-alpha" }) },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "nodes[0].codeDevelopment.repositoryRoot is required when codeDevelopment is provided.",
+    });
+    expect(mockCreateAndDispatchCollaborationRunSync).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid dependencies before calling the orchestrator", async () => {
     const response = await POST(
       new Request("http://localhost/api/workspaces/workspace-alpha/collaboration-runs", {

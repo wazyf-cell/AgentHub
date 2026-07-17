@@ -8,6 +8,7 @@ import {
 } from "@agent-space/db";
 import {
   createAndDispatchCollaborationRunSync,
+  type CollaborationCodeDevelopmentNodeInput,
   type CollaborationDispatchPriority,
 } from "@agent-space/services";
 import { getWorkspaceContextForIdentifier } from "@/features/auth/server-workspace";
@@ -26,6 +27,7 @@ interface CollaborationRunApiNodeInput {
   title?: unknown;
   instruction?: unknown;
   dependsOnNodeIds?: unknown;
+  codeDevelopment?: unknown;
 }
 
 interface CollaborationRunApiSynthesisInput {
@@ -157,6 +159,7 @@ function normalizeCreateBody(body: CollaborationRunApiCreateBody):
         title: string;
         instruction: string;
         dependsOnNodeIds?: string[];
+        codeDevelopment?: CollaborationCodeDevelopmentNodeInput;
       }>;
       synthesis?: {
         id?: string;
@@ -189,6 +192,7 @@ function normalizeCreateBody(body: CollaborationRunApiCreateBody):
     title: string;
     instruction: string;
     dependsOnNodeIds?: string[];
+    codeDevelopment?: CollaborationCodeDevelopmentNodeInput;
   }> = [];
 
   for (const [index, rawNode] of body.nodes.entries()) {
@@ -198,6 +202,10 @@ function normalizeCreateBody(body: CollaborationRunApiCreateBody):
     const nodeTitle = readTrimmedString(node.title);
     const instruction = readTrimmedString(node.instruction);
     const dependsOnNodeIds = readStringArray(node.dependsOnNodeIds);
+    const codeDevelopment = normalizeCodeDevelopmentNodeInput(node.codeDevelopment, `nodes[${index}].codeDevelopment`);
+    if ("error" in codeDevelopment) {
+      return codeDevelopment;
+    }
 
     if (!agentId || !nodeTitle || !instruction) {
       return { error: `nodes[${index}] requires agentId, title, and instruction.` };
@@ -213,6 +221,7 @@ function normalizeCreateBody(body: CollaborationRunApiCreateBody):
       title: nodeTitle,
       instruction,
       dependsOnNodeIds: dependsOnNodeIds.length > 0 ? dependsOnNodeIds : undefined,
+      codeDevelopment: codeDevelopment.value,
     });
   }
 
@@ -243,6 +252,34 @@ function normalizeCreateBody(body: CollaborationRunApiCreateBody):
   };
 }
 
+function normalizeCodeDevelopmentNodeInput(
+  value: unknown,
+  path: string,
+): { value?: CollaborationCodeDevelopmentNodeInput } | { error: string } {
+  if (value === undefined || value === null) {
+    return {};
+  }
+  const raw = readObject(value);
+  const repositoryRoot = readTrimmedString(raw.repositoryRoot);
+  if (!repositoryRoot) {
+    return { error: `${path}.repositoryRoot is required when codeDevelopment is provided.` };
+  }
+
+  const assignedAgentIds = readStringArray(raw.assignedAgentIds);
+  return {
+    value: {
+      repositoryRoot,
+      worktreeRoot: readTrimmedString(raw.worktreeRoot),
+      branchPrefix: readTrimmedString(raw.branchPrefix),
+      branchName: readTrimmedString(raw.branchName),
+      baseRef: readTrimmedString(raw.baseRef),
+      title: readTrimmedString(raw.title),
+      goal: readTrimmedString(raw.goal),
+      assignedAgentIds: assignedAgentIds.length > 0 ? assignedAgentIds : undefined,
+    },
+  };
+}
+
 function normalizeSynthesis(value: unknown):
   | { value?: { id?: string; agentId: string; title?: string; instruction?: string } }
   | { error: string } {
@@ -265,6 +302,7 @@ function normalizeSynthesis(value: unknown):
 }
 
 function serializeCollaborationRun(run: CollaborationRunRecord, nodes: CollaborationTaskNodeRecord[]) {
+  const codeDevelopmentByNodeId = readCodeDevelopmentSessionsByNodeId(run.planJson);
   return {
     id: run.id,
     workspaceId: run.workspaceId,
@@ -279,24 +317,30 @@ function serializeCollaborationRun(run: CollaborationRunRecord, nodes: Collabora
     evidenceSummary: readEvidenceSummary(run.resultJson),
     evidenceSourceCount: readEvidenceSourceCount(run.resultJson),
     evidenceNodeCount: readEvidenceNodeCount(run.resultJson),
-    nodes: nodes.map((node) => ({
-      id: node.id,
-      runId: node.runId,
-      agentId: node.agentId,
-      title: node.title,
-      instruction: node.instruction,
-      dependsOnNodeIdsJson: node.dependsOnNodeIdsJson,
-      status: node.status,
-      taskQueueId: node.taskQueueId,
-      resultJson: node.resultJson,
-      errorText: node.errorText,
-      sortOrder: node.sortOrder,
-      queuedAt: node.queuedAt,
-      startedAt: node.startedAt,
-      finishedAt: node.finishedAt,
-      createdAt: node.createdAt,
-      updatedAt: node.updatedAt,
-    })),
+    nodes: nodes.map((node) => {
+      const codeDevelopment = codeDevelopmentByNodeId.get(node.id);
+      return {
+        id: node.id,
+        runId: node.runId,
+        agentId: node.agentId,
+        title: node.title,
+        instruction: node.instruction,
+        dependsOnNodeIdsJson: node.dependsOnNodeIdsJson,
+        status: node.status,
+        taskQueueId: node.taskQueueId,
+        resultJson: node.resultJson,
+        errorText: node.errorText,
+        sortOrder: node.sortOrder,
+        queuedAt: node.queuedAt,
+        startedAt: node.startedAt,
+        finishedAt: node.finishedAt,
+        createdAt: node.createdAt,
+        updatedAt: node.updatedAt,
+        codeDevelopmentSessionId: codeDevelopment?.sessionId,
+        codeDevelopmentWorktreePath: codeDevelopment?.worktreePath,
+        codeDevelopmentBranchName: codeDevelopment?.branchName,
+      };
+    }),
   };
 }
 
@@ -331,6 +375,44 @@ function readPriority(value: unknown): CollaborationDispatchPriority | undefined
 
 function readObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readCodeDevelopmentSessionsByNodeId(planJson: string): Map<
+  string,
+  { sessionId: string | undefined; worktreePath: string | undefined; branchName: string | undefined }
+> {
+  let plan: Record<string, unknown>;
+  try {
+    plan = readObject(JSON.parse(planJson) as unknown);
+  } catch {
+    return new Map();
+  }
+  const codeDevelopment = readObject(plan.codeDevelopment);
+  const sessions = Array.isArray(codeDevelopment.sessions) ? codeDevelopment.sessions : [];
+  const entries: Array<
+    readonly [
+      string,
+      { sessionId: string | undefined; worktreePath: string | undefined; branchName: string | undefined },
+    ]
+  > = [];
+
+  for (const item of sessions) {
+    const session = readObject(item);
+    const nodeId = readTrimmedString(session.nodeId);
+    if (!nodeId) {
+      continue;
+    }
+    entries.push([
+      nodeId,
+      {
+        sessionId: readTrimmedString(session.sessionId),
+        worktreePath: readTrimmedString(session.worktreePath),
+        branchName: readTrimmedString(session.branchName),
+      },
+    ]);
+  }
+
+  return new Map(entries);
 }
 
 function readEvidenceSummary(resultJson: string | undefined): string | undefined {

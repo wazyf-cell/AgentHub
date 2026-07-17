@@ -18,6 +18,7 @@ import type {
   AutomationConditionOperator,
 } from "@agent-space/domain/workspace";
 import {
+  createCodeDevelopmentCollaborationRunAction,
   createAutomationRuleAction,
   toggleAutomationRuleAction,
   deleteAutomationRuleAction,
@@ -180,6 +181,15 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
   const [createConditionOperator, setCreateConditionOperator] = useState<AutomationConditionOperator>("contains");
   const [createConditionValue, setCreateConditionValue] = useState("");
   const [createActionType, setCreateActionType] = useState<AutomationActionType>("send_message");
+  const [codeDevTitle, setCodeDevTitle] = useState("");
+  const [codeDevGoal, setCodeDevGoal] = useState("");
+  const [codeDevAgentId, setCodeDevAgentId] = useState(data.agents[0]?.id ?? "");
+  const [codeDevInstruction, setCodeDevInstruction] = useState("");
+  const [codeDevRepositoryRoot, setCodeDevRepositoryRoot] = useState("");
+  const [codeDevBaseRef, setCodeDevBaseRef] = useState("main");
+  const [codeDevBranchPrefix, setCodeDevBranchPrefix] = useState("agent-space");
+  const [codeDevBranchName, setCodeDevBranchName] = useState("");
+  const [codeDevError, setCodeDevError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const selectedRule = data.rules.find((rule) => rule.id === selectedId);
   const selectedBuiltinSequenceRule = selectedId === BUILTIN_SEQUENCE_RULE_ID;
@@ -249,6 +259,42 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
         contactId: run.contactId,
       });
       refreshWorkspaceModule(onDataChanged, router);
+    });
+  }
+
+  function handleCreateCodeDevelopmentRun(): void {
+    const title = codeDevTitle.trim();
+    const goal = codeDevGoal.trim();
+    const agentId = codeDevAgentId.trim();
+    const instruction = codeDevInstruction.trim();
+    const repositoryRoot = codeDevRepositoryRoot.trim();
+    if (!title || !goal || !agentId || !instruction || !repositoryRoot) {
+      setCodeDevError(tx("请填写标题、目标、Agent、指令和仓库根目录。", "Fill title, goal, agent, instruction, and repository root."));
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        setCodeDevError(null);
+        await createCodeDevelopmentCollaborationRunAction({
+          title,
+          goal,
+          agentId,
+          instruction,
+          repositoryRoot,
+          baseRef: codeDevBaseRef,
+          branchPrefix: codeDevBranchPrefix,
+          branchName: codeDevBranchName,
+        });
+        setCodeDevTitle("");
+        setCodeDevGoal("");
+        setCodeDevInstruction("");
+        setCodeDevRepositoryRoot("");
+        setCodeDevBranchName("");
+        refreshWorkspaceModule(onDataChanged, router);
+      } catch (error) {
+        setCodeDevError(error instanceof Error ? error.message : tx("创建失败。", "Failed to create run."));
+      }
     });
   }
 
@@ -723,6 +769,97 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
             <p>
               {tx("这条入口用于查看多 Agent 代码开发会话。当前阶段只记录隔离 worktree、patch 摘要和审查状态，不会自动执行 git merge。", "This entry shows multi-agent code development sessions. This stage records isolated worktrees, patch summaries, and review state; it does not run git merge automatically.")}
             </p>
+            <div className="automations-builder">
+              <div className="automations-builder__step">
+                <span className="automations-builder__step-index">1</span>
+                <div className="automations-builder__step-body">
+                  <label>{tx("创建代码开发运行", "Create code development run")}</label>
+                  <input
+                    className="knowledge-modal__input"
+                    value={codeDevTitle}
+                    onChange={(event) => setCodeDevTitle(event.target.value)}
+                    placeholder={tx("例如：Router hardening", "Example: Router hardening")}
+                  />
+                  <input
+                    className="knowledge-modal__input"
+                    value={codeDevGoal}
+                    onChange={(event) => setCodeDevGoal(event.target.value)}
+                    placeholder={tx("运行目标", "Run goal")}
+                  />
+                </div>
+              </div>
+              <div className="automations-builder__step">
+                <span className="automations-builder__step-index">2</span>
+                <div className="automations-builder__step-body">
+                  <label>{tx("执行 Agent 与指令", "Agent and instruction")}</label>
+                  {data.agents.length > 0 ? (
+                    <select
+                      className="tables-create__col-type"
+                      value={codeDevAgentId}
+                      onChange={(event) => setCodeDevAgentId(event.target.value)}
+                    >
+                      {data.agents.map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className="knowledge-modal__input"
+                      value={codeDevAgentId}
+                      onChange={(event) => setCodeDevAgentId(event.target.value)}
+                      placeholder={tx("Agent 名称", "Agent name")}
+                    />
+                  )}
+                  <input
+                    className="knowledge-modal__input"
+                    value={codeDevInstruction}
+                    onChange={(event) => setCodeDevInstruction(event.target.value)}
+                    placeholder={tx("给 Agent 的开发指令", "Development instruction for the agent")}
+                  />
+                </div>
+              </div>
+              <div className="automations-builder__step">
+                <span className="automations-builder__step-index">3</span>
+                <div className="automations-builder__step-body">
+                  <label>{tx("仓库与分支", "Repository and branch")}</label>
+                  <input
+                    className="knowledge-modal__input"
+                    value={codeDevRepositoryRoot}
+                    onChange={(event) => setCodeDevRepositoryRoot(event.target.value)}
+                    placeholder={tx("仓库根目录，例如 F:/repo", "Repository root, e.g. F:/repo")}
+                  />
+                  <input
+                    className="knowledge-modal__input"
+                    value={codeDevBaseRef}
+                    onChange={(event) => setCodeDevBaseRef(event.target.value)}
+                    placeholder={tx("Base ref，例如 main", "Base ref, e.g. main")}
+                  />
+                  <input
+                    className="knowledge-modal__input"
+                    value={codeDevBranchPrefix}
+                    onChange={(event) => setCodeDevBranchPrefix(event.target.value)}
+                    placeholder={tx("分支前缀，例如 agent-space", "Branch prefix, e.g. agent-space")}
+                  />
+                  <input
+                    className="knowledge-modal__input"
+                    value={codeDevBranchName}
+                    onChange={(event) => setCodeDevBranchName(event.target.value)}
+                    placeholder={tx("可选：固定分支名", "Optional: fixed branch name")}
+                  />
+                </div>
+              </div>
+              {codeDevError ? <small>{codeDevError}</small> : null}
+              <button
+                className="knowledge-btn knowledge-btn--primary"
+                disabled={isPending}
+                onClick={handleCreateCodeDevelopmentRun}
+                type="button"
+              >
+                {isPending ? tx("创建中...", "Creating...") : tx("创建开发运行", "Create development run")}
+              </button>
+            </div>
             <div className="automations-run-list">
               {data.codeDevelopmentSessions.length === 0 ? (
                 <EmptyState
