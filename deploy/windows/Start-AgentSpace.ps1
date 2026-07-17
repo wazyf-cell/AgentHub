@@ -4,7 +4,15 @@ param(
   [string]$Hostname = "0.0.0.0",
   [int]$Port = 1455,
   [switch]$Install,
-  [switch]$NoBrowser
+  [switch]$NoBrowser,
+  [switch]$StartDaemon,
+  [ValidateSet("local", "remote")]
+  [string]$DaemonMode = "local",
+  [string]$DaemonId = "",
+  [string]$DeviceName = "",
+  [string]$RuntimeName = "",
+  [string]$ServerUrl = "",
+  [string]$DaemonToken = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -54,6 +62,7 @@ $preflightScript = Join-Path $scriptDir "Test-AgentSpaceRuntime.ps1"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $npm = Resolve-RequiredCommand @("npm.cmd", "npm")
+$node = Resolve-RequiredCommand @("node.exe", "node")
 
 Write-LauncherStep "Repository: $repoRoot"
 Write-LauncherStep "Mode: $Mode"
@@ -79,6 +88,33 @@ if (Test-Path $preflightScript) {
   & $preflightScript -Mode $Mode -RepoRoot $repoRoot
   if ($LASTEXITCODE -ne 0) {
     throw "Runtime preflight failed with exit code $LASTEXITCODE."
+  }
+}
+
+if ($StartDaemon) {
+  $cliEntry = Join-Path $repoRoot "apps\cli\src\index.ts"
+  $daemonArgs = @("--experimental-strip-types", $cliEntry, "daemon", "start", "--mode", $DaemonMode)
+
+  if ($DaemonId.Trim()) {
+    $daemonArgs += @("--daemon-id", $DaemonId.Trim())
+  }
+  if ($DeviceName.Trim()) {
+    $daemonArgs += @("--device-name", $DeviceName.Trim())
+  }
+  if ($RuntimeName.Trim()) {
+    $daemonArgs += @("--runtime-name", $RuntimeName.Trim())
+  }
+  if ($ServerUrl.Trim()) {
+    $daemonArgs += @("--server-url", $ServerUrl.Trim())
+  }
+  if ($DaemonToken.Trim()) {
+    $daemonArgs += @("--daemon-token", $DaemonToken.Trim())
+  }
+
+  Write-LauncherStep "Starting native daemon ($DaemonMode)..."
+  & $node @daemonArgs
+  if ($LASTEXITCODE -ne 0) {
+    Write-LauncherStep "Daemon start returned exit code $LASTEXITCODE. Continuing with web startup."
   }
 }
 

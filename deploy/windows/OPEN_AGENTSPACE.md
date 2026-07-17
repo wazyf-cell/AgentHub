@@ -38,6 +38,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSp
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSpace.ps1 -NoBrowser
 ```
 
+可选：启动 Web 前先启动本机 daemon：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSpace.ps1 -StartDaemon
+```
+
+如果 daemon 启动失败，启动器会显示 warning，但不会阻止 Web 界面打开。
+
 ## 启动前检查
 
 可以先运行：
@@ -91,6 +99,7 @@ dist-electron-out\AgentSpace.exe
 - `.env` 缺失会产生 warning；如果需要本地密钥或数据库配置，从 `.env.example` 复制一份 `.env` 后填写。
 - PostgreSQL URL 缺失会产生 warning；如果要使用 PostgreSQL，配置 `AGENT_SPACE_PG_URL` 或 `DATABASE_URL`。
 - 多 agent runtime / daemon 的完整一键启动还没并入桌面壳，后续 P5 继续完善。
+- `-StartDaemon` 只是可选启动 native daemon，不会自动配置 provider CLI、模型密钥或 PostgreSQL。
 
 ## 日志位置
 

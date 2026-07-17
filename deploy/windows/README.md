@@ -67,6 +67,22 @@ For desktop packaging checks:
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-AgentSpaceRuntime.ps1 -Mode start -Desktop
 ```
 
+## Optional native daemon
+
+The launcher can start the local daemon before the web server:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSpace.ps1 -StartDaemon
+```
+
+Remote daemon mode can be passed explicitly:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSpace.ps1 -StartDaemon -DaemonMode remote -ServerUrl "https://example.com" -DaemonToken "adt_xxx"
+```
+
+Daemon startup warnings do not block the web UI startup.
+
 ## Desktop executable path
 
 P5-B adds an Electron desktop shell and package scripts:
