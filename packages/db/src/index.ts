@@ -427,9 +427,12 @@ export {
   markCollaborationTaskNodeRunningSync,
   completeCollaborationTaskNodeSync,
   failCollaborationTaskNodeSync,
+  reviewCollaborationTaskNodeSync,
   listCollaborationRunEventsSync,
   type CreateCollaborationRunInput,
   type CreateCollaborationTaskNodeInput,
+  type CollaborationTaskReviewStatus,
+  type ReviewCollaborationTaskNodeInput,
 } from "./collaboration-runs.ts";
 
 // Task messages

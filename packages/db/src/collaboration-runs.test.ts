@@ -22,6 +22,7 @@ import {
   readCollaborationTaskNodeSync,
   readQueuedTaskSync,
   registerDaemonRuntimesSync,
+  reviewCollaborationTaskNodeSync,
 } from "./index.ts";
 
 const originalCwd = process.cwd();
@@ -100,6 +101,22 @@ test("creates a collaboration DAG and advances ready nodes after dependencies co
   assert.equal(afterResearch.node.status, "completed");
   assert.equal(afterResearch.run.status, "running");
   assert.deepEqual(afterResearch.readyNodes.map((node) => node.id), ["node-review"]);
+  const reviewedResearch = reviewCollaborationTaskNodeSync({
+    workspaceId,
+    nodeId: "node-research",
+    status: "accepted",
+    reviewerUserId: "user-reviewer",
+    reviewerDisplayName: "Reviewer",
+    comment: "Evidence is sufficient.",
+  });
+  const reviewedResult = JSON.parse(reviewedResearch.resultJson ?? "{}") as Record<string, unknown>;
+  assert.deepEqual(readObject(reviewedResult.review), {
+    status: "accepted",
+    reviewerUserId: "user-reviewer",
+    reviewerDisplayName: "Reviewer",
+    comment: "Evidence is sufficient.",
+    reviewedAt: readObject(reviewedResult.review).reviewedAt,
+  });
 
   completeCollaborationTaskNodeSync({
     workspaceId,
@@ -116,7 +133,7 @@ test("creates a collaboration DAG and advances ready nodes after dependencies co
   assert.equal(readCollaborationRunSync(run.id, workspaceId)?.status, "completed");
   assert.deepEqual(
     listCollaborationRunEventsSync(run.id, workspaceId).map((event) => event.type),
-    ["run.created", "node.completed", "node.completed", "node.completed"],
+    ["run.created", "node.completed", "node.reviewed", "node.completed", "node.completed"],
   );
 });
 
@@ -427,6 +444,10 @@ function seedWorkspaceRuntime(prefix: string): { workspaceId: string; runtimeId:
     runtimeId: runtime.id,
   });
   return { workspaceId: workspace.id, runtimeId: runtime.id };
+}
+
+function readObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 test.after(() => {

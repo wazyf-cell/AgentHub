@@ -29,6 +29,17 @@ export interface CreateCollaborationRunInput {
   nodes: CreateCollaborationTaskNodeInput[];
 }
 
+export type CollaborationTaskReviewStatus = "accepted" | "rejected" | "needs_revision";
+
+export interface ReviewCollaborationTaskNodeInput {
+  nodeId: string;
+  workspaceId?: string;
+  status: CollaborationTaskReviewStatus;
+  reviewerUserId?: string;
+  reviewerDisplayName?: string;
+  comment?: string;
+}
+
 export function createCollaborationRunSync(input: CreateCollaborationRunInput): {
   run: CollaborationRunRecord;
   nodes: CollaborationTaskNodeRecord[];
@@ -650,6 +661,51 @@ export function failCollaborationTaskNodeSync(input: {
   };
 }
 
+export function reviewCollaborationTaskNodeSync(input: ReviewCollaborationTaskNodeInput): CollaborationTaskNodeRecord {
+  const workspaceId = input.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  const now = new Date().toISOString();
+  const db = getDatabase();
+  const node = readRequiredCollaborationTaskNode(input.nodeId, workspaceId);
+  if (node.status !== "completed") {
+    throw new Error(`Collaboration task node "${input.nodeId}" must be completed before review.`);
+  }
+  const result = node.resultJson ? safeParseObject(node.resultJson) : {};
+  const nextResult = {
+    ...result,
+    review: {
+      status: input.status,
+      reviewerUserId: input.reviewerUserId,
+      reviewerDisplayName: input.reviewerDisplayName,
+      comment: input.comment,
+      reviewedAt: now,
+    },
+  };
+
+  withTransaction(db, () => {
+    db.prepare(
+      `UPDATE collaboration_task_node
+       SET result_json = ?,
+           updated_at = ?
+       WHERE workspace_id = ? AND id = ? AND status = 'completed'`,
+    ).run(JSON.stringify(nextResult), now, workspaceId, input.nodeId);
+    recordCollaborationRunEventInTransaction({
+      workspaceId,
+      runId: node.runId,
+      nodeId: input.nodeId,
+      type: "node.reviewed",
+      summary: `${node.title}: ${input.status}`,
+      data: {
+        status: input.status,
+        reviewerUserId: input.reviewerUserId,
+        reviewerDisplayName: input.reviewerDisplayName,
+        comment: input.comment,
+      },
+      createdAt: now,
+    });
+  });
+  return readRequiredCollaborationTaskNode(input.nodeId, workspaceId);
+}
+
 export function listCollaborationRunEventsSync(
   runId: string,
   workspaceId = DEFAULT_WORKSPACE_ID,
@@ -834,6 +890,15 @@ function readRequiredCollaborationTaskNode(nodeId: string, workspaceId: string):
     throw new Error(`Collaboration task node "${nodeId}" does not exist.`);
   }
   return node;
+}
+
+function safeParseObject(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
 }
 
 function normalizeListLimit(limit: number | undefined, defaultLimit: number): number {

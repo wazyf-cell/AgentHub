@@ -10,8 +10,10 @@ import {
   queueCollaborationTaskNodeSync,
   readCollaborationRunSync,
   readCollaborationTaskNodeSync,
+  reviewCollaborationTaskNodeSync,
   type CollaborationRunRecord,
   type CollaborationTaskNodeRecord,
+  type CollaborationTaskReviewStatus,
   type CreateCollaborationTaskNodeInput,
   type QueuedTaskRecord,
 } from "@agent-space/db";
@@ -134,6 +136,20 @@ export interface FailQueuedTaskAndAdvanceCollaborationInput {
   rawProviderMessage?: string;
 }
 
+export interface ReviewCollaborationNodeInput {
+  workspaceId?: string;
+  nodeId: string;
+  status: CollaborationTaskReviewStatus;
+  reviewerUserId?: string;
+  reviewerDisplayName?: string;
+  comment?: string;
+}
+
+export interface ReviewCollaborationNodeResult {
+  node: CollaborationTaskNodeRecord;
+  run: CollaborationRunRecord;
+}
+
 export interface QueuedTaskCollaborationAdvanceResult {
   task: QueuedTaskRecord;
   collaboration?: CompleteCollaborationNodeAndDispatchNextResult | {
@@ -142,6 +158,22 @@ export interface QueuedTaskCollaborationAdvanceResult {
     blockedNodes: CollaborationTaskNodeRecord[];
   };
   skippedReason?: "not_collaboration_task" | "collaboration_node_already_terminal" | "collaboration_run_already_terminal";
+}
+
+export function reviewCollaborationNodeSync(input: ReviewCollaborationNodeInput): ReviewCollaborationNodeResult {
+  const node = reviewCollaborationTaskNodeSync({
+    workspaceId: input.workspaceId,
+    nodeId: input.nodeId,
+    status: input.status,
+    reviewerUserId: input.reviewerUserId,
+    reviewerDisplayName: input.reviewerDisplayName,
+    comment: input.comment,
+  });
+  const run = readCollaborationRunSync(node.runId, input.workspaceId);
+  if (!run) {
+    throw new Error(`Collaboration run "${node.runId}" does not exist.`);
+  }
+  return { node, run };
 }
 
 export function createCollaborationPlanDraftSync(input: CreateCollaborationPlanDraftInput): CollaborationPlanResult {

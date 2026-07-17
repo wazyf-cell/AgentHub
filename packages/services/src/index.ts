@@ -305,6 +305,7 @@ export {
   createCollaborationPlanDraftSync,
   dispatchReadyCollaborationNodesSync,
   failQueuedTaskAndAdvanceCollaborationSync,
+  reviewCollaborationNodeSync,
   type ApproveCollaborationPlanInput,
   type ApproveCollaborationPlanResult,
   type CollaborationDispatchPriority,
@@ -321,6 +322,8 @@ export {
   type DispatchedCollaborationNode,
   type FailQueuedTaskAndAdvanceCollaborationInput,
   type QueuedTaskCollaborationAdvanceResult,
+  type ReviewCollaborationNodeInput,
+  type ReviewCollaborationNodeResult,
   type SkippedCollaborationNode,
 } from "./orchestrator/orchestrator.ts";
 

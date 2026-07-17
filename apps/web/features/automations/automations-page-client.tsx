@@ -111,6 +111,12 @@ const COLLABORATION_NODE_STATUS_LABELS: Record<CollaborationRunViewRecord["nodes
   cancelled: { label: "已取消", labelEn: "Cancelled", badge: "cancelled" },
 };
 
+const COLLABORATION_REVIEW_STATUS_LABELS: Record<NonNullable<CollaborationRunViewRecord["nodes"][number]["reviewStatus"]>, { label: string; labelEn: string }> = {
+  accepted: { label: "已验收", labelEn: "Accepted" },
+  rejected: { label: "已驳回", labelEn: "Rejected" },
+  needs_revision: { label: "需修改", labelEn: "Needs revision" },
+};
+
 const BUILTIN_SEQUENCE_RULE_ID = "builtin:channel-sequential-then";
 const BUILTIN_AUTO_CONTINUATION_RULE_ID = "builtin:auto-continuation-until";
 const BUILTIN_COLLABORATION_ORCHESTRATOR_RULE_ID = "builtin:collaboration-orchestrator";
@@ -562,24 +568,31 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                       <div className="automations-card__flow">
                         {run.nodes.map((node, index) => {
                           const nodeStatus = COLLABORATION_NODE_STATUS_LABELS[node.status];
+                          const reviewStatus = node.reviewStatus ? COLLABORATION_REVIEW_STATUS_LABELS[node.reviewStatus] : undefined;
                           return (
                             <span className="automations-card__action" key={node.id} title={node.instruction}>
                               {index + 1}. {node.title} · {node.agentId} · {tx(nodeStatus.label, nodeStatus.labelEn)}
                               {node.taskQueueId ? ` · ${tx("队列", "Queue")}: ${node.taskQueueId.slice(0, 12)}` : ""}
+                              {reviewStatus ? ` · ${tx(reviewStatus.label, reviewStatus.labelEn)}` : ""}
                             </span>
                           );
                         })}
                       </div>
-                      {run.nodes.some((node) => node.errorText || node.evidenceSummary || node.resultSummary) ? (
+                      {run.nodes.some((node) => node.errorText || node.reviewStatus || node.evidenceSummary || node.resultSummary) ? (
                         <div className="automations-run-list">
                           {run.nodes
-                            .filter((node) => node.errorText || node.evidenceSummary || node.resultSummary)
-                            .map((node) => (
-                              <small key={`${node.id}:summary`}>
-                                {node.title}: {node.errorText ?? node.evidenceSummary ?? node.resultSummary}
-                                {node.evidenceSourceCount ? ` · ${tx("证据", "Evidence")}: ${node.evidenceSourceCount}` : ""}
-                              </small>
-                            ))}
+                            .filter((node) => node.errorText || node.reviewStatus || node.evidenceSummary || node.resultSummary)
+                            .map((node) => {
+                              const reviewLabel = node.reviewStatus ? COLLABORATION_REVIEW_STATUS_LABELS[node.reviewStatus] : undefined;
+                              return (
+                                <small key={`${node.id}:summary`}>
+                                  {node.title}: {node.errorText ?? node.evidenceSummary ?? node.resultSummary ?? tx("暂无结果摘要", "No result summary")}
+                                  {node.evidenceSourceCount ? ` · ${tx("证据", "Evidence")}: ${node.evidenceSourceCount}` : ""}
+                                  {reviewLabel ? ` · ${tx("验收", "Review")}: ${tx(reviewLabel.label, reviewLabel.labelEn)}` : ""}
+                                  {node.reviewComment ? ` · ${node.reviewComment}` : ""}
+                                </small>
+                              );
+                            })}
                         </div>
                       ) : null}
                       <small>{tx("最近更新", "Updated")}: {formatCompactTimestamp(run.updatedAt, { emptyFallback: run.updatedAt })}</small>

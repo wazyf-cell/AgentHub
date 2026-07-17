@@ -4261,6 +4261,43 @@ function readCollaborationEvidence(value: string | undefined): Record<string, un
     : undefined;
 }
 
+function readCollaborationReviewStatus(value: string | undefined): CollaborationTaskNodeViewRecord["reviewStatus"] {
+  const review = readCollaborationReview(value);
+  const status = review?.status;
+  return status === "accepted" || status === "rejected" || status === "needs_revision" ? status : undefined;
+}
+
+function readCollaborationReviewComment(value: string | undefined): string | undefined {
+  const comment = readCollaborationReview(value)?.comment;
+  return typeof comment === "string" && comment.trim() ? comment.trim() : undefined;
+}
+
+function readCollaborationReviewedBy(value: string | undefined): string | undefined {
+  const review = readCollaborationReview(value);
+  const displayName = review?.reviewerDisplayName;
+  if (typeof displayName === "string" && displayName.trim()) {
+    return displayName.trim();
+  }
+  const userId = review?.reviewerUserId;
+  return typeof userId === "string" && userId.trim() ? userId.trim() : undefined;
+}
+
+function readCollaborationReviewedAt(value: string | undefined): string | undefined {
+  const reviewedAt = readCollaborationReview(value)?.reviewedAt;
+  return typeof reviewedAt === "string" && reviewedAt.trim() ? reviewedAt : undefined;
+}
+
+function readCollaborationReview(value: string | undefined): Record<string, unknown> | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = safeParseJson(value);
+  const review = parsed.review;
+  return review && typeof review === "object" && !Array.isArray(review)
+    ? review as Record<string, unknown>
+    : undefined;
+}
+
 function resolveDaemonMode(
   runtimeMetadata: Record<string, unknown>,
   daemonMetadata: Record<string, unknown>,
@@ -5372,6 +5409,10 @@ export interface CollaborationTaskNodeViewRecord {
   resultSummary?: string;
   evidenceSummary?: string;
   evidenceSourceCount?: number;
+  reviewStatus?: "accepted" | "rejected" | "needs_revision";
+  reviewComment?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
   errorText?: string;
   sortOrder: number;
   updatedAt: string;
@@ -5466,6 +5507,10 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
         resultSummary: readCollaborationResultSummary(node.resultJson),
         evidenceSummary: readCollaborationEvidenceSummary(node.resultJson),
         evidenceSourceCount: readCollaborationEvidenceSourceCount(node.resultJson),
+        reviewStatus: readCollaborationReviewStatus(node.resultJson),
+        reviewComment: readCollaborationReviewComment(node.resultJson),
+        reviewedBy: readCollaborationReviewedBy(node.resultJson),
+        reviewedAt: readCollaborationReviewedAt(node.resultJson),
         errorText: node.errorText,
         sortOrder: node.sortOrder,
         updatedAt: node.updatedAt,

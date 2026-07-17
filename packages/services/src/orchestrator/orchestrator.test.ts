@@ -24,6 +24,7 @@ import {
   createCollaborationPlanDraftSync,
   dispatchReadyCollaborationNodesSync,
   failQueuedTaskAndAdvanceCollaborationSync,
+  reviewCollaborationNodeSync,
 } from "../index.ts";
 
 const originalCwd = process.cwd();
@@ -416,6 +417,24 @@ test("native task completion advances the linked collaboration node and dispatch
       finishedAt: advanced.task.finishedAt,
     },
   });
+  const reviewed = reviewCollaborationNodeSync({
+    workspaceId,
+    nodeId: "node-root",
+    status: "accepted",
+    reviewerUserId: "reviewer-1",
+    reviewerDisplayName: "Reviewer One",
+    comment: "Accepted for downstream work.",
+  });
+  assert.equal(reviewed.node.id, "node-root");
+  assert.equal(reviewed.run.id, run.run.id);
+  const reviewedResult = JSON.parse(reviewed.node.resultJson ?? "{}") as Record<string, unknown>;
+  assert.deepEqual(readObject(reviewedResult.review), {
+    status: "accepted",
+    reviewerUserId: "reviewer-1",
+    reviewerDisplayName: "Reviewer One",
+    comment: "Accepted for downstream work.",
+    reviewedAt: readObject(reviewedResult.review).reviewedAt,
+  });
   assert.equal(listQueuedTasksSync({ workspaceId }).length, 2);
 
   const repeated = completeQueuedTaskAndAdvanceCollaborationSync({
@@ -658,6 +677,10 @@ function seedWorkspaceRuntime(prefix: string, boundEmployeeNames: string[]): { w
     });
   }
   return { workspaceId: workspace.id, runtimeId: runtime.id };
+}
+
+function readObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 test.after(() => {

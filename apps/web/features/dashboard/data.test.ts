@@ -19,6 +19,7 @@ import {
   readWorkspaceSync,
   recordTokenUsageSync,
   registerDaemonRuntimesSync,
+  reviewCollaborationTaskNodeSync,
   upsertBudgetSync,
   writeWorkspaceStateRecordSync,
 } from "@agent-space/db";
@@ -1109,6 +1110,13 @@ describe("dashboard data", () => {
         },
       },
     });
+    reviewCollaborationTaskNodeSync({
+      workspaceId: "default",
+      nodeId: "collab-node-plan",
+      status: "accepted",
+      reviewerDisplayName: "Tianyu",
+      comment: "Ready for the review node.",
+    });
 
     const automationsPage = getAutomationsPageData();
 
@@ -1129,6 +1137,9 @@ describe("dashboard data", () => {
         dependsOnNodeIds: [],
         evidenceSummary: "Release plan drafted with supporting notes.",
         evidenceSourceCount: 2,
+        reviewStatus: "accepted",
+        reviewedBy: "Tianyu",
+        reviewComment: "Ready for the review node.",
       }),
       expect.objectContaining({
         id: "collab-node-review",
