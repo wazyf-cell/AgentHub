@@ -68,6 +68,7 @@ export interface ProviderApprovalDecision {
 
 export interface ProviderTaskOptions {
   sessionId?: string;
+  executionCwd?: string;
   contextEnv?: Record<string, string>;
   taskTimeoutMs?: number;
   onEvent?: (event: ProviderTaskEvent) => void;
@@ -219,11 +220,12 @@ async function runAgentRouterProviderTask(
   const runtimeToolCapabilities = buildRuntimeToolCapabilities(options);
   const contextEnv = buildAgentRouterProviderEnv(runtime, options.contextEnv);
   const sessionId = resolveAgentRouterSessionId(runtime, options.sessionId);
+  const executionCwd = resolveAgentRouterExecutionCwd(runtime, workDir, options.executionCwd);
   const result = await runAgentRouter({
     version: 1,
     harness,
     prompt,
-    cwd: workDir,
+    cwd: executionCwd,
     executablePath: runtime.metadata.executablePath,
     model: resolveModelId(runtime),
     mode: resolveAgentRouterMode(runtime),
@@ -338,6 +340,17 @@ function resolveAgentRouterMode(runtime: ProviderRuntimeRecord): string | undefi
     return process.env.OPENCLAW_THINKING?.trim() || undefined;
   }
   return undefined;
+}
+
+function resolveAgentRouterExecutionCwd(
+  runtime: ProviderRuntimeRecord,
+  workDir: string,
+  executionCwd: string | undefined,
+): string {
+  if (runtime.provider === "openclaw") {
+    return workDir;
+  }
+  return executionCwd ?? workDir;
 }
 
 function resolveAgentRouterSessionId(runtime: ProviderRuntimeRecord, sessionId: string | undefined): string | undefined {

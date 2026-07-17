@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import test from "node:test";
 import { formatDaemonProviderLabel } from "@agent-space/domain";
 import {
@@ -966,6 +966,58 @@ test("runProviderTask routes OpenCode through AgentRouter with model, session, a
     } else {
       process.env.AGENT_SPACE_DAEMON_BIN = originalDaemonBin;
     }
+    rmSync(workDir, { recursive: true, force: true });
+  }
+});
+
+test("runProviderTask runs AgentRouter providers from execution cwd while preserving staging work dir", async () => {
+  const workDir = mkdtempSync(join(tmpdir(), "agent-space-execution-cwd-"));
+  const executionCwd = join(workDir, "repo-worktree");
+  const providerBinDir = join(workDir, "provider-bin");
+  const binPath = join(providerBinDir, "opencode");
+  const seenCwdFile = join(workDir, "seen-cwd.txt");
+  mkdirSync(executionCwd, { recursive: true });
+  mkdirSync(providerBinDir, { recursive: true });
+  writeFileSync(
+    binPath,
+    [
+      "#!/bin/sh",
+      "node -e \"require('fs').writeFileSync(process.env.SEEN_CWD_FILE, process.cwd(), 'utf8')\"",
+      "printf '%s\\n' '{\"type\":\"step_start\",\"sessionID\":\"opencode-session\",\"part\":{\"text\":\"working\"}}'",
+      "printf '%s\\n' '{\"type\":\"text\",\"sessionID\":\"opencode-session\",\"part\":{\"text\":\"execution cwd output\"}}'",
+      "printf '%s\\n' '{\"type\":\"step_finish\",\"sessionID\":\"opencode-session\",\"part\":{\"tokens\":{\"input\":1,\"output\":2}}}'",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  chmodSync(binPath, 0o755);
+
+  const runtime: ProviderRuntimeRecord = {
+    id: "runtime-opencode-execution-cwd-test",
+    workspaceId: "default",
+    provider: "opencode",
+    name: "OpenCode",
+    status: "online",
+    metadata: {
+      executablePath: binPath,
+      mode: "remote",
+    },
+  };
+
+  try {
+    const result = await runProviderTask(runtime, "write a short reply", workDir, {
+      executionCwd,
+      contextEnv: {
+        SEEN_CWD_FILE: seenCwdFile,
+      },
+      taskTimeoutMs: 1_000,
+    });
+
+    assert.equal(result.output, "execution cwd output");
+    assert.equal(resolve(readFileSync(seenCwdFile, "utf8")), resolve(executionCwd));
+    assert.equal(existsSync(workDir), true);
+    assert.equal(existsSync(executionCwd), true);
+  } finally {
     rmSync(workDir, { recursive: true, force: true });
   }
 });

@@ -1,6 +1,6 @@
 import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { getDaemonChannelWorkDirPath, getDaemonTaskWorkDirPath } from "@agent-space/db";
 import { getStringFlag, parseArgs } from "./args.ts";
 import type { ClaimedDaemonTask, ClaimedRuntimeAppOperation, DaemonTaskInputBundle, HeartbeatDaemonResponse, RegisterDaemonResponse } from "./daemon-api.ts";
@@ -557,6 +557,9 @@ async function executeRemoteTask(
     try {
       const bundle = await client.getInputBundle(task.id);
       materializeInputBundle(workDir, bundle);
+      const executionCwd = runtime.provider === "openclaw"
+        ? undefined
+        : resolveCodeDevelopmentExecutionCwd(bundle);
 
       const result = await runProviderTask(
         runtime,
@@ -564,11 +567,13 @@ async function executeRemoteTask(
         workDir,
         {
           sessionId: bundle.metadata.routerSession?.providerSessionId ?? resolveRemoteTaskProviderSessionId(task.inputJson),
+          executionCwd,
           taskTimeoutMs: config.taskTimeoutMs,
           contextEnv: buildRuntimeContextEnv({
             AGENT_SPACE_CONTEXT_TASK_ID: task.id,
             AGENT_SPACE_CONTEXT_AGENT_NAME: readRemoteTaskAgentName(task),
             AGENT_SPACE_CONTEXT_TRIGGER_TYPE: task.triggerType,
+            ...buildCodeDevelopmentContextEnv(bundle.metadata.codeDevelopment, executionCwd),
           }, bundle.metadata.googleWorkspace),
           runtimeApps: bundle.metadata.runtimeApps?.apps ?? [],
           runtimeToolCapabilities: bundle.metadata.runtimeToolCapabilities?.capabilities ?? [],
@@ -652,6 +657,57 @@ function buildRuntimeContextEnv(
     ...base,
     ...googleWorkspace.env,
   };
+}
+
+function resolveCodeDevelopmentExecutionCwd(bundle: DaemonTaskInputBundle): string | undefined {
+  const worktreePath = bundle.metadata.codeDevelopment?.worktreePath?.trim();
+  if (!worktreePath || !isAbsolute(worktreePath)) {
+    return undefined;
+  }
+
+  const resolvedWorktreePath = resolve(worktreePath);
+  try {
+    if (!existsSync(resolvedWorktreePath) || !statSync(resolvedWorktreePath).isDirectory()) {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return resolvedWorktreePath;
+}
+
+function buildCodeDevelopmentContextEnv(
+  codeDevelopment: DaemonTaskInputBundle["metadata"]["codeDevelopment"],
+  executionCwd: string | undefined,
+): Record<string, string> {
+  if (!codeDevelopment) {
+    return {};
+  }
+
+  const env: Record<string, string> = {};
+  const sessionId = codeDevelopment.sessionId?.trim();
+  const repositoryRoot = codeDevelopment.repositoryRoot?.trim();
+  const branchName = codeDevelopment.branchName?.trim();
+  const baseRef = codeDevelopment.baseRef?.trim();
+  if (sessionId) {
+    env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_SESSION_ID = sessionId;
+  }
+  if (repositoryRoot) {
+    env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_REPOSITORY_ROOT = repositoryRoot;
+  }
+  if (branchName) {
+    env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_BRANCH_NAME = branchName;
+  }
+  if (baseRef) {
+    env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_BASE_REF = baseRef;
+  }
+  if (executionCwd) {
+    env.AGENT_SPACE_CONTEXT_CODE_DEVELOPMENT_WORKTREE_PATH = executionCwd;
+    env.AGENT_SPACE_CONTEXT_EXECUTION_CWD = executionCwd;
+  }
+
+  return env;
 }
 
 function buildRemoteRuntimeRecords(
