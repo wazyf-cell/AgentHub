@@ -153,12 +153,14 @@ export function createCollaborationRunSync(input: CreateCollaborationRunInput): 
 export function listCollaborationRunsSync(options: {
   workspaceId?: string;
   status?: CollaborationRunStatus;
+  limit?: number;
 } = {}): CollaborationRunRecord[] {
   const workspaceId = options.workspaceId ?? DEFAULT_WORKSPACE_ID;
   const statusFilter = options.status
     ? "WHERE workspace_id = ? AND status = ?"
     : "WHERE workspace_id = ?";
   const params = options.status ? [workspaceId, options.status] : [workspaceId];
+  const limit = normalizeListLimit(options.limit, 100);
   const rows = getDatabase().prepare(
     `SELECT
       id,
@@ -176,10 +178,28 @@ export function listCollaborationRunsSync(options: {
       updated_at AS updatedAt
      FROM collaboration_run
      ${statusFilter}
-     ORDER BY updated_at DESC, created_at DESC`,
-  ).all(...params) as Array<Record<string, unknown>>;
+     ORDER BY updated_at DESC, created_at DESC
+     LIMIT ?`,
+  ).all(...params, limit) as Array<Record<string, unknown>>;
 
   return rows.map(mapCollaborationRunRecord).filter((run): run is CollaborationRunRecord => run !== null);
+}
+
+export function countCollaborationRunsSync(options: {
+  workspaceId?: string;
+  status?: CollaborationRunStatus;
+} = {}): number {
+  const workspaceId = options.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  const statusFilter = options.status
+    ? "WHERE workspace_id = ? AND status = ?"
+    : "WHERE workspace_id = ?";
+  const params = options.status ? [workspaceId, options.status] : [workspaceId];
+  const row = getDatabase().prepare(
+    `SELECT COUNT(*)::int AS count
+     FROM collaboration_run
+     ${statusFilter}`,
+  ).get(...params) as { count?: number } | undefined;
+  return typeof row?.count === "number" ? row.count : 0;
 }
 
 export function readCollaborationRunSync(
@@ -814,6 +834,16 @@ function readRequiredCollaborationTaskNode(nodeId: string, workspaceId: string):
     throw new Error(`Collaboration task node "${nodeId}" does not exist.`);
   }
   return node;
+}
+
+function normalizeListLimit(limit: number | undefined, defaultLimit: number): number {
+  if (limit === undefined) {
+    return defaultLimit;
+  }
+  if (!Number.isInteger(limit) || limit < 1) {
+    return defaultLimit;
+  }
+  return Math.min(limit, 500);
 }
 
 function mapCollaborationRunRecord(row: Record<string, unknown>): CollaborationRunRecord | null {

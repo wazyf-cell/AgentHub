@@ -7,11 +7,13 @@ import {
   approveCollaborationRunSync,
   bindEmployeeRuntimeSync,
   completeCollaborationTaskNodeSync,
+  countCollaborationRunsSync,
   createCollaborationRunSync,
   createWorkspaceSync,
   failCollaborationTaskNodeSync,
   getDatabase,
   listCollaborationRunEventsSync,
+  listCollaborationRunsSync,
   listCollaborationTaskNodesSync,
   listQueuedTasksSync,
   listReadyCollaborationTaskNodesSync,
@@ -351,6 +353,51 @@ test("rejects collaboration runs with missing or cyclic dependencies", () => {
         ],
       }),
     /cycle/i,
+  );
+});
+
+test("lists and counts collaboration runs with workspace, status, and limit filters", () => {
+  const { workspaceId } = seedWorkspaceRuntime("collab-list");
+  createCollaborationRunSync({
+    id: "run-list-a",
+    workspaceId,
+    title: "List A",
+    goal: "first run",
+    status: "approved",
+    nodes: [
+      {
+        id: "node-list-a",
+        agentId: "Atlas",
+        title: "A",
+        instruction: "A",
+      },
+    ],
+  });
+  createCollaborationRunSync({
+    id: "run-list-b",
+    workspaceId,
+    title: "List B",
+    goal: "second run",
+    status: "running",
+    nodes: [
+      {
+        id: "node-list-b",
+        agentId: "Atlas",
+        title: "B",
+        instruction: "B",
+      },
+    ],
+  });
+
+  assert.equal(countCollaborationRunsSync({ workspaceId }), 2);
+  assert.equal(countCollaborationRunsSync({ workspaceId, status: "running" }), 1);
+  assert.deepEqual(
+    listCollaborationRunsSync({ workspaceId, limit: 1 }).map((run) => run.id),
+    ["run-list-b"],
+  );
+  assert.deepEqual(
+    listCollaborationRunsSync({ workspaceId, status: "approved" }).map((run) => run.id),
+    ["run-list-a"],
   );
 });
 

@@ -1119,6 +1119,30 @@ describe("dashboard data", () => {
     ]);
   });
 
+  it("reports total collaboration run count separately from the visible automations list", () => {
+    for (let index = 0; index < 21; index += 1) {
+      createCollaborationRunSync({
+        id: `collab-run-count-${index}`,
+        workspaceId: "default",
+        title: `Counted collaboration ${index}`,
+        goal: "Verify count remains total while the page shows a capped recent list.",
+        nodes: [
+          {
+            id: `collab-node-count-${index}`,
+            agentId: "Atlas",
+            title: "Count node",
+            instruction: "Do count work.",
+          },
+        ],
+      });
+    }
+
+    const automationsPage = getAutomationsPageData();
+
+    expect(automationsPage.collaborationRunCount).toBe(21);
+    expect(automationsPage.collaborationRuns).toHaveLength(20);
+  });
+
   it("hides channel documents when the current user lacks document access even if the channel is visible", () => {
     writeWorkspaceStateSync({
       ...readWorkspaceStateSync(),

@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  mockCountCollaborationRunsSync,
   mockCreateAndDispatchCollaborationRunSync,
   mockGetWorkspaceContextForIdentifier,
   mockListCollaborationRunsSync,
   mockListCollaborationTaskNodesSync,
 } = vi.hoisted(() => ({
+  mockCountCollaborationRunsSync: vi.fn(),
   mockCreateAndDispatchCollaborationRunSync: vi.fn(),
   mockGetWorkspaceContextForIdentifier: vi.fn(),
   mockListCollaborationRunsSync: vi.fn(),
@@ -17,6 +19,7 @@ vi.mock("@/features/auth/server-workspace", () => ({
 }));
 
 vi.mock("@agent-space/db", () => ({
+  countCollaborationRunsSync: mockCountCollaborationRunsSync,
   listCollaborationRunsSync: mockListCollaborationRunsSync,
   listCollaborationTaskNodesSync: mockListCollaborationTaskNodesSync,
 }));
@@ -29,11 +32,13 @@ import { GET, POST } from "./route";
 
 describe("workspace collaboration runs route", () => {
   beforeEach(() => {
+    mockCountCollaborationRunsSync.mockReset();
     mockCreateAndDispatchCollaborationRunSync.mockReset();
     mockGetWorkspaceContextForIdentifier.mockReset();
     mockListCollaborationRunsSync.mockReset();
     mockListCollaborationTaskNodesSync.mockReset();
     mockGetWorkspaceContextForIdentifier.mockResolvedValue(buildWorkspaceContext());
+    mockCountCollaborationRunsSync.mockReturnValue(1);
   });
 
   it("lists collaboration runs with nodes for the current workspace", async () => {
@@ -52,13 +57,38 @@ describe("workspace collaboration runs route", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockListCollaborationRunsSync).toHaveBeenCalledWith({ workspaceId: "workspace-1" });
+    expect(mockListCollaborationRunsSync).toHaveBeenCalledWith({ workspaceId: "workspace-1", limit: 20 });
+    expect(mockCountCollaborationRunsSync).toHaveBeenCalledWith({ workspaceId: "workspace-1" });
     expect(mockListCollaborationTaskNodesSync).toHaveBeenCalledWith("run-1", "workspace-1");
+    expect(payload.totalCount).toBe(1);
+    expect(payload.limit).toBe(20);
     expect(payload.runs).toHaveLength(1);
     expect(payload.runs[0]).toMatchObject({
       id: "run-1",
       title: "Release plan",
       nodes: [{ id: "node-1" }, { id: "node-2" }],
+    });
+    expect(payload.runs[0].planJson).toBeUndefined();
+    expect(payload.runs[0].createdByUserId).toBeUndefined();
+    expect(payload.runs[0].nodes[0].workspaceId).toBeUndefined();
+  });
+
+  it("clamps GET limit and pushes it into the DB query", async () => {
+    mockListCollaborationRunsSync.mockReturnValue([]);
+    mockCountCollaborationRunsSync.mockReturnValue(125);
+
+    const response = await GET(
+      new Request("http://localhost/api/workspaces/workspace-alpha/collaboration-runs?limit=500"),
+      { params: Promise.resolve({ workspaceId: "workspace-alpha" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockListCollaborationRunsSync).toHaveBeenCalledWith({ workspaceId: "workspace-1", limit: 100 });
+    expect(payload).toMatchObject({
+      totalCount: 125,
+      limit: 100,
+      runs: [],
     });
   });
 

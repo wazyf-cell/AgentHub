@@ -29,6 +29,7 @@ import {
 import type { AgentAccessRequestRecord, AgentForkInvitationRecord, PerformanceDashboardData, WorkspaceNotificationRecord } from "@agent-space/services";
 import {
   DEFAULT_WORKSPACE_ID,
+  countCollaborationRunsSync,
   countUsersSync,
   listAgentGoogleWorkspaceDelegationsSync,
   listDaemonApiTokensSync,
@@ -111,7 +112,8 @@ const listKnowledgeAssignmentsCached = cache((workspaceId: string) => listKnowle
 const listDaemonSnapshotsCached = cache((workspaceId: string) => listDaemonSnapshotsSync(workspaceId));
 const listEmployeeRuntimeBindingsCached = cache((workspaceId: string) => listEmployeeRuntimeBindingsSync(workspaceId));
 const listQueuedTasksCached = cache((workspaceId: string) => listQueuedTasksSync({ workspaceId }));
-const listCollaborationRunsCached = cache((workspaceId: string) => listCollaborationRunsSync({ workspaceId }));
+const countCollaborationRunsCached = cache((workspaceId: string) => countCollaborationRunsSync({ workspaceId }));
+const listCollaborationRunsCached = cache((workspaceId: string, limit: number) => listCollaborationRunsSync({ workspaceId, limit }));
 const listCollaborationTaskNodesCached = cache((workspaceId: string, runId: string) =>
   listCollaborationTaskNodesSync(runId, workspaceId)
 );
@@ -5412,8 +5414,8 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
       lastTaskQueueId: workspace.lastTaskQueueId,
       lastTaskStatus: workspace.lastTaskQueueId ? queuedTaskById.get(workspace.lastTaskQueueId)?.status : undefined,
     }) satisfies AutoContinuationRunRecord);
-  const collaborationRuns = listCollaborationRunsCached(workspaceId)
-    .slice(0, 20)
+  const collaborationRunCount = countCollaborationRunsCached(workspaceId);
+  const collaborationRuns = listCollaborationRunsCached(workspaceId, 20)
     .map((run) => ({
       id: run.id,
       title: run.title,
@@ -5447,7 +5449,7 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
     enabledCount: rules.filter((r) => r.enabled).length + 3,
     documentRunCount: documentRuns.length,
     autoContinuationRunCount: autoContinuationRuns.length,
-    collaborationRunCount: collaborationRuns.length,
+    collaborationRunCount,
     channels: state.channels.map((ch) => ({ name: ch.name })),
     agents: state.activeEmployees.map((e) => ({
       id: e.name,

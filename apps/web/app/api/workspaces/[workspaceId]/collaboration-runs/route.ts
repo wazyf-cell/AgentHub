@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  countCollaborationRunsSync,
   listCollaborationRunsSync,
   listCollaborationTaskNodesSync,
   type CollaborationRunRecord,
@@ -53,13 +54,16 @@ export async function GET(
 
   const requestUrl = new URL(request.url);
   const limit = normalizeLimit(requestUrl.searchParams.get("limit"));
-  const runs = listCollaborationRunsSync({ workspaceId: workspaceContext.currentWorkspace.id }).slice(0, limit);
+  const workspaceId = workspaceContext.currentWorkspace.id;
+  const runs = listCollaborationRunsSync({ workspaceId, limit });
 
   return NextResponse.json({
+    totalCount: countCollaborationRunsSync({ workspaceId }),
+    limit,
     runs: runs.map((run) =>
       serializeCollaborationRun(
         run,
-        listCollaborationTaskNodesSync(run.id, workspaceContext.currentWorkspace.id),
+        listCollaborationTaskNodesSync(run.id, workspaceId),
       ),
     ),
   });
@@ -262,8 +266,34 @@ function normalizeSynthesis(value: unknown):
 
 function serializeCollaborationRun(run: CollaborationRunRecord, nodes: CollaborationTaskNodeRecord[]) {
   return {
-    ...run,
-    nodes,
+    id: run.id,
+    workspaceId: run.workspaceId,
+    title: run.title,
+    goal: run.goal,
+    status: run.status,
+    createdByDisplayName: run.createdByDisplayName,
+    approvedAt: run.approvedAt,
+    finishedAt: run.finishedAt,
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    nodes: nodes.map((node) => ({
+      id: node.id,
+      runId: node.runId,
+      agentId: node.agentId,
+      title: node.title,
+      instruction: node.instruction,
+      dependsOnNodeIdsJson: node.dependsOnNodeIdsJson,
+      status: node.status,
+      taskQueueId: node.taskQueueId,
+      resultJson: node.resultJson,
+      errorText: node.errorText,
+      sortOrder: node.sortOrder,
+      queuedAt: node.queuedAt,
+      startedAt: node.startedAt,
+      finishedAt: node.finishedAt,
+      createdAt: node.createdAt,
+      updatedAt: node.updatedAt,
+    })),
   };
 }
 
