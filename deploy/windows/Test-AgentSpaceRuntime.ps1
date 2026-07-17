@@ -140,6 +140,47 @@ if ($postgresConfigured) {
   Write-Check "warn" "PostgreSQL config" "No PostgreSQL URL env var detected. If this instance needs PostgreSQL, configure AGENT_SPACE_PG_URL or DATABASE_URL."
 }
 
+$providerCommands = @("codex", "claude", "gemini", "opencode", "openclaw", "nanobot", "hermes")
+$detectedProviders = @()
+foreach ($providerCommand in $providerCommands) {
+  $providerPath = Resolve-OptionalCommand @($providerCommand)
+  if ($providerPath) {
+    $detectedProviders += "$providerCommand=$providerPath"
+  }
+}
+
+if ($detectedProviders.Count -gt 0) {
+  Write-Check "ok" "provider CLI" ($detectedProviders -join "; ")
+} else {
+  Write-Check "warn" "provider CLI" "No supported provider CLI found on PATH. Multi-agent execution needs codex, claude, gemini, opencode, openclaw, nanobot, or hermes."
+}
+
+$daemonStateDir = Join-Path $repo "data\daemon"
+$daemonPidPath = Join-Path $daemonStateDir "daemon.pid"
+$daemonLogPath = Join-Path $daemonStateDir "daemon.log"
+if (Test-Path $daemonPidPath) {
+  $daemonPidText = (Get-Content -Raw $daemonPidPath).Trim()
+  $daemonPid = 0
+  if ([int]::TryParse($daemonPidText, [ref]$daemonPid) -and $daemonPid -gt 0) {
+    $daemonProcess = Get-Process -Id $daemonPid -ErrorAction SilentlyContinue
+    if ($daemonProcess) {
+      Write-Check "ok" "native daemon" "Running with pid $daemonPid."
+    } else {
+      Write-Check "warn" "native daemon" "Stale daemon pid file found at $daemonPidPath. Use agent-space daemon start or Start-AgentSpace.ps1 -StartDaemon."
+    }
+  } else {
+    Write-Check "warn" "native daemon" "Invalid daemon pid file found at $daemonPidPath."
+  }
+} else {
+  Write-Check "warn" "native daemon" "No local daemon pid file found. Use Start-AgentSpace.ps1 -StartDaemon when you want local multi-agent execution."
+}
+
+if (Test-Path $daemonLogPath) {
+  Write-Check "ok" "daemon logs" $daemonLogPath
+} else {
+  Write-Check "warn" "daemon logs" "No daemon log file found yet."
+}
+
 if ($script:ErrorCount -gt 0) {
   Write-Host "[AgentSpace] Runtime preflight failed with $script:ErrorCount error(s), $script:WarningCount warning(s)."
   exit 1

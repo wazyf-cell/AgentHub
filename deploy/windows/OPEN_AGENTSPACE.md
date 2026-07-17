@@ -54,6 +54,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSp
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-AgentSpaceRuntime.ps1
 ```
 
+它会检查 Node/npm、依赖、`.env`、PostgreSQL URL、provider CLI、daemon pid 和 daemon log。
+
 如果要检查桌面 exe 构建条件：
 
 ```powershell

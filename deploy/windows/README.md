@@ -67,6 +67,8 @@ The launcher runs a lightweight runtime preflight before starting the web server
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-AgentSpaceRuntime.ps1
 ```
 
+The preflight reports Node/npm, dependencies, environment hints, provider CLI readiness, and local daemon pid/log status.
+
 For desktop packaging checks:
 
 ```powershell
