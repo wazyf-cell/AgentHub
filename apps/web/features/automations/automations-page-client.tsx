@@ -142,6 +142,32 @@ const CODE_DEVELOPMENT_STATUS_LABELS: Record<CodeDevelopmentSessionViewRecord["s
   cancelled: { label: "已取消", labelEn: "Cancelled", badge: "cancelled" },
 };
 
+type CodeDevelopmentOperation =
+  | "auto_patch"
+  | "manual_patch"
+  | "auto_preflight"
+  | "manual_preflight"
+  | "review_approved"
+  | "review_needs_revision"
+  | "review_rejected"
+  | "mark_merged"
+  | "mark_blocked";
+
+interface CodeDevelopmentActionDialogState {
+  operation: CodeDevelopmentOperation;
+  session: CodeDevelopmentSessionViewRecord;
+  summary: string;
+  fileChangesRaw: string;
+  riskNotesRaw: string;
+  targetBranch: string;
+  checkedFilesRaw: string;
+  conflictFilesRaw: string;
+  warningsRaw: string;
+  comment: string;
+  notes: string;
+  reason: string;
+}
+
 const BUILTIN_SEQUENCE_RULE_ID = "builtin:channel-sequential-then";
 const BUILTIN_AUTO_CONTINUATION_RULE_ID = "builtin:auto-continuation-until";
 const BUILTIN_COLLABORATION_ORCHESTRATOR_RULE_ID = "builtin:collaboration-orchestrator";
@@ -198,6 +224,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
   const [codeDevBranchName, setCodeDevBranchName] = useState("");
   const [codeDevError, setCodeDevError] = useState<string | null>(null);
   const [codeDevActionError, setCodeDevActionError] = useState<string | null>(null);
+  const [codeDevActionDialog, setCodeDevActionDialog] = useState<CodeDevelopmentActionDialogState | null>(null);
   const [isPending, startTransition] = useTransition();
   const selectedRule = data.rules.find((rule) => rule.id === selectedId);
   const selectedBuiltinSequenceRule = selectedId === BUILTIN_SEQUENCE_RULE_ID;
@@ -306,156 +333,155 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
     });
   }
 
-  function handleRecordCodeDevelopmentPatch(session: CodeDevelopmentSessionViewRecord): void {
-    const summary = window.prompt(tx("Patch 摘要", "Patch summary"), session.patchSummary ?? "");
-    if (!summary?.trim()) return;
-    const filesRaw = window.prompt(tx("变更文件，多个文件用逗号分隔", "Changed files, comma separated"), session.changedFiles.join(", "));
-    const fileChanges = parseCodeDevelopmentFileChanges(filesRaw);
-    if (fileChanges.length === 0) {
+  function getCodeDevelopmentOperationLabel(operation: CodeDevelopmentOperation): string {
+    switch (operation) {
+      case "auto_patch":
+        return tx("自动生成 Patch manifest", "Auto-generate patch manifest");
+      case "manual_patch":
+        return tx("手动记录 Patch manifest", "Manually record patch manifest");
+      case "auto_preflight":
+        return tx("自动生成合并预检", "Auto-generate merge preflight");
+      case "manual_preflight":
+        return tx("手动记录合并预检", "Manually record merge preflight");
+      case "review_approved":
+        return tx("批准 Patch", "Approve patch");
+      case "review_needs_revision":
+        return tx("要求修改 Patch", "Request patch revision");
+      case "review_rejected":
+        return tx("驳回 Patch", "Reject patch");
+      case "mark_merged":
+        return tx("标记已合并", "Mark merged");
+      case "mark_blocked":
+        return tx("标记阻塞", "Mark blocked");
+    }
+  }
+
+  function openCodeDevelopmentActionDialog(session: CodeDevelopmentSessionViewRecord, operation: CodeDevelopmentOperation): void {
+    setCodeDevActionError(null);
+    setCodeDevActionDialog({
+      operation,
+      session,
+      summary: session.patchSummary ?? "",
+      fileChangesRaw: session.changedFiles.join(", "),
+      riskNotesRaw: session.riskNotes.join(", "),
+      targetBranch: session.preflightTargetBranch ?? session.baseRef ?? "main",
+      checkedFilesRaw: session.changedFiles.join(", "),
+      conflictFilesRaw: session.preflightConflictFiles.join(", "),
+      warningsRaw: session.preflightWarnings.join(", "),
+      comment: session.reviewComment ?? "",
+      notes: session.mergeNotes ?? "",
+      reason: session.blockedReason ?? "",
+    });
+  }
+
+  function closeCodeDevelopmentActionDialog(): void {
+    setCodeDevActionDialog(null);
+  }
+
+  function updateCodeDevelopmentActionDialog(patch: Partial<CodeDevelopmentActionDialogState>): void {
+    setCodeDevActionDialog((current) => (current ? { ...current, ...patch } : current));
+  }
+
+  function handleSubmitCodeDevelopmentActionDialog(): void {
+    if (!codeDevActionDialog) return;
+
+    const dialog = codeDevActionDialog;
+    const session = dialog.session;
+    const summary = dialog.summary.trim();
+    const targetBranch = dialog.targetBranch.trim();
+    const comment = dialog.comment.trim();
+    const notes = dialog.notes.trim();
+    const reason = dialog.reason.trim();
+
+    if (dialog.operation === "manual_patch" && !summary) {
+      setCodeDevActionError(tx("Patch 摘要不能为空。", "Patch summary is required."));
+      return;
+    }
+    if (dialog.operation === "manual_patch" && parseCodeDevelopmentFileChanges(dialog.fileChangesRaw).length === 0) {
       setCodeDevActionError(tx("至少需要一个变更文件。", "At least one changed file is required."));
       return;
     }
-    const riskNotesRaw = window.prompt(tx("风险备注，可选，多个用逗号分隔", "Risk notes, optional, comma separated"), session.riskNotes.join(", "));
+    if ((dialog.operation === "auto_preflight" || dialog.operation === "manual_preflight") && !targetBranch) {
+      setCodeDevActionError(tx("目标分支不能为空。", "Target branch is required."));
+      return;
+    }
+    if (dialog.operation === "mark_blocked" && !reason) {
+      setCodeDevActionError(tx("阻塞原因不能为空。", "Blocked reason is required."));
+      return;
+    }
 
     startTransition(async () => {
       try {
         setCodeDevActionError(null);
-        await recordCodeDevelopmentPatchManifestAction({
-          sessionId: session.id,
-          summary: summary.trim(),
-          fileChanges,
-          baseRef: session.baseRef,
-          headRef: session.branchName,
-          riskNotes: parseCommaSeparatedValues(riskNotesRaw),
-        });
+        switch (dialog.operation) {
+          case "auto_patch":
+            await recordCodeDevelopmentWorktreePatchManifestAction({
+              sessionId: session.id,
+              summary: summary || undefined,
+              baseRef: session.baseRef,
+              headRef: session.branchName,
+            });
+            break;
+          case "manual_patch":
+            await recordCodeDevelopmentPatchManifestAction({
+              sessionId: session.id,
+              summary,
+              fileChanges: parseCodeDevelopmentFileChanges(dialog.fileChangesRaw),
+              baseRef: session.baseRef,
+              headRef: session.branchName,
+              riskNotes: parseCommaSeparatedValues(dialog.riskNotesRaw),
+            });
+            break;
+          case "auto_preflight":
+            await recordCodeDevelopmentWorktreeMergePreflightAction({
+              sessionId: session.id,
+              targetBranch,
+              baseRef: session.baseRef,
+              headRef: session.branchName,
+            });
+            break;
+          case "manual_preflight":
+            await recordCodeDevelopmentMergePreflightAction({
+              sessionId: session.id,
+              targetBranch,
+              checkedFiles: parseCommaSeparatedValues(dialog.checkedFilesRaw),
+              conflictFiles: parseCommaSeparatedValues(dialog.conflictFilesRaw),
+              warnings: parseCommaSeparatedValues(dialog.warningsRaw),
+              baseRef: session.baseRef,
+              headRef: session.branchName,
+            });
+            break;
+          case "review_approved":
+          case "review_needs_revision":
+          case "review_rejected":
+            await reviewCodeDevelopmentPatchAction({
+              sessionId: session.id,
+              status:
+                dialog.operation === "review_approved"
+                  ? "approved"
+                  : dialog.operation === "review_needs_revision"
+                    ? "needs_revision"
+                    : "rejected",
+              comment: comment || undefined,
+            });
+            break;
+          case "mark_merged":
+            await markCodeDevelopmentSessionMergedAction({
+              sessionId: session.id,
+              notes: notes || undefined,
+            });
+            break;
+          case "mark_blocked":
+            await markCodeDevelopmentSessionBlockedAction({
+              sessionId: session.id,
+              reason,
+            });
+            break;
+        }
+        setCodeDevActionDialog(null);
         refreshWorkspaceModule(onDataChanged, router);
       } catch (error) {
-        setCodeDevActionError(error instanceof Error ? error.message : tx("记录 Patch 失败。", "Failed to record patch."));
-      }
-    });
-  }
-
-  function handleRecordCodeDevelopmentWorktreePatch(session: CodeDevelopmentSessionViewRecord): void {
-    const summary = window.prompt(
-      tx("自动 Patch 摘要，可选", "Automatic patch summary, optional"),
-      session.patchSummary ?? "",
-    );
-    if (summary === null) return;
-
-    startTransition(async () => {
-      try {
-        setCodeDevActionError(null);
-        await recordCodeDevelopmentWorktreePatchManifestAction({
-          sessionId: session.id,
-          summary: summary || undefined,
-          baseRef: session.baseRef,
-          headRef: session.branchName,
-        });
-        refreshWorkspaceModule(onDataChanged, router);
-      } catch (error) {
-        setCodeDevActionError(error instanceof Error ? error.message : tx("自动记录 Patch 失败。", "Failed to auto-record patch."));
-      }
-    });
-  }
-
-  function handleRecordCodeDevelopmentPreflight(session: CodeDevelopmentSessionViewRecord): void {
-    const targetBranch = window.prompt(tx("目标分支", "Target branch"), session.preflightTargetBranch ?? session.baseRef ?? "main");
-    if (!targetBranch?.trim()) return;
-    const checkedFilesRaw = window.prompt(tx("预检文件，多个文件用逗号分隔", "Checked files, comma separated"), session.changedFiles.join(", "));
-    if (checkedFilesRaw === null) return;
-    const conflictFilesRaw = window.prompt(tx("冲突文件，可选，多个用逗号分隔", "Conflict files, optional, comma separated"), session.preflightConflictFiles.join(", "));
-    const warningsRaw = window.prompt(tx("预检警告，可选，多个用逗号分隔", "Warnings, optional, comma separated"), session.preflightWarnings.join(", "));
-
-    startTransition(async () => {
-      try {
-        setCodeDevActionError(null);
-        await recordCodeDevelopmentMergePreflightAction({
-          sessionId: session.id,
-          targetBranch: targetBranch.trim(),
-          checkedFiles: parseCommaSeparatedValues(checkedFilesRaw),
-          conflictFiles: parseCommaSeparatedValues(conflictFilesRaw),
-          warnings: parseCommaSeparatedValues(warningsRaw),
-          baseRef: session.baseRef,
-          headRef: session.branchName,
-        });
-        refreshWorkspaceModule(onDataChanged, router);
-      } catch (error) {
-        setCodeDevActionError(error instanceof Error ? error.message : tx("记录预检失败。", "Failed to record preflight."));
-      }
-    });
-  }
-
-  function handleRecordCodeDevelopmentWorktreePreflight(session: CodeDevelopmentSessionViewRecord): void {
-    const targetBranch = window.prompt(tx("目标分支", "Target branch"), session.preflightTargetBranch ?? session.baseRef ?? "main");
-    if (!targetBranch?.trim()) return;
-
-    startTransition(async () => {
-      try {
-        setCodeDevActionError(null);
-        await recordCodeDevelopmentWorktreeMergePreflightAction({
-          sessionId: session.id,
-          targetBranch: targetBranch.trim(),
-          baseRef: session.baseRef,
-          headRef: session.branchName,
-        });
-        refreshWorkspaceModule(onDataChanged, router);
-      } catch (error) {
-        setCodeDevActionError(error instanceof Error ? error.message : tx("自动预检失败。", "Failed to auto-preflight."));
-      }
-    });
-  }
-
-  function handleReviewCodeDevelopmentPatch(
-    session: CodeDevelopmentSessionViewRecord,
-    status: "approved" | "rejected" | "needs_revision",
-  ): void {
-    const comment = window.prompt(tx("审查备注，可选", "Review comment, optional"), session.reviewComment ?? "");
-    if (comment === null) return;
-    startTransition(async () => {
-      try {
-        setCodeDevActionError(null);
-        await reviewCodeDevelopmentPatchAction({
-          sessionId: session.id,
-          status,
-          comment: comment ?? undefined,
-        });
-        refreshWorkspaceModule(onDataChanged, router);
-      } catch (error) {
-        setCodeDevActionError(error instanceof Error ? error.message : tx("审查失败。", "Failed to review patch."));
-      }
-    });
-  }
-
-  function handleMarkCodeDevelopmentMerged(session: CodeDevelopmentSessionViewRecord): void {
-    const notes = window.prompt(tx("合并备注，可选", "Merge notes, optional"), session.mergeNotes ?? "");
-    if (notes === null) return;
-    startTransition(async () => {
-      try {
-        setCodeDevActionError(null);
-        await markCodeDevelopmentSessionMergedAction({
-          sessionId: session.id,
-          notes: notes ?? undefined,
-        });
-        refreshWorkspaceModule(onDataChanged, router);
-      } catch (error) {
-        setCodeDevActionError(error instanceof Error ? error.message : tx("标记合并失败。", "Failed to mark merged."));
-      }
-    });
-  }
-
-  function handleMarkCodeDevelopmentBlocked(session: CodeDevelopmentSessionViewRecord): void {
-    const reason = window.prompt(tx("阻塞原因", "Blocked reason"), session.blockedReason ?? "");
-    if (!reason?.trim()) return;
-    startTransition(async () => {
-      try {
-        setCodeDevActionError(null);
-        await markCodeDevelopmentSessionBlockedAction({
-          sessionId: session.id,
-          reason: reason.trim(),
-        });
-        refreshWorkspaceModule(onDataChanged, router);
-      } catch (error) {
-        setCodeDevActionError(error instanceof Error ? error.message : tx("标记阻塞失败。", "Failed to mark blocked."));
+        setCodeDevActionError(error instanceof Error ? error.message : tx("开发会话操作失败。", "Code development action failed."));
       }
     });
   }
@@ -1047,7 +1073,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
-                                onClick={() => handleRecordCodeDevelopmentWorktreePatch(session)}
+                                onClick={() => openCodeDevelopmentActionDialog(session, "auto_patch")}
                                 type="button"
                               >
                                 {tx("自动 Patch", "Auto patch")}
@@ -1055,7 +1081,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
-                                onClick={() => handleRecordCodeDevelopmentPatch(session)}
+                                onClick={() => openCodeDevelopmentActionDialog(session, "manual_patch")}
                                 type="button"
                               >
                                 {tx("记录 Patch", "Record patch")}
@@ -1063,7 +1089,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
-                                onClick={() => handleRecordCodeDevelopmentWorktreePreflight(session)}
+                                onClick={() => openCodeDevelopmentActionDialog(session, "auto_preflight")}
                                 type="button"
                               >
                                 {tx("自动预检", "Auto preflight")}
@@ -1071,7 +1097,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
-                                onClick={() => handleRecordCodeDevelopmentPreflight(session)}
+                                onClick={() => openCodeDevelopmentActionDialog(session, "manual_preflight")}
                                 type="button"
                               >
                                 {tx("预检", "Preflight")}
@@ -1079,7 +1105,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
-                                onClick={() => handleReviewCodeDevelopmentPatch(session, "approved")}
+                                onClick={() => openCodeDevelopmentActionDialog(session, "review_approved")}
                                 type="button"
                               >
                                 {tx("批准", "Approve")}
@@ -1087,7 +1113,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
-                                onClick={() => handleReviewCodeDevelopmentPatch(session, "needs_revision")}
+                                onClick={() => openCodeDevelopmentActionDialog(session, "review_needs_revision")}
                                 type="button"
                               >
                                 {tx("需修改", "Needs revision")}
@@ -1095,7 +1121,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
-                                onClick={() => handleReviewCodeDevelopmentPatch(session, "rejected")}
+                                onClick={() => openCodeDevelopmentActionDialog(session, "review_rejected")}
                                 type="button"
                               >
                                 {tx("驳回", "Reject")}
@@ -1103,7 +1129,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--primary"
                                 disabled={isPending}
-                                onClick={() => handleMarkCodeDevelopmentMerged(session)}
+                                onClick={() => openCodeDevelopmentActionDialog(session, "mark_merged")}
                                 type="button"
                               >
                                 {tx("标记已合并", "Mark merged")}
@@ -1111,7 +1137,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--danger"
                                 disabled={isPending}
-                                onClick={() => handleMarkCodeDevelopmentBlocked(session)}
+                                onClick={() => openCodeDevelopmentActionDialog(session, "mark_blocked")}
                                 type="button"
                               >
                                 {tx("阻塞", "Block")}
@@ -1211,6 +1237,213 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
             </div>
           </div>
         ) : null}
+
+      {codeDevActionDialog ? (
+        <div className="knowledge-modal-overlay" onClick={closeCodeDevelopmentActionDialog}>
+          <div className="knowledge-modal knowledge-modal--wide" onClick={(e) => e.stopPropagation()}>
+            <div className="automations-builder__header">
+              <div>
+                <span>{tx("开发会话操作", "Development session action")}</span>
+                <h3>{getCodeDevelopmentOperationLabel(codeDevActionDialog.operation)}</h3>
+              </div>
+            </div>
+
+            <p className="knowledge-modal__hint">
+              {tx(
+                "提交前请确认当前 session、worktree 和已有记录。Patch / preflight 操作会覆盖该 session 当前记录。",
+                "Before submitting, confirm the session, worktree, and existing records. Patch / preflight actions overwrite the current session records.",
+              )}
+            </p>
+
+            <div className="automations-builder__preview">
+              <span>{tx("确认摘要", "Confirmation summary")}</span>
+              <strong>{codeDevActionDialog.session.title}</strong>
+              <small>
+                {tx("状态", "Status")}: {tx(
+                  CODE_DEVELOPMENT_STATUS_LABELS[codeDevActionDialog.session.status].label,
+                  CODE_DEVELOPMENT_STATUS_LABELS[codeDevActionDialog.session.status].labelEn,
+                )}
+              </small>
+              <small>
+                {tx("Branch", "Branch")}: {codeDevActionDialog.session.branchName}
+                {codeDevActionDialog.session.baseRef ? ` · ${tx("Base", "Base")}: ${codeDevActionDialog.session.baseRef}` : ""}
+              </small>
+              <small>{tx("Worktree", "Worktree")}: {codeDevActionDialog.session.worktreePath}</small>
+              {codeDevActionDialog.session.patchSummary ? (
+                <small>
+                  {tx("当前 Patch", "Current patch")}: {codeDevActionDialog.session.patchSummary}
+                  {codeDevActionDialog.session.changedFiles.length > 0 ? ` · ${codeDevActionDialog.session.changedFiles.join(", ")}` : ""}
+                </small>
+              ) : (
+                <small>{tx("当前 Patch", "Current patch")}: {tx("无", "None")}</small>
+              )}
+              {codeDevActionDialog.session.preflightStatus ? (
+                <small>
+                  {tx("当前预检", "Current preflight")}: {codeDevActionDialog.session.preflightStatus}
+                  {codeDevActionDialog.session.preflightTargetBranch ? ` · ${tx("Target", "Target")}: ${codeDevActionDialog.session.preflightTargetBranch}` : ""}
+                  {codeDevActionDialog.session.preflightConflictFiles.length > 0 ? ` · ${tx("冲突", "Conflicts")}: ${codeDevActionDialog.session.preflightConflictFiles.join(", ")}` : ""}
+                </small>
+              ) : (
+                <small>{tx("当前预检", "Current preflight")}: {tx("无", "None")}</small>
+              )}
+            </div>
+
+            {codeDevActionDialog.operation === "auto_patch" || codeDevActionDialog.operation === "manual_patch" ? (
+              <div className="automations-builder__identity">
+                <label>
+                  {tx("Patch 摘要", "Patch summary")}
+                  <input
+                    autoFocus
+                    className="knowledge-modal__input"
+                    value={codeDevActionDialog.summary}
+                    onChange={(event) => updateCodeDevelopmentActionDialog({ summary: event.target.value })}
+                    placeholder={tx("说明这次代码变更的目的", "Describe the purpose of this code change")}
+                  />
+                </label>
+                {codeDevActionDialog.operation === "manual_patch" ? (
+                  <>
+                    <label>
+                      {tx("变更文件，多个文件用逗号分隔", "Changed files, comma separated")}
+                      <textarea
+                        className="knowledge-modal__input"
+                        rows={3}
+                        value={codeDevActionDialog.fileChangesRaw}
+                        onChange={(event) => updateCodeDevelopmentActionDialog({ fileChangesRaw: event.target.value })}
+                        placeholder="packages/example/src/file.ts, apps/web/app/page.tsx"
+                      />
+                    </label>
+                    <label>
+                      {tx("风险备注，可选，多个用逗号分隔", "Risk notes, optional, comma separated")}
+                      <textarea
+                        className="knowledge-modal__input"
+                        rows={2}
+                        value={codeDevActionDialog.riskNotesRaw}
+                        onChange={(event) => updateCodeDevelopmentActionDialog({ riskNotesRaw: event.target.value })}
+                        placeholder={tx("例如：需要人工复核迁移脚本", "Example: migration script requires manual review")}
+                      />
+                    </label>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
+            {codeDevActionDialog.operation === "auto_preflight" || codeDevActionDialog.operation === "manual_preflight" ? (
+              <div className="automations-builder__identity">
+                <label>
+                  {tx("目标分支", "Target branch")}
+                  <input
+                    autoFocus
+                    className="knowledge-modal__input"
+                    value={codeDevActionDialog.targetBranch}
+                    onChange={(event) => updateCodeDevelopmentActionDialog({ targetBranch: event.target.value })}
+                    placeholder="main"
+                  />
+                </label>
+                {codeDevActionDialog.operation === "manual_preflight" ? (
+                  <>
+                    <label>
+                      {tx("预检文件，多个文件用逗号分隔", "Checked files, comma separated")}
+                      <textarea
+                        className="knowledge-modal__input"
+                        rows={3}
+                        value={codeDevActionDialog.checkedFilesRaw}
+                        onChange={(event) => updateCodeDevelopmentActionDialog({ checkedFilesRaw: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      {tx("冲突文件，可选，多个用逗号分隔", "Conflict files, optional, comma separated")}
+                      <textarea
+                        className="knowledge-modal__input"
+                        rows={2}
+                        value={codeDevActionDialog.conflictFilesRaw}
+                        onChange={(event) => updateCodeDevelopmentActionDialog({ conflictFilesRaw: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      {tx("预检警告，可选，多个用逗号分隔", "Warnings, optional, comma separated")}
+                      <textarea
+                        className="knowledge-modal__input"
+                        rows={2}
+                        value={codeDevActionDialog.warningsRaw}
+                        onChange={(event) => updateCodeDevelopmentActionDialog({ warningsRaw: event.target.value })}
+                      />
+                    </label>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
+            {codeDevActionDialog.operation === "review_approved" ||
+            codeDevActionDialog.operation === "review_needs_revision" ||
+            codeDevActionDialog.operation === "review_rejected" ? (
+              <div className="automations-builder__identity">
+                <label>
+                  {tx("审查备注，可选", "Review comment, optional")}
+                  <textarea
+                    autoFocus
+                    className="knowledge-modal__input"
+                    rows={3}
+                    value={codeDevActionDialog.comment}
+                    onChange={(event) => updateCodeDevelopmentActionDialog({ comment: event.target.value })}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {codeDevActionDialog.operation === "mark_merged" ? (
+              <div className="automations-builder__identity">
+                <label>
+                  {tx("合并备注，可选", "Merge notes, optional")}
+                  <textarea
+                    autoFocus
+                    className="knowledge-modal__input"
+                    rows={3}
+                    value={codeDevActionDialog.notes}
+                    onChange={(event) => updateCodeDevelopmentActionDialog({ notes: event.target.value })}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {codeDevActionDialog.operation === "mark_blocked" ? (
+              <div className="automations-builder__identity">
+                <label>
+                  {tx("阻塞原因", "Blocked reason")}
+                  <textarea
+                    autoFocus
+                    className="knowledge-modal__input"
+                    rows={3}
+                    value={codeDevActionDialog.reason}
+                    onChange={(event) => updateCodeDevelopmentActionDialog({ reason: event.target.value })}
+                    placeholder={tx("说明为什么不能继续推进", "Explain why this cannot proceed")}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {codeDevActionError ? <small>{codeDevActionError}</small> : null}
+
+            <div className="knowledge-modal__footer">
+              <button
+                className={codeDevActionDialog.operation === "mark_blocked" ? "knowledge-btn knowledge-btn--danger" : "knowledge-btn knowledge-btn--primary"}
+                disabled={isPending}
+                onClick={handleSubmitCodeDevelopmentActionDialog}
+                type="button"
+              >
+                {isPending ? tx("提交中...", "Submitting...") : tx("确认提交", "Confirm")}
+              </button>
+              <button
+                className="knowledge-btn knowledge-btn--ghost"
+                disabled={isPending}
+                onClick={closeCodeDevelopmentActionDialog}
+                type="button"
+              >
+                {tx("取消", "Cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showCreateModal ? (
         <div className="knowledge-modal-overlay" onClick={() => setShowCreateModal(false)}>
