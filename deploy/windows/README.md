@@ -47,6 +47,20 @@ Logs are written to:
 .tmp\launcher\web.stderr.log
 ```
 
+## Runtime preflight
+
+The launcher runs a lightweight runtime preflight before starting the web server. You can also run it directly:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-AgentSpaceRuntime.ps1
+```
+
+For desktop packaging checks:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-AgentSpaceRuntime.ps1 -Mode start -Desktop
+```
+
 ## Desktop executable path
 
 P5-B adds an Electron desktop shell and package scripts:

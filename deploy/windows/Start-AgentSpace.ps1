@@ -50,6 +50,7 @@ $repoRoot = Resolve-Path (Join-Path $scriptDir "..\..")
 $webNodeModules = Join-Path $repoRoot "apps\web\node_modules"
 $nextBuildDir = Join-Path $repoRoot "apps\web\.next"
 $logDir = Join-Path $repoRoot ".tmp\launcher"
+$preflightScript = Join-Path $scriptDir "Test-AgentSpaceRuntime.ps1"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $npm = Resolve-RequiredCommand @("npm.cmd", "npm")
@@ -70,6 +71,14 @@ if ($Mode -eq "start" -and -not (Test-Path $nextBuildDir)) {
   & $npm --prefix (Join-Path $repoRoot "apps\web") run build
   if ($LASTEXITCODE -ne 0) {
     throw "apps/web build failed with exit code $LASTEXITCODE."
+  }
+}
+
+if (Test-Path $preflightScript) {
+  Write-LauncherStep "Running runtime preflight..."
+  & $preflightScript -Mode $Mode -RepoRoot $repoRoot
+  if ($LASTEXITCODE -ne 0) {
+    throw "Runtime preflight failed with exit code $LASTEXITCODE."
   }
 }
 
