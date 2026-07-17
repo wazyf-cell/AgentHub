@@ -1,8 +1,9 @@
-import type { CodeDevelopmentPatchRecord, CodeDevelopmentSession } from "@agent-space/domain";
+import type { CodeDevelopmentPatchFileChange, CodeDevelopmentPatchRecord, CodeDevelopmentSession } from "@agent-space/domain";
 import type { AgentSpaceState } from "@agent-space/domain/workspace";
 
 const SESSION_STATUSES = new Set(["planned", "running", "patch_ready", "reviewed", "merged", "blocked", "cancelled"]);
 const PATCH_REVIEW_STATUSES = new Set(["approved", "rejected", "needs_revision"]);
+const PATCH_FILE_CHANGE_TYPES = new Set(["added", "modified", "deleted", "renamed"]);
 const ACTOR_TYPES = new Set(["human", "agent", "system"]);
 
 export function normalizeCodeDevelopmentSessions(
@@ -76,14 +77,50 @@ function normalizeCodeDevelopmentPatch(patch: unknown): CodeDevelopmentPatchReco
   }
 
   return {
+    manifestVersion: candidate.manifestVersion === 1 ? 1 : undefined,
     summary: candidate.summary,
     patchRef: typeof candidate.patchRef === "string" ? candidate.patchRef : undefined,
+    patchSha256: typeof candidate.patchSha256 === "string" ? candidate.patchSha256 : undefined,
+    patchSizeBytes: typeof candidate.patchSizeBytes === "number" && candidate.patchSizeBytes >= 0 ? candidate.patchSizeBytes : undefined,
+    baseRef: typeof candidate.baseRef === "string" ? candidate.baseRef : undefined,
+    headRef: typeof candidate.headRef === "string" ? candidate.headRef : undefined,
     changedFiles: readStringArray(candidate.changedFiles),
+    fileChanges: normalizePatchFileChanges(candidate.fileChanges),
     riskNotes: readStringArray(candidate.riskNotes),
     createdByType: candidate.createdByType,
     createdById: candidate.createdById,
     createdAt: candidate.createdAt,
     review: normalizePatchReview(candidate.review),
+  };
+}
+
+function normalizePatchFileChanges(value: unknown): CodeDevelopmentPatchFileChange[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const changes = value
+    .map((change) => normalizePatchFileChange(change))
+    .filter((change): change is CodeDevelopmentPatchFileChange => change !== null);
+  return changes.length > 0 ? changes : undefined;
+}
+
+function normalizePatchFileChange(value: unknown): CodeDevelopmentPatchFileChange | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const candidate = value as Partial<CodeDevelopmentPatchFileChange>;
+  if (typeof candidate.path !== "string" || !PATCH_FILE_CHANGE_TYPES.has(candidate.changeType ?? "")) {
+    return null;
+  }
+
+  return {
+    path: candidate.path,
+    changeType: candidate.changeType!,
+    additions: typeof candidate.additions === "number" && candidate.additions >= 0 ? candidate.additions : undefined,
+    deletions: typeof candidate.deletions === "number" && candidate.deletions >= 0 ? candidate.deletions : undefined,
+    previousPath: typeof candidate.previousPath === "string" ? candidate.previousPath : undefined,
   };
 }
 

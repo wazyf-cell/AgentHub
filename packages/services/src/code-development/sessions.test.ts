@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { before, beforeEach } from "node:test";
 import { createWorkspaceSync, readWorkspaceSync } from "@agent-space/db";
 import {
+  allocateCodeDevelopmentSessionSync,
   createCodeDevelopmentSessionSync,
   listCodeDevelopmentSessionsSync,
   markCodeDevelopmentSessionMergedSync,
+  recordCodeDevelopmentPatchManifestSync,
   recordCodeDevelopmentPatchSync,
   resetWorkspaceStateSync,
   reviewCodeDevelopmentPatchSync,
@@ -114,6 +117,139 @@ test("code development sessions require isolated worktrees and approved patch re
   const listed = listCodeDevelopmentSessionsSync(WORKSPACE_ID);
   assert.equal(listed.length, 1);
   assert.equal(listed[0]?.id, session.id);
+});
+
+test("code development allocation creates isolated worktree metadata and patch manifests", () => {
+  const session = allocateCodeDevelopmentSessionSync(
+    {
+      title: "Router safety pass",
+      goal: "Allocate an isolated worktree for router hardening.",
+      repositoryRoot: "F:/repo",
+      baseRef: "main",
+      assignedAgentIds: ["Atlas"],
+      createdBy: { type: "human", id: "Mina" },
+    },
+    WORKSPACE_ID,
+  );
+
+  assert.equal(session.repositoryRoot, "F:/repo");
+  assert.equal(session.worktreePath.startsWith("F:/repo/.worktrees/router-safety-pass-"), true);
+  assert.equal(session.branchName.startsWith("agent-space/router-safety-pass-"), true);
+  assert.notEqual(session.worktreePath, session.repositoryRoot);
+
+  assert.throws(
+    () =>
+      allocateCodeDevelopmentSessionSync(
+        {
+          title: "Escaped worktree root",
+          goal: "Should not allocate outside the repository.",
+          repositoryRoot: "F:/repo",
+          worktreeRoot: "F:/repo/..",
+          assignedAgentIds: ["Atlas"],
+          createdBy: { type: "human", id: "Mina" },
+        },
+        WORKSPACE_ID,
+      ),
+    /must stay inside/,
+  );
+
+  const allocatedDir = session.worktreePath.split("/").at(-1)!;
+  assert.throws(
+    () =>
+      createCodeDevelopmentSessionSync(
+        {
+          title: "Duplicate escaped worktree",
+          goal: "Should not bypass active worktree detection with traversal.",
+          repositoryRoot: "F:/repo",
+          worktreePath: `F:/repo/.worktrees/nested/../${allocatedDir}`,
+          branchName: "feature/duplicate-escaped",
+          assignedAgentIds: ["Nova"],
+          createdBy: { type: "human", id: "Mina" },
+        },
+        WORKSPACE_ID,
+      ),
+    /already uses worktree/,
+  );
+
+  assert.throws(
+    () =>
+      recordCodeDevelopmentPatchManifestSync(
+        {
+          sessionId: session.id,
+          summary: "Unsafe manifest.",
+          fileChanges: [{ path: "../outside.ts" }],
+          createdBy: { type: "agent", id: "Atlas" },
+        },
+        WORKSPACE_ID,
+      ),
+    /must not traverse/,
+  );
+
+  for (const invalidPath of ["", "/absolute.ts", "C:/absolute.ts", "C:relative.ts"]) {
+    assert.throws(
+      () =>
+        recordCodeDevelopmentPatchManifestSync(
+          {
+            sessionId: session.id,
+            summary: "Unsafe manifest.",
+            fileChanges: [{ path: invalidPath }],
+            createdBy: { type: "agent", id: "Atlas" },
+          },
+          WORKSPACE_ID,
+        ),
+      /repository-relative/,
+    );
+  }
+
+  assert.throws(
+    () =>
+      recordCodeDevelopmentPatchManifestSync(
+        {
+          sessionId: session.id,
+          summary: "Unsafe rename manifest.",
+          fileChanges: [{ path: "packages/daemon/src/router.ts", changeType: "renamed", previousPath: "../old-router.ts" }],
+          createdBy: { type: "agent", id: "Atlas" },
+        },
+        WORKSPACE_ID,
+      ),
+    /must not traverse/,
+  );
+
+  const patchText = "diff --git a/packages/daemon/src/router.ts b/packages/daemon/src/router.ts\n";
+  const expectedHash = createHash("sha256").update(patchText).digest("hex");
+  const patched = recordCodeDevelopmentPatchManifestSync(
+    {
+      sessionId: session.id,
+      summary: "Router fencing manifest.",
+      patchText,
+      patchRef: "patches/router-safety.diff",
+      headRef: "feature/router-safety",
+      fileChanges: [
+        { path: "packages/daemon/src/router.ts", changeType: "modified", additions: 12, deletions: 3 },
+        { path: "packages/daemon/src/router.ts", changeType: "modified", additions: 1 },
+      ],
+      riskNotes: ["Requires daemon route regression."],
+      createdBy: { type: "agent", id: "Atlas" },
+    },
+    WORKSPACE_ID,
+  );
+
+  assert.equal(patched.status, "patch_ready");
+  assert.equal(patched.patch?.manifestVersion, 1);
+  assert.equal(patched.patch?.patchSha256, expectedHash);
+  assert.equal(patched.patch?.patchSizeBytes, Buffer.byteLength(patchText, "utf8"));
+  assert.equal(patched.patch?.baseRef, "main");
+  assert.equal(patched.patch?.headRef, "feature/router-safety");
+  assert.deepEqual(patched.patch?.changedFiles, ["packages/daemon/src/router.ts"]);
+  assert.deepEqual(patched.patch?.fileChanges, [
+    {
+      path: "packages/daemon/src/router.ts",
+      changeType: "modified",
+      additions: 12,
+      deletions: 3,
+      previousPath: undefined,
+    },
+  ]);
 });
 
 function ensureWorkspaceRecord(workspaceId: string, name: string): void {

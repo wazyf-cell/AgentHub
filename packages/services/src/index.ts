@@ -306,16 +306,20 @@ export {
   type RecordPanelOpinionInput,
 } from "./collaboration/panel.ts";
 export {
+  allocateCodeDevelopmentSessionSync,
   createCodeDevelopmentSessionSync,
   listCodeDevelopmentSessionsSync,
   markCodeDevelopmentSessionBlockedSync,
   markCodeDevelopmentSessionMergedSync,
   recordCodeDevelopmentPatchSync,
+  recordCodeDevelopmentPatchManifestSync,
   reviewCodeDevelopmentPatchSync,
+  type AllocateCodeDevelopmentSessionInput,
   type CreateCodeDevelopmentSessionInput,
   type MarkCodeDevelopmentSessionBlockedInput,
   type MarkCodeDevelopmentSessionMergedInput,
   type RecordCodeDevelopmentPatchInput,
+  type RecordCodeDevelopmentPatchManifestInput,
   type ReviewCodeDevelopmentPatchInput,
 } from "./code-development/sessions.ts";
 export {

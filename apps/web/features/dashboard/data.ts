@@ -5475,6 +5475,10 @@ export interface CodeDevelopmentSessionViewRecord {
   assignedAgentIds: string[];
   patchSummary?: string;
   patchRef?: string;
+  patchSha256?: string;
+  patchSizeBytes?: number;
+  patchBaseRef?: string;
+  patchHeadRef?: string;
   changedFiles: string[];
   riskNotes: string[];
   reviewStatus?: "approved" | "rejected" | "needs_revision";
@@ -5629,6 +5633,10 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
     assignedAgentIds: session.assignedAgentIds,
     patchSummary: session.patch?.summary,
     patchRef: session.patch?.patchRef,
+    patchSha256: session.patch?.patchSha256,
+    patchSizeBytes: session.patch?.patchSizeBytes,
+    patchBaseRef: session.patch?.baseRef,
+    patchHeadRef: session.patch?.headRef,
     changedFiles: session.patch?.changedFiles ?? [],
     riskNotes: session.patch?.riskNotes ?? [],
     reviewStatus: session.patch?.review?.status,

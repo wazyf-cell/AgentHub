@@ -756,6 +756,14 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                           {session.changedFiles.length > 0 ? ` · ${tx("文件", "Files")}: ${session.changedFiles.join(", ")}` : ""}
                         </small>
                       ) : null}
+                      {session.patchSha256 || session.patchBaseRef || session.patchHeadRef || session.patchSizeBytes !== undefined ? (
+                        <small>
+                          {tx("Manifest", "Manifest")}: {session.patchBaseRef ? `${tx("Base", "Base")} ${session.patchBaseRef}` : ""}
+                          {session.patchHeadRef ? ` · ${tx("Head", "Head")} ${session.patchHeadRef}` : ""}
+                          {session.patchSha256 ? ` · sha256 ${session.patchSha256.slice(0, 12)}` : ""}
+                          {session.patchSizeBytes !== undefined ? ` · ${session.patchSizeBytes} bytes` : ""}
+                        </small>
+                      ) : null}
                       {session.reviewStatus ? (
                         <small>
                           {tx("审查", "Review")}: {session.reviewStatus}

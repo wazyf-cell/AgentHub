@@ -24,11 +24,11 @@ import {
   writeWorkspaceStateRecordSync,
 } from "@agent-space/db";
 import {
+  allocateCodeDevelopmentSessionSync,
   bindEmployeeRuntimeSync,
   createChannelSync,
   createChannelDocumentFromAttachmentSync,
   createChannelDocumentSync,
-  createCodeDevelopmentSessionSync,
   createEmployeeSync,
   createPanelDiscussionSync,
   createTaskSync,
@@ -36,7 +36,7 @@ import {
   createWorkspaceSkillSync,
   grantRuntimeUseToUserForActorSync,
   readWorkspaceStateSync,
-  recordCodeDevelopmentPatchSync,
+  recordCodeDevelopmentPatchManifestSync,
   recordPanelDecisionSync,
   recordPanelOpinionSync,
   reviewCodeDevelopmentPatchSync,
@@ -1135,21 +1135,25 @@ describe("dashboard data", () => {
   });
 
   it("includes safe code development sessions in automations page data", () => {
-    const session = createCodeDevelopmentSessionSync({
+    const patchText = "diff --git a/packages/daemon/src/router.ts b/packages/daemon/src/router.ts\n";
+    const session = allocateCodeDevelopmentSessionSync({
       title: "Router hardening branch",
       goal: "Let Atlas prepare a patch in an isolated worktree before manual merge.",
       repositoryRoot: "F:/repo",
-      worktreePath: "F:/repo/.worktrees/router-hardening",
-      branchName: "feature/router-hardening",
       baseRef: "main",
       assignedAgentIds: ["Atlas", "Nova"],
       createdBy: { type: "human", id: "Tianyu" },
     });
-    recordCodeDevelopmentPatchSync({
+    recordCodeDevelopmentPatchManifestSync({
       sessionId: session.id,
       summary: "Router lease checks are stricter.",
+      patchText,
       patchRef: "patches/router-hardening.diff",
-      changedFiles: ["packages/daemon/src/router.ts", "packages/db/src/task-queue.ts"],
+      headRef: "feature/router-hardening",
+      fileChanges: [
+        { path: "packages/daemon/src/router.ts", changeType: "modified", additions: 8, deletions: 2 },
+        { path: "packages/db/src/task-queue.ts", changeType: "modified", additions: 4, deletions: 1 },
+      ],
       riskNotes: ["Needs daemon route regression."],
       createdBy: { type: "agent", id: "Atlas" },
     });
@@ -1169,10 +1173,15 @@ describe("dashboard data", () => {
       id: session.id,
       title: "Router hardening branch",
       status: "reviewed",
-      branchName: "feature/router-hardening",
+      branchName: expect.stringMatching(/^agent-space\/router-hardening-branch-/),
+      worktreePath: expect.stringMatching(/^F:\/repo\/.worktrees\/router-hardening-branch-/),
       assignedAgentIds: ["Atlas", "Nova"],
       patchSummary: "Router lease checks are stricter.",
       patchRef: "patches/router-hardening.diff",
+      patchSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      patchSizeBytes: Buffer.byteLength(patchText, "utf8"),
+      patchBaseRef: "main",
+      patchHeadRef: "feature/router-hardening",
       changedFiles: ["packages/daemon/src/router.ts", "packages/db/src/task-queue.ts"],
       riskNotes: ["Needs daemon route regression."],
       reviewStatus: "needs_revision",

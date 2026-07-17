@@ -1,10 +1,14 @@
+import { createHash } from "node:crypto";
+import path from "node:path";
 import { DEFAULT_WORKSPACE_ID } from "@agent-space/db";
 import type {
+  CodeDevelopmentPatchFileChange,
+  CodeDevelopmentPatchFileChangeType,
   CodeDevelopmentPatchReviewStatus,
   CodeDevelopmentSession,
   CollaborationActorRef,
 } from "@agent-space/domain";
-import { createOpaqueId, normalizeSkillFilePath, uniqueStringValues } from "../shared/helpers.ts";
+import { createOpaqueId, normalizeSkillFilePath, slugify, uniqueStringValues } from "../shared/helpers.ts";
 import { ensureWorkspaceStateSync, writeWorkspaceStateSync } from "../shared/state-io.ts";
 
 export interface CreateCodeDevelopmentSessionInput {
@@ -18,11 +22,41 @@ export interface CreateCodeDevelopmentSessionInput {
   createdBy: CollaborationActorRef;
 }
 
+export interface AllocateCodeDevelopmentSessionInput {
+  title: string;
+  goal: string;
+  repositoryRoot: string;
+  worktreeRoot?: string;
+  branchPrefix?: string;
+  branchName?: string;
+  baseRef?: string;
+  assignedAgentIds: string[];
+  createdBy: CollaborationActorRef;
+}
+
 export interface RecordCodeDevelopmentPatchInput {
   sessionId: string;
   summary: string;
   patchRef?: string;
   changedFiles: string[];
+  riskNotes?: string[];
+  createdBy: CollaborationActorRef;
+}
+
+export interface RecordCodeDevelopmentPatchManifestInput {
+  sessionId: string;
+  summary: string;
+  patchText?: string;
+  patchRef?: string;
+  baseRef?: string;
+  headRef?: string;
+  fileChanges: Array<{
+    path: string;
+    changeType?: CodeDevelopmentPatchFileChangeType;
+    additions?: number;
+    deletions?: number;
+    previousPath?: string;
+  }>;
   riskNotes?: string[];
   createdBy: CollaborationActorRef;
 }
@@ -48,6 +82,7 @@ export interface MarkCodeDevelopmentSessionBlockedInput {
 
 const TERMINAL_STATUSES = new Set<CodeDevelopmentSession["status"]>(["merged", "blocked", "cancelled"]);
 const PATCH_REVIEW_STATUSES = new Set<CodeDevelopmentPatchReviewStatus>(["approved", "rejected", "needs_revision"]);
+const PATCH_FILE_CHANGE_TYPES = new Set<CodeDevelopmentPatchFileChangeType>(["added", "modified", "deleted", "renamed"]);
 
 export function createCodeDevelopmentSessionSync(
   input: CreateCodeDevelopmentSessionInput,
@@ -95,10 +130,90 @@ export function createCodeDevelopmentSessionSync(
   return session;
 }
 
+export function allocateCodeDevelopmentSessionSync(
+  input: AllocateCodeDevelopmentSessionInput,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): CodeDevelopmentSession {
+  const title = requireTrimmed(input.title, "Code development session title is required.");
+  const repositoryRoot = normalizeComparablePath(
+    requireTrimmed(input.repositoryRoot, "Repository root is required."),
+  );
+  const worktreeRoot = normalizeComparablePath(input.worktreeRoot?.trim() || `${repositoryRoot}/.worktrees`);
+  if (samePath(repositoryRoot, worktreeRoot)) {
+    throw new Error("Code development worktree root must not be the repository root.");
+  }
+  if (!isPathInside(repositoryRoot, worktreeRoot)) {
+    throw new Error("Code development worktree root must stay inside the repository root.");
+  }
+
+  const suffix = createOpaqueId().replace(/[^a-z0-9-]/gi, "").slice(-8) || "session";
+  const slug = slugify(title).slice(0, 48) || "code-dev";
+  const branchPrefix = normalizeBranchSegment(input.branchPrefix?.trim() || "agent-space");
+  const branchName = input.branchName?.trim()
+    ? normalizeBranchName(input.branchName)
+    : `${branchPrefix}/${slug}-${suffix}`;
+  const worktreePath = normalizeComparablePath(`${worktreeRoot}/${slug}-${suffix}`);
+
+  return createCodeDevelopmentSessionSync(
+    {
+      title,
+      goal: input.goal,
+      repositoryRoot,
+      worktreePath,
+      branchName,
+      baseRef: input.baseRef,
+      assignedAgentIds: input.assignedAgentIds,
+      createdBy: input.createdBy,
+    },
+    workspaceId,
+  );
+}
+
 export function listCodeDevelopmentSessionsSync(workspaceId = DEFAULT_WORKSPACE_ID): CodeDevelopmentSession[] {
   return ensureWorkspaceStateSync(workspaceId).codeDevelopmentSessions
     .slice()
     .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+}
+
+export function recordCodeDevelopmentPatchManifestSync(
+  input: RecordCodeDevelopmentPatchManifestInput,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): CodeDevelopmentSession {
+  const state = ensureWorkspaceStateSync(workspaceId);
+  const session = requireSession(state.codeDevelopmentSessions, input.sessionId);
+  assertMutableSession(session);
+
+  const summary = requireTrimmed(input.summary, "Code development patch summary is required.");
+  const createdById = requireTrimmed(input.createdBy.id, "Code development patch creator id is required.");
+  const fileChanges = normalizePatchFileChanges(input.fileChanges);
+  if (fileChanges.length === 0) {
+    throw new Error("Code development patch manifest must include at least one changed file.");
+  }
+
+  const hasPatchText = input.patchText !== undefined;
+  const patchText = input.patchText ?? "";
+  const patchSha256 = hasPatchText ? createHash("sha256").update(patchText).digest("hex") : undefined;
+  const patchSizeBytes = hasPatchText ? Buffer.byteLength(patchText, "utf8") : undefined;
+  const now = new Date().toISOString();
+  session.patch = {
+    manifestVersion: 1,
+    summary,
+    patchRef: input.patchRef?.trim() || undefined,
+    patchSha256,
+    patchSizeBytes,
+    baseRef: input.baseRef?.trim() || session.baseRef,
+    headRef: input.headRef?.trim() || undefined,
+    changedFiles: fileChanges.map((change) => change.path),
+    fileChanges,
+    riskNotes: uniqueStringValues(input.riskNotes ?? []),
+    createdByType: input.createdBy.type,
+    createdById,
+    createdAt: now,
+  };
+  session.status = "patch_ready";
+  session.updatedAt = now;
+  writeWorkspaceStateSync(state, workspaceId);
+  return session;
 }
 
 export function recordCodeDevelopmentPatchSync(
@@ -222,9 +337,90 @@ function requireTrimmed(value: string, message: string): string {
 }
 
 function normalizeComparablePath(value: string): string {
-  return value.trim().replace(/\\/g, "/").replace(/\/+$/g, "");
+  return path.resolve(value.trim()).replace(/\\/g, "/").replace(/\/+$/g, "");
 }
 
 function samePath(left: string, right: string): boolean {
   return normalizeComparablePath(left).localeCompare(normalizeComparablePath(right), "en", { sensitivity: "base" }) === 0;
+}
+
+function isPathInside(parent: string, child: string): boolean {
+  const parentPath = normalizeComparablePath(parent);
+  const childPath = normalizeComparablePath(child);
+  if (samePath(parentPath, childPath)) {
+    return false;
+  }
+  const parentPrefix = parentPath.endsWith("/") ? parentPath : `${parentPath}/`;
+  return childPath.toLocaleLowerCase("en").startsWith(parentPrefix.toLocaleLowerCase("en"));
+}
+
+function normalizeBranchSegment(value: string): string {
+  const normalized = value
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((segment) => segment.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, ""))
+    .filter(Boolean)
+    .join("/");
+  if (!normalized || normalized.includes("..") || normalized.startsWith("-")) {
+    throw new Error("Code development branch prefix is invalid.");
+  }
+  return normalized;
+}
+
+function normalizeBranchName(value: string): string {
+  const normalized = normalizeBranchSegment(value);
+  if (normalized.endsWith(".lock")) {
+    throw new Error("Code development branch name is invalid.");
+  }
+  return normalized;
+}
+
+function normalizePatchFileChanges(
+  changes: RecordCodeDevelopmentPatchManifestInput["fileChanges"],
+): CodeDevelopmentPatchFileChange[] {
+  if (!Array.isArray(changes)) {
+    throw new Error("Code development patch manifest must include at least one changed file.");
+  }
+
+  const result: CodeDevelopmentPatchFileChange[] = [];
+  const seenPaths = new Set<string>();
+  for (const change of changes) {
+    const path = normalizeRepositoryRelativeFilePath(change.path);
+    if (seenPaths.has(path)) {
+      continue;
+    }
+    const changeType = change.changeType ?? "modified";
+    if (!PATCH_FILE_CHANGE_TYPES.has(changeType)) {
+      throw new Error(`Unsupported code development file change type "${changeType}".`);
+    }
+    const previousPath = change.previousPath ? normalizeRepositoryRelativeFilePath(change.previousPath) : undefined;
+    result.push({
+      path,
+      changeType,
+      additions: normalizeNonNegativeInteger(change.additions),
+      deletions: normalizeNonNegativeInteger(change.deletions),
+      previousPath,
+    });
+    seenPaths.add(path);
+  }
+  return result;
+}
+
+function normalizeRepositoryRelativeFilePath(value: string): string {
+  const trimmed = value.trim().replace(/\\/g, "/");
+  if (!trimmed || trimmed.startsWith("/") || /^[a-zA-Z]:/.test(trimmed)) {
+    throw new Error("Code development patch file path must be repository-relative.");
+  }
+  const segments = trimmed.split("/").filter((segment) => segment.length > 0 && segment !== ".");
+  if (segments.length === 0 || segments.some((segment) => segment === "..")) {
+    throw new Error("Code development patch file path must not traverse outside the repository.");
+  }
+  return segments.join("/");
+}
+
+function normalizeNonNegativeInteger(value: number | undefined): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  return Math.max(0, Math.floor(value));
 }
