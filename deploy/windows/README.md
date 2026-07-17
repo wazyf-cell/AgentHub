@@ -2,6 +2,12 @@
 
 This is the P5-A minimal local launcher. It is not a packaged `.exe` yet.
 
+For the current user-facing startup guide, see:
+
+```text
+deploy\windows\OPEN_AGENTSPACE.md
+```
+
 ## Start in development mode
 
 Double-click:
