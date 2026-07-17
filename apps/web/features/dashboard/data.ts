@@ -25,6 +25,7 @@ import {
   listAgentForkInvitationsForActorSync,
   listAgentForkInvitationsForSourceAgentSync,
   listAgentAccessRequestsForActorSync,
+  listPanelDiscussionsSync,
 } from "@agent-space/services";
 import type { AgentAccessRequestRecord, AgentForkInvitationRecord, PerformanceDashboardData, WorkspaceNotificationRecord } from "@agent-space/services";
 import {
@@ -117,6 +118,7 @@ const listCollaborationRunsCached = cache((workspaceId: string, limit: number) =
 const listCollaborationTaskNodesCached = cache((workspaceId: string, runId: string) =>
   listCollaborationTaskNodesSync(runId, workspaceId)
 );
+const listPanelDiscussionsCached = cache((workspaceId: string) => listPanelDiscussionsSync(workspaceId));
 const readAgentRouterSessionCached = cache((routerSessionId: string) => readAgentRouterSessionSync(routerSessionId));
 const listAgentTaskAttemptsCached = cache((workspaceId: string, taskQueueId: string) =>
   listAgentTaskAttemptsSync({ workspaceId, taskQueueId, limit: 20 })
@@ -5388,11 +5390,13 @@ export interface AutomationsPageData {
   documentRuns: ChannelDocumentRunRecord[];
   autoContinuationRuns: AutoContinuationRunRecord[];
   collaborationRuns: CollaborationRunViewRecord[];
+  panelDiscussions: PanelDiscussionViewRecord[];
   totalCount: number;
   enabledCount: number;
   documentRunCount: number;
   autoContinuationRunCount: number;
   collaborationRunCount: number;
+  panelDiscussionCount: number;
   channels: Array<{ name: string }>;
   agents: Array<{ id: string; name: string }>;
 }
@@ -5429,6 +5433,29 @@ export interface CollaborationTaskNodeViewRecord {
   reviewedAt?: string;
   errorText?: string;
   sortOrder: number;
+  updatedAt: string;
+}
+
+export interface PanelDiscussionViewRecord {
+  id: string;
+  objectType: string;
+  objectId: string;
+  goal: string;
+  status: "open" | "decided";
+  participantAgentIds: string[];
+  opinionCount: number;
+  latestOpinion?: {
+    actorId: string;
+    stance: "support" | "concern" | "alternative" | "neutral";
+    body: string;
+    createdAt: string;
+  };
+  decision?: {
+    body: string;
+    decidedById?: string;
+    decidedAt: string;
+  };
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -5533,17 +5560,49 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
         updatedAt: node.updatedAt,
       })),
     }) satisfies CollaborationRunViewRecord);
+  const allPanelDiscussions = listPanelDiscussionsCached(workspaceId);
+  const panelDiscussions = allPanelDiscussions.slice(0, 20).map((discussion) => {
+    const latestOpinion = discussion.opinions.at(-1);
+    return {
+      id: discussion.id,
+      objectType: discussion.objectType,
+      objectId: discussion.objectId,
+      goal: discussion.goal,
+      status: discussion.status,
+      participantAgentIds: discussion.participantAgentIds,
+      opinionCount: discussion.opinions.length,
+      latestOpinion: latestOpinion
+        ? {
+            actorId: latestOpinion.actorId,
+            stance: latestOpinion.stance,
+            body: latestOpinion.body,
+            createdAt: latestOpinion.createdAt,
+          }
+        : undefined,
+      decision: discussion.decision
+        ? {
+            body: discussion.decision.body,
+            decidedById: discussion.decision.decidedById,
+            decidedAt: discussion.decision.decidedAt,
+          }
+        : undefined,
+      createdAt: discussion.createdAt,
+      updatedAt: discussion.updatedAt,
+    } satisfies PanelDiscussionViewRecord;
+  });
 
   return {
     rules,
     documentRuns,
     autoContinuationRuns,
     collaborationRuns,
+    panelDiscussions,
     totalCount: rules.length + 3,
     enabledCount: rules.filter((r) => r.enabled).length + 3,
     documentRunCount: documentRuns.length,
     autoContinuationRunCount: autoContinuationRuns.length,
     collaborationRunCount,
+    panelDiscussionCount: allPanelDiscussions.length,
     channels: state.channels.map((ch) => ({ name: ch.name })),
     agents: state.activeEmployees.map((e) => ({
       id: e.name,

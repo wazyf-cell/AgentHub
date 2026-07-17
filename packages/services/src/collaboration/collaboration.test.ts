@@ -11,12 +11,16 @@ import {
   createCollaborationChangeProposalSync,
   createCollaborationCommentThreadSync,
   createEmployeeSync,
+  createPanelDiscussionSync,
   createTaskSync,
   initializeOrganizationSync,
   listCollaborationActivitiesSync,
   listCollaborationChangeProposalsSync,
   listCollaborationCommentThreadsSync,
+  listPanelDiscussionsSync,
   readWorkspaceStateSync,
+  recordPanelDecisionSync,
+  recordPanelOpinionSync,
   rejectCollaborationChangeProposalSync,
   resetWorkspaceStateSync,
 } from "../index.ts";
@@ -98,6 +102,87 @@ test("comment threads are scoped by workspace and collaborative object", () => {
   assert.equal(documentThreads[0]?.id, thread.id);
   assert.equal(documentThreads[0]?.comments.length, 2);
   assert.deepEqual(documentThreads[0]?.anchor, { blockId: "intro" });
+});
+
+test("panel discussions capture opinions and a final decision", () => {
+  const task = createTaskSync(
+    {
+      title: "Choose implementation path",
+      channel: "collab-ops",
+      assignee: "Atlas",
+      priority: "medium",
+    },
+    WORKSPACE_ID,
+  ).tasks[0];
+  assert.ok(task);
+
+  const discussion = createPanelDiscussionSync(
+    {
+      objectType: "task",
+      objectId: task.id,
+      goal: "Decide whether to reuse comments or add a new panel table.",
+      participantAgentIds: ["Atlas", "Nova", "Atlas"],
+      createdBy: { type: "human", id: "Mina" },
+      initialOpinion: "Keep the first version lightweight.",
+    },
+    WORKSPACE_ID,
+  );
+  recordPanelOpinionSync(
+    {
+      discussionId: discussion.id,
+      author: { type: "agent", id: "Atlas" },
+      stance: "support",
+      body: "Reuse comment threads for the minimal protocol.",
+    },
+    WORKSPACE_ID,
+  );
+  recordPanelOpinionSync(
+    {
+      discussionId: discussion.id,
+      author: { type: "agent", id: "Nova" },
+      stance: "concern",
+      body: "Document the metadata-in-comment-body debt.",
+    },
+    WORKSPACE_ID,
+  );
+  const decided = recordPanelDecisionSync(
+    {
+      discussionId: discussion.id,
+      decidedBy: { type: "human", id: "Mina" },
+      body: "Ship the lightweight panel protocol and track metadata debt.",
+    },
+    WORKSPACE_ID,
+  );
+
+  assert.equal(readWorkspaceStateSync().collaborationCommentThreads.length, 0);
+  assert.equal(decided.status, "decided");
+  assert.deepEqual(decided.participantAgentIds, ["Atlas", "Nova"]);
+  assert.equal(decided.opinions.length, 3);
+  assert.equal(decided.opinions[1]?.stance, "support");
+  assert.equal(decided.decision?.body, "Ship the lightweight panel protocol and track metadata debt.");
+
+  const listed = listPanelDiscussionsSync(WORKSPACE_ID);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0]?.id, discussion.id);
+  assert.equal(listed[0]?.status, "decided");
+
+  const activities = listCollaborationActivitiesSync({ objectType: "task", objectId: task.id }, WORKSPACE_ID);
+  assert.equal(activities.some((activity) => activity.verb === "panel.created"), true);
+  assert.equal(activities.some((activity) => activity.verb === "panel.opinion_recorded"), true);
+  assert.equal(activities.some((activity) => activity.verb === "panel.decision_recorded"), true);
+  assert.throws(
+    () =>
+      recordPanelOpinionSync(
+        {
+          discussionId: discussion.id,
+          author: { type: "agent", id: "Atlas" },
+          stance: "neutral",
+          body: "Late addition.",
+        },
+        WORKSPACE_ID,
+      ),
+    /already been decided/,
+  );
 });
 
 test("change proposals can be accepted or rejected exactly once", () => {

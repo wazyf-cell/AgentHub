@@ -292,6 +292,20 @@ export {
   listCollaborationCommentThreadsSync,
 } from "./collaboration/comments.ts";
 export {
+  createPanelDiscussionSync,
+  listPanelDiscussionsSync,
+  recordPanelDecisionSync,
+  recordPanelOpinionSync,
+  type CreatePanelDiscussionInput,
+  type PanelDiscussionDecisionRecord,
+  type PanelDiscussionOpinionRecord,
+  type PanelDiscussionRecord,
+  type PanelDiscussionStatus,
+  type PanelOpinionStance,
+  type RecordPanelDecisionInput,
+  type RecordPanelOpinionInput,
+} from "./collaboration/panel.ts";
+export {
   acceptCollaborationChangeProposalSync,
   createCollaborationChangeProposalSync,
   listCollaborationChangeProposalsSync,

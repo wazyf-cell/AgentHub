@@ -7,6 +7,7 @@ import type {
   AutomationsPageData,
   ChannelDocumentRunRecord,
   CollaborationRunViewRecord,
+  PanelDiscussionViewRecord,
 } from "@/features/dashboard/data";
 import { refreshWorkspaceModule } from "@/features/dashboard/workspace-module-refresh";
 import type {
@@ -117,6 +118,11 @@ const COLLABORATION_REVIEW_STATUS_LABELS: Record<NonNullable<CollaborationRunVie
   needs_revision: { label: "需修改", labelEn: "Needs revision" },
 };
 
+const PANEL_DISCUSSION_STATUS_LABELS: Record<PanelDiscussionViewRecord["status"], { label: string; labelEn: string; badge: string }> = {
+  open: { label: "讨论中", labelEn: "Open", badge: "running" },
+  decided: { label: "已决策", labelEn: "Decided", badge: "completed" },
+};
+
 const BUILTIN_SEQUENCE_RULE_ID = "builtin:channel-sequential-then";
 const BUILTIN_AUTO_CONTINUATION_RULE_ID = "builtin:auto-continuation-until";
 const BUILTIN_COLLABORATION_ORCHESTRATOR_RULE_ID = "builtin:collaboration-orchestrator";
@@ -169,6 +175,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
   const selectedBuiltinCollaborationRule = selectedId === BUILTIN_COLLABORATION_ORCHESTRATOR_RULE_ID;
   const activeAutoContinuationRuns = data.autoContinuationRuns.filter((run) => run.status === "active");
   const activeCollaborationRuns = data.collaborationRuns.filter((run) => run.status === "running" || run.status === "approved");
+  const openPanelDiscussions = data.panelDiscussions.filter((discussion) => discussion.status === "open");
   const selectedConditionField = CONDITION_FIELDS.find((field) => field.value === createConditionField) ?? CONDITION_FIELDS[0]!;
   const selectedTriggerLabel = TRIGGER_TYPES.find((trigger) => trigger.value === createTriggerType);
   const selectedOperatorLabel = CONDITION_OPERATORS.find((operator) => operator.value === createConditionOperator);
@@ -345,6 +352,11 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                       {tx(`${activeCollaborationRuns.length} 个运行中`, `${activeCollaborationRuns.length} active`)}
                     </span>
                   ) : null}
+                  {openPanelDiscussions.length > 0 ? (
+                    <span className="automations-card__badge automations-card__badge--run-running">
+                      {tx(`${openPanelDiscussions.length} 个讨论中`, `${openPanelDiscussions.length} discussions`)}
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <p className="automations-card__description">
@@ -358,6 +370,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
               </div>
               <div className="automations-card__meta">
                 {tx("运行实例", "Runs")}: {data.collaborationRunCount}
+                {` · ${tx("Panel 讨论", "Panel discussions")}: ${data.panelDiscussionCount}`}
               </div>
             </div>
 
@@ -545,6 +558,46 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
             <p>
               {tx("这条入口用于查看由 Orchestrator API 创建的 CollaborationRun。每个 run 由多个节点组成，节点完成后系统会按依赖自动派发后续节点。", "This entry shows CollaborationRuns created by the Orchestrator API. Each run contains task nodes; when a node completes, the system dispatches downstream nodes by dependency.")}
             </p>
+            <div className="automations-run-list">
+              {data.panelDiscussions.length === 0 ? (
+                <EmptyState
+                  body={tx("还没有用于多 Agent 决策的 Panel 讨论。", "No panel discussions have been recorded for multi-agent decisions yet.")}
+                  eyebrow={tx("Panel 讨论", "Panel discussions")}
+                  title={tx("暂无讨论记录", "No discussions yet")}
+                  variant="warm"
+                />
+              ) : (
+                data.panelDiscussions.map((discussion) => {
+                  const statusLabel = PANEL_DISCUSSION_STATUS_LABELS[discussion.status];
+                  return (
+                    <div className="automations-run" key={discussion.id}>
+                      <div className="automations-run__header">
+                        <strong>{discussion.goal}</strong>
+                        <span className={`automations-card__badge automations-card__badge--run-${statusLabel.badge}`}>
+                          {tx(statusLabel.label, statusLabel.labelEn)}
+                        </span>
+                      </div>
+                      <p>
+                        {tx("参与 Agent", "Agents")}: {discussion.participantAgentIds.length > 0 ? discussion.participantAgentIds.join(", ") : tx("未指定", "Not specified")}
+                        {` · ${tx("意见", "Opinions")}: ${discussion.opinionCount}`}
+                      </p>
+                      {discussion.latestOpinion ? (
+                        <small>
+                          {tx("最新意见", "Latest opinion")}: {discussion.latestOpinion.actorId} · {discussion.latestOpinion.stance} · {discussion.latestOpinion.body}
+                        </small>
+                      ) : null}
+                      {discussion.decision ? (
+                        <small>
+                          {tx("最终决策", "Final decision")}: {discussion.decision.body}
+                          {discussion.decision.decidedById ? ` · ${discussion.decision.decidedById}` : ""}
+                        </small>
+                      ) : null}
+                      <small>{tx("最近更新", "Updated")}: {formatCompactTimestamp(discussion.updatedAt, { emptyFallback: discussion.updatedAt })}</small>
+                    </div>
+                  );
+                })
+              )}
+            </div>
             <div className="automations-run-list">
               {data.collaborationRuns.length === 0 ? (
                 <EmptyState

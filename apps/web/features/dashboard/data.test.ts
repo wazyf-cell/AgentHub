@@ -29,11 +29,14 @@ import {
   createChannelDocumentFromAttachmentSync,
   createChannelDocumentSync,
   createEmployeeSync,
+  createPanelDiscussionSync,
   createTaskSync,
   createKnowledgePageFromSharedDocumentSync,
   createWorkspaceSkillSync,
   grantRuntimeUseToUserForActorSync,
   readWorkspaceStateSync,
+  recordPanelDecisionSync,
+  recordPanelOpinionSync,
   resetWorkspaceStateSync,
   setEmployeeSkillIdsSync,
   writeWorkspaceStateSync,
@@ -1067,6 +1070,64 @@ describe("dashboard data", () => {
       instruction: "继续往下收尾",
       iteration: 2,
       until: "2026-04-29T22:00:00.000Z",
+    });
+  });
+
+  it("includes panel discussions in automations page data", () => {
+    createEmployeeSync({ name: "Atlas", remarkName: "Atlas" });
+    createEmployeeSync({ name: "Nova", remarkName: "Nova" });
+    createChannelSync({
+      name: "planning",
+      humanMemberNames: [],
+      employeeNames: ["Atlas", "Nova"],
+      kind: "group",
+    });
+    const task = createTaskSync({
+      title: "Select orchestration protocol",
+      channel: "planning",
+      assignee: "Atlas",
+      priority: "medium",
+    }).tasks[0];
+    expect(task).toBeTruthy();
+
+    const discussion = createPanelDiscussionSync({
+      objectType: "task",
+      objectId: task!.id,
+      goal: "Choose the first Panel implementation strategy.",
+      participantAgentIds: ["Atlas", "Nova"],
+      createdBy: { type: "human", id: "Tianyu" },
+      initialOpinion: "Start with a minimal discussion protocol.",
+    });
+    recordPanelOpinionSync({
+      discussionId: discussion.id,
+      author: { type: "agent", id: "Atlas" },
+      stance: "support",
+      body: "Reuse collaboration comments for the first version.",
+    });
+    recordPanelDecisionSync({
+      discussionId: discussion.id,
+      decidedBy: { type: "human", id: "Tianyu" },
+      body: "Use the lightweight comment-thread backed panel protocol.",
+    });
+
+    const automationsPage = getAutomationsPageData();
+
+    expect(automationsPage.panelDiscussionCount).toBe(1);
+    expect(automationsPage.panelDiscussions[0]).toMatchObject({
+      id: discussion.id,
+      goal: "Choose the first Panel implementation strategy.",
+      status: "decided",
+      participantAgentIds: ["Atlas", "Nova"],
+      opinionCount: 2,
+      latestOpinion: {
+        actorId: "Atlas",
+        stance: "support",
+        body: "Reuse collaboration comments for the first version.",
+      },
+      decision: {
+        body: "Use the lightweight comment-thread backed panel protocol.",
+        decidedById: "Tianyu",
+      },
     });
   });
 
