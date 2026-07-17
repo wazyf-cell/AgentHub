@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import {
   approveCollaborationRunSync,
   completeCollaborationTaskNodeSync,
+  completeQueuedTaskSync,
   createCollaborationRunSync,
+  failCollaborationTaskNodeSync,
+  failQueuedTaskSync,
   listReadyCollaborationTaskNodesSync,
   queueCollaborationTaskNodeSync,
   readCollaborationRunSync,
@@ -10,6 +13,7 @@ import {
   type CollaborationRunRecord,
   type CollaborationTaskNodeRecord,
   type CreateCollaborationTaskNodeInput,
+  type QueuedTaskRecord,
 } from "@agent-space/db";
 
 export type CollaborationDispatchPriority = "low" | "medium" | "high";
@@ -102,6 +106,42 @@ export interface CompleteCollaborationNodeAndDispatchNextResult {
   readyNodes: CollaborationTaskNodeRecord[];
   dispatched: DispatchedCollaborationNode[];
   skipped: SkippedCollaborationNode[];
+}
+
+export interface CompleteQueuedTaskAndAdvanceCollaborationInput {
+  taskId: string;
+  attemptId?: string;
+  leaseToken?: string;
+  resultJson?: Record<string, unknown>;
+  sessionId?: string;
+  workDir?: string;
+  priority?: CollaborationDispatchPriority;
+  requestedByUserId?: string;
+  requestedByDisplayName?: string;
+  maxNodes?: number;
+}
+
+export interface FailQueuedTaskAndAdvanceCollaborationInput {
+  taskId: string;
+  attemptId?: string;
+  leaseToken?: string;
+  errorText: string;
+  sessionId?: string;
+  workDir?: string;
+  errorCode?: string;
+  errorCategory?: string;
+  provider?: string;
+  rawProviderMessage?: string;
+}
+
+export interface QueuedTaskCollaborationAdvanceResult {
+  task: QueuedTaskRecord;
+  collaboration?: CompleteCollaborationNodeAndDispatchNextResult | {
+    node: CollaborationTaskNodeRecord;
+    run: CollaborationRunRecord;
+    blockedNodes: CollaborationTaskNodeRecord[];
+  };
+  skippedReason?: "not_collaboration_task" | "collaboration_node_already_terminal" | "collaboration_run_already_terminal";
 }
 
 export function createCollaborationPlanDraftSync(input: CreateCollaborationPlanDraftInput): CollaborationPlanResult {
@@ -279,6 +319,112 @@ export function completeCollaborationNodeAndDispatchNextSync(
   };
 }
 
+export function completeQueuedTaskAndAdvanceCollaborationSync(
+  input: CompleteQueuedTaskAndAdvanceCollaborationInput,
+): QueuedTaskCollaborationAdvanceResult {
+  const task = completeQueuedTaskSync({
+    taskId: input.taskId,
+    attemptId: input.attemptId,
+    leaseToken: input.leaseToken,
+    resultJson: input.resultJson,
+    sessionId: input.sessionId,
+    workDir: input.workDir,
+  });
+  const context = readCollaborationContextFromTask(task);
+  if (!context) {
+    return {
+      task,
+      skippedReason: "not_collaboration_task",
+    };
+  }
+
+  const linked = readAndValidateLinkedCollaborationNodeForBridge(task, context);
+  if (!linked) {
+    return {
+      task,
+      skippedReason: "not_collaboration_task",
+    };
+  }
+  if (linked.node.status === "failed" || linked.node.status === "blocked" || linked.node.status === "cancelled") {
+    return {
+      task,
+      skippedReason: "collaboration_node_already_terminal",
+    };
+  }
+  if (isTerminalRunStatus(linked.run.status) && linked.node.status !== "completed") {
+    return {
+      task,
+      skippedReason: "collaboration_run_already_terminal",
+    };
+  }
+
+  return {
+    task,
+    collaboration: completeCollaborationNodeAndDispatchNextSync({
+      workspaceId: task.workspaceId,
+      nodeId: context.nodeId,
+      result: buildCollaborationResultFromTask(task),
+      priority: input.priority,
+      requestedByUserId: input.requestedByUserId ?? task.requestedByUserId,
+      requestedByDisplayName: input.requestedByDisplayName ?? task.requestedByDisplayName,
+      maxNodes: input.maxNodes,
+    }),
+  };
+}
+
+export function failQueuedTaskAndAdvanceCollaborationSync(
+  input: FailQueuedTaskAndAdvanceCollaborationInput,
+): QueuedTaskCollaborationAdvanceResult {
+  const task = failQueuedTaskSync({
+    taskId: input.taskId,
+    attemptId: input.attemptId,
+    leaseToken: input.leaseToken,
+    errorText: input.errorText,
+    sessionId: input.sessionId,
+    workDir: input.workDir,
+    errorCode: input.errorCode,
+    errorCategory: input.errorCategory,
+    provider: input.provider,
+    rawProviderMessage: input.rawProviderMessage,
+  });
+  const context = readCollaborationContextFromTask(task);
+  if (!context) {
+    return {
+      task,
+      skippedReason: "not_collaboration_task",
+    };
+  }
+
+  const linked = readAndValidateLinkedCollaborationNodeForBridge(task, context);
+  if (!linked) {
+    return {
+      task,
+      skippedReason: "not_collaboration_task",
+    };
+  }
+  if (linked.node.status === "completed" || linked.node.status === "failed" || linked.node.status === "blocked" || linked.node.status === "cancelled") {
+    return {
+      task,
+      skippedReason: "collaboration_node_already_terminal",
+    };
+  }
+  if (isTerminalRunStatus(linked.run.status)) {
+    return {
+      task,
+      skippedReason: "collaboration_run_already_terminal",
+    };
+  }
+
+  return {
+    task,
+    collaboration: failCollaborationTaskNodeSync({
+      workspaceId: task.workspaceId,
+      nodeId: context.nodeId,
+      errorText: input.errorText,
+    }),
+  };
+}
+
 function normalizeMaxNodes(maxNodes: number | undefined): number | undefined {
   if (maxNodes === undefined) {
     return undefined;
@@ -291,6 +437,98 @@ function normalizeMaxNodes(maxNodes: number | undefined): number | undefined {
 
 function readObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+type LinkedCollaborationContext = {
+  runId?: string;
+  nodeId: string;
+  source: "collaboration_node_id" | "legacy_orchestration_step_id";
+};
+
+function readCollaborationContextFromTask(task: QueuedTaskRecord): LinkedCollaborationContext | null {
+  const payload = parseJsonObject(task.inputJson);
+  const collaborationNodeId = readString(payload.collaborationNodeId);
+  if (collaborationNodeId) {
+    return {
+      nodeId: collaborationNodeId,
+      runId: readString(payload.collaborationRunId) ?? readString(payload.orchestrationRunId),
+      source: "collaboration_node_id",
+    };
+  }
+  const legacyStepId = readString(payload.orchestrationStepId);
+  if (!legacyStepId) {
+    return null;
+  }
+  return {
+    nodeId: legacyStepId,
+    runId: readString(payload.collaborationRunId) ?? readString(payload.orchestrationRunId),
+    source: "legacy_orchestration_step_id",
+  };
+}
+
+function readAndValidateLinkedCollaborationNodeForBridge(
+  task: QueuedTaskRecord,
+  context: LinkedCollaborationContext,
+): { node: CollaborationTaskNodeRecord; run: CollaborationRunRecord } | null {
+  try {
+    const linked = readAndValidateLinkedCollaborationNode(task, context);
+    if (!linked && context.source === "collaboration_node_id") {
+      throw new Error(`Collaboration task node "${context.nodeId}" does not exist.`);
+    }
+    return linked;
+  } catch (error) {
+    if (context.source === "legacy_orchestration_step_id" && error instanceof CollaborationLinkValidationError) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function readAndValidateLinkedCollaborationNode(
+  task: QueuedTaskRecord,
+  context: LinkedCollaborationContext,
+): { node: CollaborationTaskNodeRecord; run: CollaborationRunRecord } | null {
+  const node = readCollaborationTaskNodeSync(context.nodeId, task.workspaceId);
+  if (!node) {
+    return null;
+  }
+  const run = readCollaborationRunSync(node.runId, task.workspaceId);
+  if (!run) {
+    throw new Error(`Collaboration run "${node.runId}" does not exist.`);
+  }
+  if (context.runId && node.runId !== context.runId) {
+    throw new CollaborationLinkValidationError(`Queued task "${task.id}" points to collaboration run "${context.runId}" but node "${node.id}" belongs to "${node.runId}".`);
+  }
+  if (node.taskQueueId !== task.id) {
+    throw new CollaborationLinkValidationError(`Queued task "${task.id}" is not linked to collaboration task node "${node.id}".`);
+  }
+  return { node, run };
+}
+
+class CollaborationLinkValidationError extends Error {}
+
+function buildCollaborationResultFromTask(task: QueuedTaskRecord): Record<string, unknown> {
+  return {
+    ...(task.resultJson ? parseJsonObject(task.resultJson) : {}),
+    taskQueueId: task.id,
+    runtimeId: task.runtimeId,
+    sessionId: task.sessionId,
+    workDir: task.workDir,
+    finishedAt: task.finishedAt,
+  };
+}
+
+function parseJsonObject(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return readObject(parsed);
+  } catch {
+    return {};
+  }
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function preparePlanNodesWithSynthesis(

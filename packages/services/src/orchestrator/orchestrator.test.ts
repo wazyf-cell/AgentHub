@@ -6,6 +6,7 @@ import test, { before, beforeEach } from "node:test";
 import {
   bindEmployeeRuntimeSync,
   createWorkspaceSync,
+  enqueueNativeTaskSync,
   getDatabase,
   listCollaborationRunEventsSync,
   listCollaborationTaskNodesSync,
@@ -18,9 +19,11 @@ import {
 import {
   approveCollaborationPlanSync,
   completeCollaborationNodeAndDispatchNextSync,
+  completeQueuedTaskAndAdvanceCollaborationSync,
   createAndDispatchCollaborationRunSync,
   createCollaborationPlanDraftSync,
   dispatchReadyCollaborationNodesSync,
+  failQueuedTaskAndAdvanceCollaborationSync,
 } from "../index.ts";
 
 const originalCwd = process.cwd();
@@ -332,6 +335,265 @@ test("completion dispatch is idempotent and reports unbound downstream nodes as 
 
   assert.deepEqual(redispatched.dispatched.map((item) => item.node.id), ["node-next"]);
   assert.equal(listQueuedTasksSync({ workspaceId }).length, 2);
+});
+
+test("native task completion advances the linked collaboration node and dispatches downstream", () => {
+  const { workspaceId } = seedWorkspaceRuntime("orchestrator-native-complete", ["Atlas", "Nova"]);
+  const run = createAndDispatchCollaborationRunSync({
+    workspaceId,
+    title: "Native completion bridge",
+    goal: "native task complete 后推进 collaboration DAG。",
+    requestedByDisplayName: "Tianyu",
+    nodes: [
+      {
+        id: "node-root",
+        agentId: "Atlas",
+        title: "Root",
+        instruction: "完成 root。",
+      },
+      {
+        id: "node-next",
+        agentId: "Nova",
+        title: "Next",
+        instruction: "完成 next。",
+        dependsOnNodeIds: ["node-root"],
+      },
+    ],
+  });
+  const rootTaskId = run.dispatched.find((item) => item.node.id === "node-root")!.taskQueueId;
+
+  const advanced = completeQueuedTaskAndAdvanceCollaborationSync({
+    taskId: rootTaskId,
+    resultJson: { output: "root completed by runtime" },
+    sessionId: "provider-session-root",
+    workDir: "runtime-root",
+    requestedByDisplayName: "Tianyu",
+  });
+
+  assert.equal(advanced.task.status, "completed");
+  assert.ok(advanced.collaboration);
+  assert.deepEqual(advanced.collaboration.dispatched.map((item) => item.node.id), ["node-next"]);
+  const rootNode = listCollaborationTaskNodesSync(run.run.id, workspaceId).find((node) => node.id === "node-root");
+  assert.equal(rootNode?.status, "completed");
+  assert.equal(JSON.parse(rootNode!.resultJson!).output, "root completed by runtime");
+  assert.equal(JSON.parse(rootNode!.resultJson!).sessionId, "provider-session-root");
+  assert.equal(listQueuedTasksSync({ workspaceId }).length, 2);
+
+  const repeated = completeQueuedTaskAndAdvanceCollaborationSync({
+    taskId: rootTaskId,
+    resultJson: { output: "should not dispatch twice" },
+  });
+
+  assert.equal(repeated.skippedReason, undefined);
+  assert.ok(repeated.collaboration);
+  assert.deepEqual(repeated.collaboration.dispatched, []);
+  assert.equal(listQueuedTasksSync({ workspaceId }).length, 2);
+  const unchangedRootNode = listCollaborationTaskNodesSync(run.run.id, workspaceId).find((node) => node.id === "node-root");
+  assert.equal(JSON.parse(unchangedRootNode!.resultJson!).output, "root completed by runtime");
+});
+
+test("native task failure fails the linked collaboration node and blocks dependents", () => {
+  const { workspaceId } = seedWorkspaceRuntime("orchestrator-native-fail", ["Atlas", "Nova"]);
+  const run = createAndDispatchCollaborationRunSync({
+    workspaceId,
+    title: "Native failure bridge",
+    goal: "native task fail 后阻断 collaboration DAG。",
+    nodes: [
+      {
+        id: "node-root",
+        agentId: "Atlas",
+        title: "Root",
+        instruction: "失败 root。",
+      },
+      {
+        id: "node-next",
+        agentId: "Nova",
+        title: "Next",
+        instruction: "依赖 root。",
+        dependsOnNodeIds: ["node-root"],
+      },
+    ],
+  });
+  const rootTaskId = run.dispatched.find((item) => item.node.id === "node-root")!.taskQueueId;
+
+  const failed = failQueuedTaskAndAdvanceCollaborationSync({
+    taskId: rootTaskId,
+    errorText: "runtime failed root",
+    errorCode: "runtime.failed",
+  });
+
+  assert.equal(failed.task.status, "failed");
+  assert.ok(failed.collaboration);
+  assert.equal(failed.collaboration.run.status, "failed");
+  assert.deepEqual(failed.collaboration.blockedNodes.map((node) => node.id), ["node-next"]);
+  assert.deepEqual(
+    listCollaborationTaskNodesSync(run.run.id, workspaceId).map((node) => [node.id, node.status]),
+    [
+      ["node-root", "failed"],
+      ["node-next", "blocked"],
+    ],
+  );
+  assert.equal(
+    listCollaborationRunEventsSync(run.run.id, workspaceId).some((event) => event.type === "node.failed"),
+    true,
+  );
+
+  const repeated = failQueuedTaskAndAdvanceCollaborationSync({
+    taskId: rootTaskId,
+    errorText: "should be ignored",
+  });
+  assert.equal(repeated.skippedReason, "collaboration_node_already_terminal");
+  assert.equal(listCollaborationRunEventsSync(run.run.id, workspaceId).filter((event) => event.type === "node.failed").length, 1);
+});
+
+test("native task completion skips collaboration sync when the run is already terminal", () => {
+  const { workspaceId } = seedWorkspaceRuntime("orchestrator-native-terminal-run", ["Atlas", "Nova"]);
+  const run = createAndDispatchCollaborationRunSync({
+    workspaceId,
+    title: "Terminal run bridge",
+    goal: "并行节点中一个失败后，另一个 native complete 不应让 bridge 抛错。",
+    nodes: [
+      {
+        id: "node-a",
+        agentId: "Atlas",
+        title: "A",
+        instruction: "失败 A。",
+      },
+      {
+        id: "node-b",
+        agentId: "Nova",
+        title: "B",
+        instruction: "完成 B。",
+      },
+    ],
+  });
+  const taskAId = run.dispatched.find((item) => item.node.id === "node-a")!.taskQueueId;
+  const taskBId = run.dispatched.find((item) => item.node.id === "node-b")!.taskQueueId;
+
+  failQueuedTaskAndAdvanceCollaborationSync({
+    taskId: taskAId,
+    errorText: "node A failed first",
+  });
+  const completedAfterTerminal = completeQueuedTaskAndAdvanceCollaborationSync({
+    taskId: taskBId,
+    resultJson: { output: "B finished after run failed" },
+  });
+
+  assert.equal(completedAfterTerminal.task.status, "completed");
+  assert.equal(completedAfterTerminal.skippedReason, "collaboration_run_already_terminal");
+  assert.equal(completedAfterTerminal.collaboration, undefined);
+  assert.deepEqual(
+    listCollaborationTaskNodesSync(run.run.id, workspaceId).map((node) => [node.id, node.status]),
+    [
+      ["node-a", "failed"],
+      ["node-b", "queued"],
+    ],
+  );
+  assert.equal(listCollaborationRunEventsSync(run.run.id, workspaceId).filter((event) => event.type === "node.completed").length, 0);
+});
+
+test("native task completion and failure no-op for non-collaboration tasks", () => {
+  const { workspaceId } = seedWorkspaceRuntime("orchestrator-native-noop", ["Atlas"]);
+  const task = enqueueNativeTaskSync({
+    workspaceId,
+    assignee: "Atlas",
+    title: "Standalone native task",
+    priority: "medium",
+    triggerType: "manual",
+    metadata: { source: "standalone" },
+  });
+  assert.ok(task);
+
+  const completed = completeQueuedTaskAndAdvanceCollaborationSync({
+    taskId: task.id,
+    resultJson: { output: "standalone done" },
+  });
+  assert.equal(completed.task.status, "completed");
+  assert.equal(completed.skippedReason, "not_collaboration_task");
+  assert.equal(completed.collaboration, undefined);
+
+  const failedTask = enqueueNativeTaskSync({
+    workspaceId,
+    assignee: "Atlas",
+    title: "Standalone failure task",
+    priority: "medium",
+    triggerType: "manual",
+    metadata: { source: "standalone" },
+  });
+  assert.ok(failedTask);
+  const failed = failQueuedTaskAndAdvanceCollaborationSync({
+    taskId: failedTask.id,
+    errorText: "standalone failed",
+  });
+  assert.equal(failed.task.status, "failed");
+  assert.equal(failed.skippedReason, "not_collaboration_task");
+  assert.equal(failed.collaboration, undefined);
+});
+
+test("native task completion no-ops for legacy orchestration metadata without a collaboration node", () => {
+  const { workspaceId } = seedWorkspaceRuntime("orchestrator-native-legacy-noop", ["Atlas"]);
+  const task = enqueueNativeTaskSync({
+    workspaceId,
+    assignee: "Atlas",
+    title: "Legacy orchestration task",
+    priority: "medium",
+    triggerType: "manual",
+    metadata: {
+      orchestrationRunId: "legacy-run-id",
+      orchestrationStepId: "legacy-step-id",
+    },
+  });
+  assert.ok(task);
+
+  const completed = completeQueuedTaskAndAdvanceCollaborationSync({
+    taskId: task.id,
+    resultJson: { output: "legacy done" },
+  });
+
+  assert.equal(completed.task.status, "completed");
+  assert.equal(completed.skippedReason, "not_collaboration_task");
+  assert.equal(completed.collaboration, undefined);
+});
+
+test("native task completion no-ops when legacy orchestration metadata collides with an unrelated collaboration node", () => {
+  const { workspaceId } = seedWorkspaceRuntime("orchestrator-native-legacy-collision", ["Atlas"]);
+  const run = createAndDispatchCollaborationRunSync({
+    workspaceId,
+    title: "Legacy collision",
+    goal: "旧 orchestrationStepId 撞上 collaboration node id 时不能错推 DAG。",
+    nodes: [
+      {
+        id: "node-root",
+        agentId: "Atlas",
+        title: "Root",
+        instruction: "真实 collaboration root。",
+      },
+    ],
+  });
+  const task = enqueueNativeTaskSync({
+    workspaceId,
+    assignee: "Atlas",
+    title: "Unrelated legacy task",
+    priority: "medium",
+    triggerType: "manual",
+    metadata: {
+      orchestrationRunId: run.run.id,
+      orchestrationStepId: "node-root",
+    },
+  });
+  assert.ok(task);
+
+  const completed = completeQueuedTaskAndAdvanceCollaborationSync({
+    taskId: task.id,
+    resultJson: { output: "legacy collision done" },
+  });
+
+  assert.equal(completed.task.status, "completed");
+  assert.equal(completed.skippedReason, "not_collaboration_task");
+  assert.equal(completed.collaboration, undefined);
+  const rootNode = listCollaborationTaskNodesSync(run.run.id, workspaceId).find((node) => node.id === "node-root");
+  assert.equal(rootNode?.status, "queued");
+  assert.equal(rootNode?.resultJson, undefined);
 });
 
 function seedWorkspaceRuntime(prefix: string, boundEmployeeNames: string[]): { workspaceId: string; runtimeId: string } {
