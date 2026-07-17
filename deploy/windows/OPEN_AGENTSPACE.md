@@ -115,6 +115,14 @@ npm install --no-audit --no-fund
 npm run setup
 ```
 
+确认项目根目录存在 `.env`，并且 PostgreSQL 能连接：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Test-AgentSpaceRuntime.ps1 -Mode start -Desktop
+```
+
+Electron 本地打包会把当前 `.env` 一起放进 `resources\app`，用于桌面版读取数据库配置。后续如果要公开分发安装包，不建议把真实密钥直接打包进去，应改成首次启动配置或外置 `.env`。
+
 优先尝试生成 unpacked exe：
 
 ```powershell
@@ -126,6 +134,18 @@ npm run desktop:dir
 ```text
 dist-electron-out\win-unpacked\AgentSpace.exe
 ```
+
+如果桌面版白屏，先看日志：
+
+```powershell
+Get-Content -Tail 120 "$env:APPDATA\AgentSpace\agent-space-desktop.log"
+```
+
+常见原因：
+
+- `resources\app\.env` 不存在；
+- `.env` 里的 PostgreSQL URL 无法连接；
+- `AGENT_SPACE_APP_URL` 端口和桌面实际端口不一致。
 
 再尝试生成单文件 portable exe：
 

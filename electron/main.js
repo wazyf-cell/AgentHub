@@ -11,6 +11,7 @@ const HOSTNAME = process.env.AGENT_SPACE_DESKTOP_HOSTNAME || "127.0.0.1";
 const APP_ROOT = app.isPackaged ? app.getAppPath() : path.resolve(__dirname, "..");
 const WEB_DIR = path.join(APP_ROOT, "apps", "web");
 const LOG_FILE = path.join(app.getPath("userData"), "agent-space-desktop.log");
+const APP_URL = `http://${HOSTNAME}:${PORT}`;
 
 function log(message) {
   try {
@@ -27,6 +28,82 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function parseDotEnv(raw) {
+  const values = {};
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    let key = trimmed.slice(0, separatorIndex).trim();
+    if (key.startsWith("export ")) {
+      key = key.slice("export ".length).trim();
+    }
+    if (!key) {
+      continue;
+    }
+
+    let value = trimmed.slice(separatorIndex + 1).trim();
+    if (
+      (value.startsWith("\"") && value.endsWith("\""))
+      || (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    values[key] = value;
+  }
+  return values;
+}
+
+function loadDotEnvFile(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) {
+    return false;
+  }
+
+  const values = parseDotEnv(fs.readFileSync(filePath, "utf8"));
+  for (const [key, value] of Object.entries(values)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+  log(`loaded env file: ${filePath}`);
+  return true;
+}
+
+function loadRuntimeEnvironment() {
+  const candidates = [
+    process.env.AGENT_SPACE_ENV_FILE,
+    path.join(process.cwd(), ".env"),
+    path.join(APP_ROOT, ".env"),
+    app.isPackaged ? path.join(process.resourcesPath, "app", ".env") : undefined,
+    app.isPackaged ? path.join(path.dirname(process.execPath), ".env") : undefined,
+  ];
+
+  const seen = new Set();
+  let loaded = false;
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+    const resolved = path.resolve(candidate);
+    if (seen.has(resolved)) {
+      continue;
+    }
+    seen.add(resolved);
+    loaded = loadDotEnvFile(resolved) || loaded;
+  }
+
+  process.env.AGENT_SPACE_APP_URL = APP_URL;
+  process.env.AGENT_SPACE_REPOSITORY_ROOT = APP_ROOT;
+  log(`runtime env loaded=${loaded} appRoot=${APP_ROOT} appUrl=${APP_URL}`);
 }
 
 function loadErrorPage(window, title, message) {
@@ -109,13 +186,18 @@ function waitForServer(url, timeoutMs = 60000) {
       const request = http.get(url, (response) => {
         response.resume();
         if (response.statusCode && response.statusCode < 500) {
+          log(`server ready check ok: ${url} status=${response.statusCode}`);
           resolve();
           return;
         }
+        log(`server ready check retry: ${url} status=${response.statusCode}`);
         retry();
       });
 
-      request.on("error", retry);
+      request.on("error", (error) => {
+        log(`server ready check error: ${url} ${error.message}`);
+        retry();
+      });
       request.setTimeout(2000, () => {
         request.destroy();
         retry();
@@ -138,6 +220,8 @@ let mainWindow = null;
 let embeddedServer = null;
 
 async function createWindow() {
+  loadRuntimeEnvironment();
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -153,13 +237,13 @@ async function createWindow() {
 
   mainWindow.setMenuBarVisibility(false);
 
-  const url = `http://${HOSTNAME}:${PORT}`;
+  const healthUrl = `${APP_URL}/api/health`;
 
   try {
     embeddedServer = startEmbeddedNextServer();
     await embeddedServer.ready;
-    await waitForServer(url);
-    await mainWindow.loadURL(url);
+    await waitForServer(healthUrl);
+    await mainWindow.loadURL(APP_URL);
   } catch (error) {
     const message = error && error.stack ? error.stack : String(error);
     log(`desktop startup failed: ${message}`);

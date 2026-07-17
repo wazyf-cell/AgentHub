@@ -51,6 +51,7 @@
       "apps/web/public/**/*",
       "packages/**/*",
       "package.json",
+      ".env",
       "Target.md",
       "README.md",
       "README_ZH.md"
