@@ -524,6 +524,18 @@ describe("daemon API routes", () => {
       triggerType: "manual",
       metadata: {
         title: "Draft itinerary reply",
+        codeDevelopmentSessionId: "code-dev-router",
+        codeDevelopmentRepositoryRoot: "F:/repo",
+        codeDevelopmentWorktreePath: "F:/repo/.worktrees/router-hardening",
+        codeDevelopmentBranchName: "agent-space/router-hardening",
+        codeDevelopmentBaseRef: "main",
+        codeDevelopment: {
+          sessionId: "code-dev-router",
+          repositoryRoot: "F:/repo",
+          worktreePath: "F:/repo/.worktrees/router-hardening",
+          branchName: "agent-space/router-hardening",
+          baseRef: "main",
+        },
         attachments: [
           {
             fileName: "manual-note.txt",
@@ -551,7 +563,11 @@ describe("daemon API routes", () => {
 
     const bundleResponse = await inputBundleGET(
       new Request(`http://localhost/api/daemon/tasks/${queued?.id}/input-bundle`, {
-        headers: daemonHeaders(daemonToken.token),
+        headers: {
+          ...daemonHeaders(daemonToken.token),
+          "x-agent-space-attempt-id": claimPayload.task.activeAttemptId,
+          "x-agent-space-lease-token": claimPayload.task.leaseToken,
+        },
       }),
       { params: Promise.resolve({ taskId: queued!.id }) },
     );
@@ -563,6 +579,24 @@ describe("daemon API routes", () => {
     expect(bundlePayload.files.some((file: { path: string }) => file.path === "prompt.txt")).toBe(true);
     expect(bundlePayload.files.some((file: { path: string }) => file.path === "task.json")).toBe(true);
     expect(bundlePayload.files.some((file: { path: string }) => file.path === "attachments/01-manual-note.txt")).toBe(true);
+    expect(bundlePayload.metadata.codeDevelopment).toMatchObject({
+      sessionId: "code-dev-router",
+      repositoryRoot: "F:/repo",
+      worktreePath: "F:/repo/.worktrees/router-hardening",
+      branchName: "agent-space/router-hardening",
+      baseRef: "main",
+    });
+    const taskJsonFile = bundlePayload.files.find((file: { path: string }) => file.path === "task.json");
+    const taskJson = JSON.parse(Buffer.from(taskJsonFile.contentBase64, "base64").toString("utf8"));
+    expect(taskJson.payload).toMatchObject({
+      codeDevelopmentSessionId: "code-dev-router",
+      codeDevelopmentWorktreePath: "F:/repo/.worktrees/router-hardening",
+      codeDevelopmentBranchName: "agent-space/router-hardening",
+      codeDevelopment: {
+        sessionId: "code-dev-router",
+        worktreePath: "F:/repo/.worktrees/router-hardening",
+      },
+    });
   });
 
   it("includes only installed runtime apps and available runtime app skills in task input bundles", async () => {

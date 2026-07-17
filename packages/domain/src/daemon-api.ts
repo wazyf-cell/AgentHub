@@ -215,6 +215,13 @@ export interface DaemonTaskInputBundle {
       fallbackReason?: string;
       attemptCount: number;
     };
+    codeDevelopment?: {
+      sessionId?: string;
+      repositoryRoot?: string;
+      worktreePath?: string;
+      branchName?: string;
+      baseRef?: string;
+    };
   };
   files: DaemonBundleFile[];
 }

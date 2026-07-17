@@ -128,6 +128,7 @@ export async function GET(
         taskTriggerType: task.triggerType,
         channelName: prepared.payload.channelName,
         contactId: prepared.payload.contactId,
+        codeDevelopment: buildCodeDevelopmentBundleMetadata(prepared.payload),
         googleWorkspace,
         runtimeApps: {
           status: prepared.runtimeApps.length > 0 ? "available" : "none",
@@ -181,6 +182,21 @@ export async function GET(
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
+}
+
+function buildCodeDevelopmentBundleMetadata(
+  payload: ReturnType<typeof parseTaskPayload>,
+): DaemonTaskInputBundle["metadata"]["codeDevelopment"] {
+  const metadata = {
+    sessionId: payload.codeDevelopmentSessionId ?? payload.codeDevelopment?.sessionId,
+    repositoryRoot: payload.codeDevelopmentRepositoryRoot ?? payload.codeDevelopment?.repositoryRoot,
+    worktreePath: payload.codeDevelopmentWorktreePath ?? payload.codeDevelopment?.worktreePath,
+    branchName: payload.codeDevelopmentBranchName ?? payload.codeDevelopment?.branchName,
+    baseRef: payload.codeDevelopmentBaseRef ?? payload.codeDevelopment?.baseRef,
+  };
+  return Object.values(metadata).some((item) => typeof item === "string" && item.length > 0)
+    ? metadata
+    : undefined;
 }
 
 async function resolveGoogleWorkspaceBundleMetadata(input: {

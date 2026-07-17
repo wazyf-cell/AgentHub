@@ -48,6 +48,18 @@ export interface ParsedTaskPayload {
   mentionRootMessageId?: string;
   orchestrationRunId?: string;
   orchestrationStepId?: string;
+  codeDevelopmentSessionId?: string;
+  codeDevelopmentRepositoryRoot?: string;
+  codeDevelopmentWorktreePath?: string;
+  codeDevelopmentBranchName?: string;
+  codeDevelopmentBaseRef?: string;
+  codeDevelopment?: {
+    sessionId?: string;
+    repositoryRoot?: string;
+    worktreePath?: string;
+    branchName?: string;
+    baseRef?: string;
+  };
   stepInstruction?: string;
   stepDependsOnIds?: string[];
   stepHandoffKind?: string;
@@ -126,6 +138,7 @@ export interface AgentKnowledgePromptContext {
 export function parseTaskInputJson(inputJson: string): ParsedTaskPayload {
   try {
     const parsed = JSON.parse(inputJson) as Record<string, unknown>;
+    const codeDevelopment = parseCodeDevelopmentPayload(parsed.codeDevelopment);
     return {
       taskId: typeof parsed.taskId === "string" ? parsed.taskId : undefined,
       assignee: typeof parsed.assignee === "string" ? parsed.assignee : undefined,
@@ -146,6 +159,12 @@ export function parseTaskInputJson(inputJson: string): ParsedTaskPayload {
       mentionRootMessageId: typeof parsed.mentionRootMessageId === "string" ? parsed.mentionRootMessageId : undefined,
       orchestrationRunId: typeof parsed.orchestrationRunId === "string" ? parsed.orchestrationRunId : undefined,
       orchestrationStepId: typeof parsed.orchestrationStepId === "string" ? parsed.orchestrationStepId : undefined,
+      codeDevelopmentSessionId: typeof parsed.codeDevelopmentSessionId === "string" ? parsed.codeDevelopmentSessionId : codeDevelopment?.sessionId,
+      codeDevelopmentRepositoryRoot: typeof parsed.codeDevelopmentRepositoryRoot === "string" ? parsed.codeDevelopmentRepositoryRoot : codeDevelopment?.repositoryRoot,
+      codeDevelopmentWorktreePath: typeof parsed.codeDevelopmentWorktreePath === "string" ? parsed.codeDevelopmentWorktreePath : codeDevelopment?.worktreePath,
+      codeDevelopmentBranchName: typeof parsed.codeDevelopmentBranchName === "string" ? parsed.codeDevelopmentBranchName : codeDevelopment?.branchName,
+      codeDevelopmentBaseRef: typeof parsed.codeDevelopmentBaseRef === "string" ? parsed.codeDevelopmentBaseRef : codeDevelopment?.baseRef,
+      codeDevelopment,
       stepInstruction: typeof parsed.stepInstruction === "string" ? parsed.stepInstruction : undefined,
       stepDependsOnIds: Array.isArray(parsed.stepDependsOnIds)
         ? parsed.stepDependsOnIds.filter((item): item is string => typeof item === "string")
@@ -225,6 +244,21 @@ export function parseTaskInputJson(inputJson: string): ParsedTaskPayload {
   } catch {
     return {};
   }
+}
+
+function parseCodeDevelopmentPayload(input: unknown): ParsedTaskPayload["codeDevelopment"] {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return undefined;
+  }
+  const value = input as Record<string, unknown>;
+  const parsed = {
+    sessionId: typeof value.sessionId === "string" ? value.sessionId : undefined,
+    repositoryRoot: typeof value.repositoryRoot === "string" ? value.repositoryRoot : undefined,
+    worktreePath: typeof value.worktreePath === "string" ? value.worktreePath : undefined,
+    branchName: typeof value.branchName === "string" ? value.branchName : undefined,
+    baseRef: typeof value.baseRef === "string" ? value.baseRef : undefined,
+  };
+  return Object.values(parsed).some((item) => typeof item === "string" && item.length > 0) ? parsed : undefined;
 }
 
 function parseAutoContinuationPayload(input: unknown): ParsedTaskPayload["autoContinuation"] {
