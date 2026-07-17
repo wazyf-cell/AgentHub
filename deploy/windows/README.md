@@ -47,6 +47,19 @@ Logs are written to:
 .tmp\launcher\web.stderr.log
 ```
 
-## Next step
+## Desktop executable path
 
-P5-B should wrap this launcher into a Windows `.exe` or desktop shell.
+P5-B adds an Electron desktop shell and package scripts:
+
+```powershell
+npm install --no-audit --no-fund
+npm run desktop:build
+```
+
+The expected portable executable output is:
+
+```text
+dist-electron-out\AgentSpace.exe
+```
+
+This requires root `electron` and `electron-builder` dependencies to be installed. The `.cmd` launcher above remains the lightweight fallback when the desktop package is not built yet.

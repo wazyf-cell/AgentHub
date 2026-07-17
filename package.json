@@ -3,8 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
+  "main": "electron/main.js",
   "packageManager": "npm@11.6.2",
   "scripts": {
+    "desktop:dev": "electron .",
+    "desktop:build": "npm run build && electron-builder --win portable",
+    "electron:dev": "npm run desktop:dev",
+    "electron:build": "npm run desktop:build",
     "cli": "node --experimental-strip-types apps/cli/src/index.ts",
     "daemon:pack": "npm pack ./packages/daemon",
     "setup": "npm --prefix apps/web install --no-audit --no-fund && npm --prefix apps/cli install --no-audit --no-fund && npm --prefix packages/db install --no-audit --no-fund && npm --prefix packages/services install --no-audit --no-fund && npm --prefix packages/daemon install --no-audit --no-fund",
@@ -24,5 +29,36 @@
     "test:web": "npm --prefix apps/web run test",
     "test:e2e:web": "npm --prefix apps/web run test:e2e",
     "quality:web": "npm --prefix apps/web run typecheck && npm --prefix apps/web run typecheck:test && npm --prefix apps/web run lint && npm --prefix apps/web run test"
+  },
+  "devDependencies": {
+    "electron": "^42.5.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.agentspace.desktop",
+    "productName": "AgentSpace",
+    "asar": false,
+    "directories": {
+      "output": "dist-electron-out"
+    },
+    "files": [
+      "electron/**/*",
+      "apps/web/.next/**/*",
+      "apps/web/next.config.mjs",
+      "apps/web/package.json",
+      "apps/web/node_modules/**/*",
+      "apps/web/public/**/*",
+      "packages/**/*",
+      "package.json",
+      "Target.md",
+      "README.md",
+      "README_ZH.md"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "AgentSpace.exe"
+    }
   }
 }
