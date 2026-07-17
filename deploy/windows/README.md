@@ -28,6 +28,12 @@ The launcher starts `apps/web` on:
 http://127.0.0.1:1455
 ```
 
+If port `1455` is already in use, pass another port:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\Start-AgentSpace.ps1 -Port 1456
+```
+
 ## First run / dependency install
 
 If dependencies are missing, run:

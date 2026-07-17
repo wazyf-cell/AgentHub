@@ -96,6 +96,7 @@ dist-electron-out\AgentSpace.exe
 
 - 当前环境 Electron 二进制/打包辅助文件下载超时，暂时还没有生成新的 `AgentSpace.exe`。
 - `.cmd/.ps1` Web 启动器已经可用，是目前最快试用路径。
+- 默认端口是 `1455`；如果端口被占用，启动器会直接报错。可以用 `-Port 1456` 等参数换端口。
 - `.env` 缺失会产生 warning；如果需要本地密钥或数据库配置，从 `.env.example` 复制一份 `.env` 后填写。
 - PostgreSQL URL 缺失会产生 warning；如果要使用 PostgreSQL，配置 `AGENT_SPACE_PG_URL` 或 `DATABASE_URL`。
 - 多 agent runtime / daemon 的完整一键启动还没并入桌面壳，后续 P5 继续完善。

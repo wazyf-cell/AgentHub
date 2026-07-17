@@ -53,6 +53,34 @@ function Wait-ForHttpEndpoint {
   return $false
 }
 
+function Test-TcpPortAvailable {
+  param(
+    [string]$ListenHostname,
+    [int]$ListenPort
+  )
+
+  $parsedAddress = [System.Net.IPAddress]::Any
+  $address = if ($ListenHostname -eq "0.0.0.0") {
+    [System.Net.IPAddress]::Any
+  } elseif ($ListenHostname -eq "localhost") {
+    [System.Net.IPAddress]::Loopback
+  } elseif ([System.Net.IPAddress]::TryParse($ListenHostname, [ref]$parsedAddress)) {
+    $parsedAddress
+  } else {
+    [System.Net.IPAddress]::Any
+  }
+
+  $listener = [System.Net.Sockets.TcpListener]::new($address, $ListenPort)
+  try {
+    $listener.Start()
+    return $true
+  } catch {
+    return $false
+  } finally {
+    $listener.Stop()
+  }
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptDir "..\..")
 $webNodeModules = Join-Path $repoRoot "apps\web\node_modules"
@@ -122,6 +150,10 @@ $stdoutLog = Join-Path $logDir "web.stdout.log"
 $stderrLog = Join-Path $logDir "web.stderr.log"
 $browserHost = if ($Hostname -eq "0.0.0.0") { "127.0.0.1" } else { $Hostname }
 $url = "http://$browserHost`:$Port"
+
+if (-not (Test-TcpPortAvailable -ListenHostname $Hostname -ListenPort $Port)) {
+  throw "Port $Port is already in use on $Hostname. Stop the existing process or start AgentSpace with -Port <another-port>."
+}
 
 $webArgs = if ($Mode -eq "dev") {
   @("--prefix", "apps/web", "run", "dev", "--", "--hostname", $Hostname, "--port", "$Port")
