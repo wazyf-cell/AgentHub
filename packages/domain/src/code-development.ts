@@ -33,6 +33,7 @@ export interface CodeDevelopmentPatchRecord {
   manifestVersion?: 1;
   summary: string;
   patchRef?: string;
+  patchText?: string;
   patchSha256?: string;
   patchSizeBytes?: number;
   baseRef?: string;

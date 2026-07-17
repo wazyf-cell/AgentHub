@@ -314,6 +314,8 @@ export {
   recordCodeDevelopmentMergePreflightSync,
   recordCodeDevelopmentPatchSync,
   recordCodeDevelopmentPatchManifestSync,
+  recordCodeDevelopmentWorktreeMergePreflightSync,
+  recordCodeDevelopmentWorktreePatchManifestSync,
   reviewCodeDevelopmentPatchSync,
   type AllocateCodeDevelopmentSessionInput,
   type CreateCodeDevelopmentSessionInput,
@@ -322,6 +324,8 @@ export {
   type RecordCodeDevelopmentMergePreflightInput,
   type RecordCodeDevelopmentPatchInput,
   type RecordCodeDevelopmentPatchManifestInput,
+  type RecordCodeDevelopmentWorktreeMergePreflightInput,
+  type RecordCodeDevelopmentWorktreePatchManifestInput,
   type ReviewCodeDevelopmentPatchInput,
 } from "./code-development/sessions.ts";
 export {

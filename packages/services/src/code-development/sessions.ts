@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { lstatSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { DEFAULT_WORKSPACE_ID } from "@agent-space/db";
 import type {
@@ -66,6 +68,15 @@ export interface RecordCodeDevelopmentPatchManifestInput {
   createdBy: CollaborationActorRef;
 }
 
+export interface RecordCodeDevelopmentWorktreePatchManifestInput {
+  sessionId: string;
+  summary?: string;
+  baseRef?: string;
+  headRef?: string;
+  riskNotes?: string[];
+  createdBy: CollaborationActorRef;
+}
+
 export interface ReviewCodeDevelopmentPatchInput {
   sessionId: string;
   status: CodeDevelopmentPatchReviewStatus;
@@ -85,6 +96,14 @@ export interface RecordCodeDevelopmentMergePreflightInput {
   checkedBy: CollaborationActorRef;
 }
 
+export interface RecordCodeDevelopmentWorktreeMergePreflightInput {
+  sessionId: string;
+  targetBranch?: string;
+  baseRef?: string;
+  headRef?: string;
+  checkedBy: CollaborationActorRef;
+}
+
 export interface MarkCodeDevelopmentSessionMergedInput {
   sessionId: string;
   mergedBy: CollaborationActorRef;
@@ -100,6 +119,7 @@ export interface MarkCodeDevelopmentSessionBlockedInput {
 const TERMINAL_STATUSES = new Set<CodeDevelopmentSession["status"]>(["merged", "blocked", "cancelled"]);
 const PATCH_REVIEW_STATUSES = new Set<CodeDevelopmentPatchReviewStatus>(["approved", "rejected", "needs_revision"]);
 const PATCH_FILE_CHANGE_TYPES = new Set<CodeDevelopmentPatchFileChangeType>(["added", "modified", "deleted", "renamed"]);
+const MAX_INLINE_UNTRACKED_PATCH_BYTES = 1024 * 1024;
 
 export function createCodeDevelopmentSessionSync(
   input: CreateCodeDevelopmentSessionInput,
@@ -220,6 +240,7 @@ export function recordCodeDevelopmentPatchManifestSync(
     manifestVersion: 1,
     summary,
     patchRef: input.patchRef?.trim() || undefined,
+    patchText: hasPatchText ? patchText : undefined,
     patchSha256,
     patchSizeBytes,
     baseRef: input.baseRef?.trim() || session.baseRef,
@@ -235,6 +256,42 @@ export function recordCodeDevelopmentPatchManifestSync(
   session.updatedAt = now;
   writeWorkspaceStateSync(state, workspaceId);
   return session;
+}
+
+export function recordCodeDevelopmentWorktreePatchManifestSync(
+  input: RecordCodeDevelopmentWorktreePatchManifestInput,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): CodeDevelopmentSession {
+  const state = ensureWorkspaceStateSync(workspaceId);
+  const session = requireSession(state.codeDevelopmentSessions, input.sessionId);
+  assertMutableSession(session);
+  const worktree = validateCodeDevelopmentWorktree(session);
+  const baseRef = normalizeGitRefLabel(input.baseRef?.trim() || session.baseRef || "HEAD", "baseRef");
+  const baseRev = resolveGitCommit(worktree.worktreePath, baseRef, "baseRef");
+  const headRef = normalizeGitRefLabel(input.headRef?.trim() || session.branchName || readGitCurrentRef(worktree.worktreePath), "headRef");
+  assertWorktreeHeadMatches(worktree.worktreePath, headRef);
+  const trackedPatchText = runGit(worktree.worktreePath, ["diff", "--no-ext-diff", "--binary", "--find-renames", baseRev, "--"]);
+  const trackedFileChanges = readGitDiffFileChanges(worktree.worktreePath, baseRev);
+  const untracked = readGitUntrackedPatchData(worktree.worktreePath);
+  const fileChanges = mergePatchFileChanges([...trackedFileChanges, ...untracked.fileChanges]);
+  const patchText = `${trackedPatchText}${untracked.patchText}`;
+  if (fileChanges.length === 0 || patchText.trim().length === 0) {
+    throw new Error(`Code development worktree "${session.worktreePath}" has no changes against "${baseRef}".`);
+  }
+
+  return recordCodeDevelopmentPatchManifestSync(
+    {
+      sessionId: session.id,
+      summary: input.summary?.trim() || `Git diff from ${baseRef} to ${headRef}.`,
+      patchText,
+      baseRef,
+      headRef,
+      fileChanges,
+      riskNotes: [...(input.riskNotes ?? []), ...untracked.warnings],
+      createdBy: input.createdBy,
+    },
+    workspaceId,
+  );
 }
 
 export function recordCodeDevelopmentPatchSync(
@@ -355,6 +412,87 @@ export function recordCodeDevelopmentMergePreflightSync(
   return session;
 }
 
+export function recordCodeDevelopmentWorktreeMergePreflightSync(
+  input: RecordCodeDevelopmentWorktreeMergePreflightInput,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): CodeDevelopmentSession {
+  const state = ensureWorkspaceStateSync(workspaceId);
+  const session = requireSession(state.codeDevelopmentSessions, input.sessionId);
+  assertMutableSession(session);
+  if (!session.patch) {
+    throw new Error(`Code development session "${input.sessionId}" does not have a patch to preflight.`);
+  }
+
+  const worktree = validateCodeDevelopmentWorktree(session);
+  const targetBranch = normalizeBranchName(input.targetBranch?.trim() || session.baseRef || "main");
+  const baseRef = input.baseRef?.trim() || session.patch.baseRef || session.baseRef;
+  const baseRev = baseRef ? resolveGitCommit(worktree.worktreePath, normalizeGitRefLabel(baseRef, "baseRef"), "baseRef") : undefined;
+  const headRef = normalizeGitRefLabel(input.headRef?.trim() || session.patch.headRef || session.branchName, "headRef");
+  assertWorktreeHeadMatches(worktree.worktreePath, headRef);
+  const checkedFiles = session.patch.fileChanges?.map((change) => change.path) ?? session.patch.changedFiles;
+  const warnings: string[] = [];
+  const conflictFiles: string[] = [];
+
+  const targetRev = tryResolveGitCommit(worktree.worktreePath, targetBranch);
+  if (!targetRev.ok) {
+    warnings.push(`Target branch "${targetBranch}" cannot be resolved in the worktree.`);
+  }
+
+  if (baseRev && targetRev.ok) {
+    const targetChangedFiles = tryRunGit(worktree.worktreePath, [
+      "diff",
+      "--no-ext-diff",
+      "--name-only",
+      "--find-renames",
+      `${baseRev}..${targetRev.rev}`,
+      "--",
+    ]);
+    if (targetChangedFiles.ok) {
+      const targetChanged = new Set(parseGitPathLines(targetChangedFiles.output));
+      const overlaps = checkedFiles.filter((file) => targetChanged.has(normalizeRepositoryRelativeFilePath(file)));
+      if (overlaps.length > 0) {
+        conflictFiles.push(...overlaps);
+        warnings.push(`Target branch changed files also touched by this patch: ${overlaps.join(", ")}`);
+      }
+    } else {
+      warnings.push(`Unable to compare "${baseRef}" with "${targetBranch}".`);
+    }
+  } else if (!baseRef) {
+    warnings.push("No base ref is available for target branch comparison.");
+  }
+
+  if (targetRev.ok) {
+    const diffCheck = tryRunGit(worktree.worktreePath, ["diff", "--no-ext-diff", "--check", targetBranch, "--"]);
+    if (!diffCheck.ok) {
+      const detail = [...diffCheck.output.split(/\r?\n/), ...diffCheck.error.split(/\r?\n/)]
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(" · ");
+      warnings.push(detail ? `git diff --check reported issues: ${detail}` : "git diff --check reported issues.");
+    }
+  }
+
+  return recordCodeDevelopmentMergePreflightSync(
+    {
+      sessionId: session.id,
+      targetBranch,
+      baseRef,
+      headRef,
+      checkedFiles,
+      conflictFiles,
+      warnings,
+      recommendation: conflictFiles.length > 0
+        ? "Resolve target branch file overlap before merge."
+        : warnings.length > 0
+          ? "Review generated warnings before merge."
+          : "Generated preflight is clean. Manual merge may proceed after approved review.",
+      checkedBy: input.checkedBy,
+    },
+    workspaceId,
+  );
+}
+
 export function markCodeDevelopmentSessionMergedSync(
   input: MarkCodeDevelopmentSessionMergedInput,
   workspaceId = DEFAULT_WORKSPACE_ID,
@@ -434,6 +572,374 @@ function isPathInside(parent: string, child: string): boolean {
   }
   const parentPrefix = parentPath.endsWith("/") ? parentPath : `${parentPath}/`;
   return childPath.toLocaleLowerCase("en").startsWith(parentPrefix.toLocaleLowerCase("en"));
+}
+
+function validateCodeDevelopmentWorktree(session: CodeDevelopmentSession): {
+  repositoryRoot: string;
+  worktreePath: string;
+  gitTopLevel: string;
+} {
+  const repositoryRoot = normalizeComparablePath(session.repositoryRoot);
+  const worktreePath = normalizeComparablePath(session.worktreePath);
+  if (!path.isAbsolute(repositoryRoot) || !path.isAbsolute(worktreePath)) {
+    throw new Error("Code development repository root and worktree path must be absolute paths.");
+  }
+  if (!isExistingDirectory(repositoryRoot)) {
+    throw new Error(`Code development repository root "${session.repositoryRoot}" does not exist.`);
+  }
+  const repositoryTopLevel = normalizeComparablePath(runGit(repositoryRoot, ["rev-parse", "--show-toplevel"]).trim());
+  if (!samePath(repositoryTopLevel, repositoryRoot)) {
+    throw new Error("Code development repository root must point to the git repository root.");
+  }
+  if (!isPathInside(repositoryRoot, worktreePath)) {
+    throw new Error("Code development worktree path must stay inside the repository root.");
+  }
+  if (!isExistingDirectory(worktreePath)) {
+    throw new Error(`Code development worktree path "${session.worktreePath}" does not exist.`);
+  }
+
+  const isInsideWorktree = runGit(worktreePath, ["rev-parse", "--is-inside-work-tree"]).trim();
+  if (isInsideWorktree !== "true") {
+    throw new Error(`Code development worktree path "${session.worktreePath}" is not a git worktree.`);
+  }
+  const gitTopLevel = normalizeComparablePath(runGit(worktreePath, ["rev-parse", "--show-toplevel"]).trim());
+  if (!samePath(gitTopLevel, worktreePath)) {
+    throw new Error("Code development worktree path must point to the git worktree root.");
+  }
+  const repositoryCommonDir = normalizeComparablePath(runGit(repositoryRoot, ["rev-parse", "--path-format=absolute", "--git-common-dir"]).trim());
+  const worktreeCommonDir = normalizeComparablePath(runGit(worktreePath, ["rev-parse", "--path-format=absolute", "--git-common-dir"]).trim());
+  if (!samePath(repositoryCommonDir, worktreeCommonDir)) {
+    throw new Error("Code development worktree must belong to the same git repository as repository root.");
+  }
+  return { repositoryRoot, worktreePath, gitTopLevel };
+}
+
+function isExistingDirectory(value: string): boolean {
+  try {
+    return statSync(value).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function runGit(cwd: string, args: string[]): string {
+  const result = tryRunGit(cwd, args);
+  if (result.ok) {
+    return result.output;
+  }
+  throw new Error(formatGitError(args, result.error || result.output));
+}
+
+function tryRunGit(cwd: string, args: string[]): { ok: true; output: string; error: string } | { ok: false; output: string; error: string } {
+  try {
+    return {
+      ok: true,
+      output: execFileSync("git", ["-C", cwd, ...args], {
+        encoding: "utf8",
+        maxBuffer: 20 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+      error: "",
+    };
+  } catch (error) {
+    const failure = error as { stdout?: Buffer | string; stderr?: Buffer | string; message?: string };
+    return {
+      ok: false,
+      output: bufferOrStringToUtf8(failure.stdout),
+      error: bufferOrStringToUtf8(failure.stderr) || failure.message || "Unknown git error.",
+    };
+  }
+}
+
+function bufferOrStringToUtf8(value: Buffer | string | undefined): string {
+  if (Buffer.isBuffer(value)) {
+    return value.toString("utf8");
+  }
+  return value ?? "";
+}
+
+function formatGitError(args: string[], detail: string): string {
+  const summary = detail.trim().split(/\r?\n/).filter(Boolean).slice(0, 2).join(" ");
+  return `git ${args.join(" ")} failed${summary ? `: ${summary}` : "."}`;
+}
+
+function readGitCurrentRef(worktreePath: string): string {
+  const branch = tryRunGit(worktreePath, ["rev-parse", "--abbrev-ref", "HEAD"]);
+  if (branch.ok) {
+    const value = branch.output.trim();
+    if (value && value !== "HEAD") {
+      return value;
+    }
+  }
+  const sha = tryRunGit(worktreePath, ["rev-parse", "--short", "HEAD"]);
+  return sha.ok && sha.output.trim() ? sha.output.trim() : "HEAD";
+}
+
+function normalizeGitRefLabel(value: string, fieldName: string): string {
+  const ref = value.trim();
+  if (!ref || ref.startsWith("-") || ref.includes("\0") || /[\r\n\t]/.test(ref)) {
+    throw new Error(`Code development ${fieldName} is invalid.`);
+  }
+  return ref;
+}
+
+function resolveGitCommit(worktreePath: string, ref: string, fieldName: string): string {
+  const result = tryResolveGitCommit(worktreePath, ref);
+  if (result.ok) {
+    return result.rev;
+  }
+  throw new Error(`Code development ${fieldName} "${ref}" cannot be resolved to a commit.`);
+}
+
+function tryResolveGitCommit(worktreePath: string, ref: string): { ok: true; rev: string } | { ok: false } {
+  const normalized = normalizeGitRefLabel(ref, "ref");
+  const result = tryRunGit(worktreePath, ["rev-parse", "--verify", "--end-of-options", `${normalized}^{commit}`]);
+  if (!result.ok) {
+    return { ok: false };
+  }
+  const rev = result.output.trim();
+  return rev ? { ok: true, rev } : { ok: false };
+}
+
+function assertWorktreeHeadMatches(worktreePath: string, expectedHeadRef: string): void {
+  const currentRef = readGitCurrentRef(worktreePath);
+  if (currentRef === expectedHeadRef) {
+    return;
+  }
+  const expected = tryResolveGitCommit(worktreePath, expectedHeadRef);
+  const actual = tryResolveGitCommit(worktreePath, "HEAD");
+  if (expected.ok && actual.ok && expected.rev === actual.rev) {
+    return;
+  }
+  throw new Error(`Code development worktree is checked out at "${currentRef}", expected "${expectedHeadRef}".`);
+}
+
+function readGitDiffFileChanges(
+  worktreePath: string,
+  baseRef: string,
+): Array<{
+  path: string;
+  changeType: CodeDevelopmentPatchFileChangeType;
+  additions?: number;
+  deletions?: number;
+  previousPath?: string;
+}> {
+  const additionsByPath = new Map<string, { additions?: number; deletions?: number }>();
+  for (const line of runGit(worktreePath, ["diff", "--no-ext-diff", "--numstat", "--find-renames", baseRef, "--"]).split(/\r?\n/)) {
+    const parts = line.split("\t");
+    if (parts.length < 3) {
+      continue;
+    }
+    const filePath = parseGitDiffStatPath(parts.slice(2).join("\t"));
+    if (!filePath) {
+      continue;
+    }
+    additionsByPath.set(filePath, {
+      additions: parseGitDiffStatNumber(parts[0]),
+      deletions: parseGitDiffStatNumber(parts[1]),
+    });
+  }
+
+  const changes: Array<{
+    path: string;
+    changeType: CodeDevelopmentPatchFileChangeType;
+    additions?: number;
+    deletions?: number;
+    previousPath?: string;
+  }> = [];
+  for (const line of runGit(worktreePath, ["diff", "--no-ext-diff", "--name-status", "--find-renames", baseRef, "--"]).split(/\r?\n/)) {
+    const parts = line.split("\t").filter((part) => part.length > 0);
+    if (parts.length < 2) {
+      continue;
+    }
+    const status = parts[0] ?? "";
+    const renamed = status.startsWith("R");
+    const filePath = renamed ? parts[2] : parts[1];
+    if (!filePath) {
+      continue;
+    }
+    const normalizedPath = normalizeRepositoryRelativeFilePath(filePath);
+    const stats = additionsByPath.get(normalizedPath);
+    changes.push({
+      path: normalizedPath,
+      changeType: gitStatusToPatchChangeType(status),
+      additions: stats?.additions,
+      deletions: stats?.deletions,
+      previousPath: renamed && parts[1] ? normalizeRepositoryRelativeFilePath(parts[1]) : undefined,
+    });
+  }
+  return changes;
+}
+
+function readGitUntrackedPatchData(
+  worktreePath: string,
+): {
+  fileChanges: Array<{
+    path: string;
+    changeType: CodeDevelopmentPatchFileChangeType;
+    additions?: number;
+    deletions?: number;
+    previousPath?: string;
+  }>;
+  patchText: string;
+  warnings: string[];
+} {
+  const fileChanges: Array<{
+    path: string;
+    changeType: CodeDevelopmentPatchFileChangeType;
+    additions?: number;
+    deletions?: number;
+    previousPath?: string;
+  }> = [];
+  const patches: string[] = [];
+  const warnings: string[] = [];
+  for (const filePath of runGit(worktreePath, ["ls-files", "--others", "--exclude-standard", "-z"]).split("\0")) {
+    const normalizedPath = filePath.trim() ? normalizeRepositoryRelativeFilePath(filePath) : undefined;
+    if (!normalizedPath) {
+      continue;
+    }
+    const file = readSmallRegularWorktreeFile(worktreePath, normalizedPath);
+    fileChanges.push({
+      path: normalizedPath,
+      changeType: "added",
+      additions: file.ok ? countTextLines(file.content) : undefined,
+      deletions: 0,
+      previousPath: undefined,
+    });
+    if (file.ok) {
+      patches.push(formatUntrackedFilePatch(normalizedPath, file.content));
+    } else {
+      warnings.push(file.warning);
+    }
+  }
+  return { fileChanges, patchText: patches.join(""), warnings };
+}
+
+function formatUntrackedFilePatch(repositoryRelativePath: string, content: Buffer): string {
+  const escapedPath = escapeGitPatchPath(repositoryRelativePath);
+  if (isLikelyBinary(content)) {
+    return `diff --git a/${escapedPath} b/${escapedPath}\nnew file mode 100644\nBinary files /dev/null and b/${escapedPath} differ\n`;
+  }
+  const text = content.toString("utf8");
+  const lines = text.length === 0 ? [] : text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  if (lines.at(-1) === "") {
+    lines.pop();
+  }
+  const body = lines.map((line) => `+${line}`).join("\n");
+  return [
+    `diff --git a/${escapedPath} b/${escapedPath}`,
+    "new file mode 100644",
+    "--- /dev/null",
+    `+++ b/${escapedPath}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    body,
+    "",
+  ].join("\n");
+}
+
+function readSmallRegularWorktreeFile(
+  worktreePath: string,
+  repositoryRelativePath: string,
+): { ok: true; content: Buffer } | { ok: false; warning: string } {
+  const absolutePath = path.join(worktreePath, repositoryRelativePath);
+  let stats: ReturnType<typeof lstatSync>;
+  try {
+    stats = lstatSync(absolutePath);
+  } catch {
+    return { ok: false, warning: `Untracked file disappeared before patch generation: ${repositoryRelativePath}` };
+  }
+  if (!stats.isFile()) {
+    return { ok: false, warning: `Untracked non-regular file omitted from patch text: ${repositoryRelativePath}` };
+  }
+  if (stats.size > MAX_INLINE_UNTRACKED_PATCH_BYTES) {
+    return { ok: false, warning: `Untracked file is larger than ${MAX_INLINE_UNTRACKED_PATCH_BYTES} bytes and was omitted from patch text: ${repositoryRelativePath}` };
+  }
+  return { ok: true, content: readFileSync(absolutePath) };
+}
+
+function mergePatchFileChanges(
+  changes: Array<{
+    path: string;
+    changeType: CodeDevelopmentPatchFileChangeType;
+    additions?: number;
+    deletions?: number;
+    previousPath?: string;
+  }>,
+): Array<{
+  path: string;
+  changeType: CodeDevelopmentPatchFileChangeType;
+  additions?: number;
+  deletions?: number;
+  previousPath?: string;
+}> {
+  const result: Array<{
+    path: string;
+    changeType: CodeDevelopmentPatchFileChangeType;
+    additions?: number;
+    deletions?: number;
+    previousPath?: string;
+  }> = [];
+  const seen = new Set<string>();
+  for (const change of changes) {
+    if (seen.has(change.path)) {
+      continue;
+    }
+    result.push(change);
+    seen.add(change.path);
+  }
+  return result;
+}
+
+function parseGitDiffStatPath(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.includes(" => ")) {
+    return undefined;
+  }
+  return normalizeRepositoryRelativeFilePath(trimmed);
+}
+
+function parseGitDiffStatNumber(value: string): number | undefined {
+  return /^\d+$/.test(value) ? Number.parseInt(value, 10) : undefined;
+}
+
+function countTextLines(content: Buffer): number | undefined {
+  if (isLikelyBinary(content)) {
+    return undefined;
+  }
+  const text = content.toString("utf8");
+  if (text.length === 0) {
+    return 0;
+  }
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter((line, index, lines) => index < lines.length - 1 || line.length > 0).length;
+}
+
+function isLikelyBinary(content: Buffer): boolean {
+  return content.subarray(0, Math.min(content.length, 8000)).includes(0);
+}
+
+function escapeGitPatchPath(value: string): string {
+  return value.replace(/\\/g, "/").replace(/\t/g, "\\t").replace(/\n/g, "\\n");
+}
+
+function gitStatusToPatchChangeType(status: string): CodeDevelopmentPatchFileChangeType {
+  if (status.startsWith("A")) {
+    return "added";
+  }
+  if (status.startsWith("D")) {
+    return "deleted";
+  }
+  if (status.startsWith("R")) {
+    return "renamed";
+  }
+  return "modified";
+}
+
+function parseGitPathLines(output: string): string[] {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => normalizeRepositoryRelativeFilePath(line));
 }
 
 function normalizeBranchSegment(value: string): string {

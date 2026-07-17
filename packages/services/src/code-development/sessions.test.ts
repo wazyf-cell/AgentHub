@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,6 +14,8 @@ import {
   recordCodeDevelopmentMergePreflightSync,
   recordCodeDevelopmentPatchManifestSync,
   recordCodeDevelopmentPatchSync,
+  recordCodeDevelopmentWorktreeMergePreflightSync,
+  recordCodeDevelopmentWorktreePatchManifestSync,
   resetWorkspaceStateSync,
   reviewCodeDevelopmentPatchSync,
 } from "../index.ts";
@@ -260,6 +263,7 @@ test("code development allocation creates isolated worktree metadata and patch m
 
   assert.equal(patched.status, "patch_ready");
   assert.equal(patched.patch?.manifestVersion, 1);
+  assert.equal(patched.patch?.patchText, patchText);
   assert.equal(patched.patch?.patchSha256, expectedHash);
   assert.equal(patched.patch?.patchSizeBytes, Buffer.byteLength(patchText, "utf8"));
   assert.equal(patched.patch?.baseRef, "main");
@@ -347,6 +351,80 @@ test("code development merge preflight blocks overlapping active patch files", (
   );
 });
 
+test("code development can auto-record git worktree patch manifests and preflight target overlap", () => {
+  const repositoryRoot = mkdtempSync(join(tempRoot, "repo-"));
+  git(repositoryRoot, ["init", "-b", "main"]);
+  git(repositoryRoot, ["config", "user.email", "test@example.com"]);
+  git(repositoryRoot, ["config", "user.name", "Agent Space Test"]);
+  mkdirSync(join(repositoryRoot, "src"), { recursive: true });
+  writeFileSync(join(repositoryRoot, "src", "router.ts"), "export const value = 1;\n");
+  git(repositoryRoot, ["add", "."]);
+  git(repositoryRoot, ["commit", "-m", "initial"]);
+  git(repositoryRoot, ["checkout", "-b", "target-main"]);
+  writeFileSync(join(repositoryRoot, "src", "router.ts"), "export const value = 2;\n");
+  git(repositoryRoot, ["commit", "-am", "target change"]);
+  git(repositoryRoot, ["checkout", "main"]);
+
+  const worktreePath = join(repositoryRoot, ".worktrees", "router-session");
+  mkdirSync(join(repositoryRoot, ".worktrees"), { recursive: true });
+  git(repositoryRoot, ["worktree", "add", worktreePath, "-b", "agent-space/router-session", "main"]);
+  git(worktreePath, ["config", "user.email", "test@example.com"]);
+  git(worktreePath, ["config", "user.name", "Agent Space Test"]);
+  writeFileSync(join(worktreePath, "src", "router.ts"), "export const value = 3;\n");
+  writeFileSync(join(worktreePath, "src", "new-file.ts"), "export const created = true;\n");
+
+  const session = createCodeDevelopmentSessionSync(
+    {
+      title: "Router worktree session",
+      goal: "Read real git diff from the isolated worktree.",
+      repositoryRoot,
+      worktreePath,
+      branchName: "agent-space/router-session",
+      baseRef: "main",
+      assignedAgentIds: ["Atlas"],
+      createdBy: { type: "human", id: "Mina" },
+    },
+    WORKSPACE_ID,
+  );
+
+  const patched = recordCodeDevelopmentWorktreePatchManifestSync(
+    {
+      sessionId: session.id,
+      createdBy: { type: "human", id: "Mina" },
+    },
+    WORKSPACE_ID,
+  );
+
+  assert.equal(patched.status, "patch_ready");
+  assert.equal(patched.patch?.baseRef, "main");
+  assert.equal(patched.patch?.headRef, "agent-space/router-session");
+  assert.match(patched.patch?.patchText ?? "", /src\/new-file\.ts/);
+  assert.match(patched.patch?.patchText ?? "", /export const created = true/);
+  assert.deepEqual([...(patched.patch?.changedFiles ?? [])].sort(), ["src/new-file.ts", "src/router.ts"]);
+  assert.deepEqual(
+    Object.fromEntries((patched.patch?.fileChanges ?? []).map((change) => [change.path, change.changeType])),
+    {
+      "src/new-file.ts": "added",
+      "src/router.ts": "modified",
+    },
+  );
+  assert.equal(patched.patch?.patchSha256?.length, 64);
+  assert.equal((patched.patch?.patchSizeBytes ?? 0) > 0, true);
+
+  const preflighted = recordCodeDevelopmentWorktreeMergePreflightSync(
+    {
+      sessionId: session.id,
+      targetBranch: "target-main",
+      checkedBy: { type: "human", id: "Mina" },
+    },
+    WORKSPACE_ID,
+  );
+
+  assert.equal(preflighted.mergePreflight?.status, "blocked");
+  assert.deepEqual(preflighted.mergePreflight?.conflictFiles, ["src/router.ts"]);
+  assert.match(preflighted.mergePreflight?.warnings.join(" ") ?? "", /Target branch changed files/);
+});
+
 function ensureWorkspaceRecord(workspaceId: string, name: string): void {
   if (readWorkspaceSync(workspaceId)) {
     return;
@@ -357,5 +435,12 @@ function ensureWorkspaceRecord(workspaceId: string, name: string): void {
     slug: workspaceId,
     name,
     createdBy: "test",
+  });
+}
+
+function git(cwd: string, args: string[]): string {
+  return execFileSync("git", ["-C", cwd, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
   });
 }

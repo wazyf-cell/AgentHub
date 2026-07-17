@@ -8,6 +8,8 @@ import {
   markCodeDevelopmentSessionMergedSync,
   recordCodeDevelopmentMergePreflightSync,
   recordCodeDevelopmentPatchManifestSync,
+  recordCodeDevelopmentWorktreeMergePreflightSync,
+  recordCodeDevelopmentWorktreePatchManifestSync,
   reviewCodeDevelopmentPatchSync,
 } from "@agent-space/services";
 import { getWorkspaceContextForIdentifier } from "@/features/auth/server-workspace";
@@ -18,7 +20,9 @@ export const dynamic = "force-dynamic";
 
 type CodeDevelopmentSessionAction =
   | "record_patch_manifest"
+  | "record_worktree_patch_manifest"
   | "record_merge_preflight"
+  | "record_worktree_merge_preflight"
   | "review_patch"
   | "mark_merged"
   | "mark_blocked";
@@ -69,7 +73,7 @@ export async function POST(
   if (!action) {
     return NextResponse.json({
       error:
-        "Unsupported action. Expected one of: record_patch_manifest, record_merge_preflight, review_patch, mark_merged, mark_blocked.",
+        "Unsupported action. Expected one of: record_patch_manifest, record_worktree_patch_manifest, record_merge_preflight, record_worktree_merge_preflight, review_patch, mark_merged, mark_blocked.",
     }, { status: 400 });
   }
 
@@ -95,6 +99,15 @@ export async function POST(
             riskNotes: readStringArray(body.riskNotes),
             createdBy: humanActor,
           }, workspaceId);
+        case "record_worktree_patch_manifest":
+          return recordCodeDevelopmentWorktreePatchManifestSync({
+            sessionId,
+            summary: readOptionalString(body.summary),
+            baseRef: readOptionalString(body.baseRef),
+            headRef: readOptionalString(body.headRef),
+            riskNotes: readStringArray(body.riskNotes),
+            createdBy: humanActor,
+          }, workspaceId);
         case "record_merge_preflight":
           return recordCodeDevelopmentMergePreflightSync({
             sessionId,
@@ -105,6 +118,14 @@ export async function POST(
             conflictFiles: readStringArray(body.conflictFiles),
             warnings: readStringArray(body.warnings),
             recommendation: readOptionalString(body.recommendation),
+            checkedBy: humanActor,
+          }, workspaceId);
+        case "record_worktree_merge_preflight":
+          return recordCodeDevelopmentWorktreeMergePreflightSync({
+            sessionId,
+            targetBranch: readOptionalString(body.targetBranch),
+            baseRef: readOptionalString(body.baseRef),
+            headRef: readOptionalString(body.headRef),
             checkedBy: humanActor,
           }, workspaceId);
         case "review_patch":
@@ -157,7 +178,9 @@ async function resolveWorkspaceContext(context: { params: Promise<{ workspaceId:
 function readAction(input: unknown): CodeDevelopmentSessionAction | undefined {
   if (
     input === "record_patch_manifest"
+    || input === "record_worktree_patch_manifest"
     || input === "record_merge_preflight"
+    || input === "record_worktree_merge_preflight"
     || input === "review_patch"
     || input === "mark_merged"
     || input === "mark_blocked"

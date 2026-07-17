@@ -24,6 +24,8 @@ import {
   markCodeDevelopmentSessionMergedAction,
   recordCodeDevelopmentMergePreflightAction,
   recordCodeDevelopmentPatchManifestAction,
+  recordCodeDevelopmentWorktreeMergePreflightAction,
+  recordCodeDevelopmentWorktreePatchManifestAction,
   reviewCodeDevelopmentPatchAction,
   toggleAutomationRuleAction,
   deleteAutomationRuleAction,
@@ -333,6 +335,29 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
     });
   }
 
+  function handleRecordCodeDevelopmentWorktreePatch(session: CodeDevelopmentSessionViewRecord): void {
+    const summary = window.prompt(
+      tx("自动 Patch 摘要，可选", "Automatic patch summary, optional"),
+      session.patchSummary ?? "",
+    );
+    if (summary === null) return;
+
+    startTransition(async () => {
+      try {
+        setCodeDevActionError(null);
+        await recordCodeDevelopmentWorktreePatchManifestAction({
+          sessionId: session.id,
+          summary: summary || undefined,
+          baseRef: session.baseRef,
+          headRef: session.branchName,
+        });
+        refreshWorkspaceModule(onDataChanged, router);
+      } catch (error) {
+        setCodeDevActionError(error instanceof Error ? error.message : tx("自动记录 Patch 失败。", "Failed to auto-record patch."));
+      }
+    });
+  }
+
   function handleRecordCodeDevelopmentPreflight(session: CodeDevelopmentSessionViewRecord): void {
     const targetBranch = window.prompt(tx("目标分支", "Target branch"), session.preflightTargetBranch ?? session.baseRef ?? "main");
     if (!targetBranch?.trim()) return;
@@ -356,6 +381,26 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
         refreshWorkspaceModule(onDataChanged, router);
       } catch (error) {
         setCodeDevActionError(error instanceof Error ? error.message : tx("记录预检失败。", "Failed to record preflight."));
+      }
+    });
+  }
+
+  function handleRecordCodeDevelopmentWorktreePreflight(session: CodeDevelopmentSessionViewRecord): void {
+    const targetBranch = window.prompt(tx("目标分支", "Target branch"), session.preflightTargetBranch ?? session.baseRef ?? "main");
+    if (!targetBranch?.trim()) return;
+
+    startTransition(async () => {
+      try {
+        setCodeDevActionError(null);
+        await recordCodeDevelopmentWorktreeMergePreflightAction({
+          sessionId: session.id,
+          targetBranch: targetBranch.trim(),
+          baseRef: session.baseRef,
+          headRef: session.branchName,
+        });
+        refreshWorkspaceModule(onDataChanged, router);
+      } catch (error) {
+        setCodeDevActionError(error instanceof Error ? error.message : tx("自动预检失败。", "Failed to auto-preflight."));
       }
     });
   }
@@ -1002,10 +1047,26 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
+                                onClick={() => handleRecordCodeDevelopmentWorktreePatch(session)}
+                                type="button"
+                              >
+                                {tx("自动 Patch", "Auto patch")}
+                              </button>
+                              <button
+                                className="knowledge-btn knowledge-btn--ghost"
+                                disabled={isPending}
                                 onClick={() => handleRecordCodeDevelopmentPatch(session)}
                                 type="button"
                               >
                                 {tx("记录 Patch", "Record patch")}
+                              </button>
+                              <button
+                                className="knowledge-btn knowledge-btn--ghost"
+                                disabled={isPending}
+                                onClick={() => handleRecordCodeDevelopmentWorktreePreflight(session)}
+                                type="button"
+                              >
+                                {tx("自动预检", "Auto preflight")}
                               </button>
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"

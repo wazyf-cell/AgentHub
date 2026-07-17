@@ -89,6 +89,7 @@ function normalizeCodeDevelopmentPatch(patch: unknown): CodeDevelopmentPatchReco
     manifestVersion: candidate.manifestVersion === 1 ? 1 : undefined,
     summary: candidate.summary,
     patchRef: typeof candidate.patchRef === "string" ? candidate.patchRef : undefined,
+    patchText: typeof candidate.patchText === "string" ? candidate.patchText : undefined,
     patchSha256: typeof candidate.patchSha256 === "string" ? candidate.patchSha256 : undefined,
     patchSizeBytes: typeof candidate.patchSizeBytes === "number" && candidate.patchSizeBytes >= 0 ? candidate.patchSizeBytes : undefined,
     baseRef: typeof candidate.baseRef === "string" ? candidate.baseRef : undefined,

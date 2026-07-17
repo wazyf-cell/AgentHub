@@ -7,6 +7,8 @@ import {
   markCodeDevelopmentSessionMergedSync,
   recordCodeDevelopmentMergePreflightSync,
   recordCodeDevelopmentPatchManifestSync,
+  recordCodeDevelopmentWorktreeMergePreflightSync,
+  recordCodeDevelopmentWorktreePatchManifestSync,
   reviewCodeDevelopmentPatchSync,
   updateAutomationRuleSync,
   toggleAutomationRuleSync,
@@ -115,6 +117,28 @@ export async function recordCodeDevelopmentPatchManifestAction(input: {
   revalidateWorkspacePath("/automations", workspaceContext.currentWorkspace.slug);
 }
 
+export async function recordCodeDevelopmentWorktreePatchManifestAction(input: {
+  sessionId: string;
+  summary?: string;
+  baseRef?: string;
+  headRef?: string;
+  riskNotes?: string[];
+}): Promise<void> {
+  const workspaceContext = await requireCodeDevelopmentAdminContext();
+  recordCodeDevelopmentWorktreePatchManifestSync({
+    sessionId: requireTrimmed(input.sessionId, "sessionId"),
+    summary: trimOptional(input.summary),
+    baseRef: trimOptional(input.baseRef),
+    headRef: trimOptional(input.headRef),
+    riskNotes: input.riskNotes ?? [],
+    createdBy: {
+      type: "human",
+      id: workspaceContext.currentUser.id,
+    },
+  }, workspaceContext.currentWorkspace.id);
+  revalidateWorkspacePath("/automations", workspaceContext.currentWorkspace.slug);
+}
+
 export async function recordCodeDevelopmentMergePreflightAction(input: {
   sessionId: string;
   targetBranch: string;
@@ -133,6 +157,26 @@ export async function recordCodeDevelopmentMergePreflightAction(input: {
     conflictFiles: input.conflictFiles ?? [],
     warnings: input.warnings ?? [],
     recommendation: trimOptional(input.recommendation),
+    baseRef: trimOptional(input.baseRef),
+    headRef: trimOptional(input.headRef),
+    checkedBy: {
+      type: "human",
+      id: workspaceContext.currentUser.id,
+    },
+  }, workspaceContext.currentWorkspace.id);
+  revalidateWorkspacePath("/automations", workspaceContext.currentWorkspace.slug);
+}
+
+export async function recordCodeDevelopmentWorktreeMergePreflightAction(input: {
+  sessionId: string;
+  targetBranch?: string;
+  baseRef?: string;
+  headRef?: string;
+}): Promise<void> {
+  const workspaceContext = await requireCodeDevelopmentAdminContext();
+  recordCodeDevelopmentWorktreeMergePreflightSync({
+    sessionId: requireTrimmed(input.sessionId, "sessionId"),
+    targetBranch: trimOptional(input.targetBranch),
     baseRef: trimOptional(input.baseRef),
     headRef: trimOptional(input.headRef),
     checkedBy: {
