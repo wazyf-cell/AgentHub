@@ -37,7 +37,7 @@ export function enqueueNativeTaskSync(input: EnqueueTaskInput): QueuedTaskRecord
   }
 
   const now = new Date().toISOString();
-  const queueId = `queue-${randomLikeId()}`;
+  const queueId = input.queueId ?? `queue-${randomLikeId()}`;
   const payload = {
     taskId: input.taskId,
     assignee: input.assignee,

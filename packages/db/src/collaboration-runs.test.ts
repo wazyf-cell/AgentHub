@@ -13,9 +13,11 @@ import {
   getDatabase,
   listCollaborationRunEventsSync,
   listCollaborationTaskNodesSync,
+  listQueuedTasksSync,
   listReadyCollaborationTaskNodesSync,
   queueCollaborationTaskNodeSync,
   readCollaborationRunSync,
+  readCollaborationTaskNodeSync,
   readQueuedTaskSync,
   registerDaemonRuntimesSync,
 } from "./index.ts";
@@ -151,6 +153,47 @@ test("queues a ready collaboration node into the native task queue with orchestr
   assert.equal(payload.orchestrationRunId, run.id);
   assert.equal(payload.orchestrationStepId, "node-analysis");
   assert.equal(payload.stepInstruction, "分析用户输入并产出要点。");
+
+  assert.throws(
+    () => queueCollaborationTaskNodeSync({ workspaceId, nodeId: "node-analysis" }),
+    /not ready/i,
+  );
+  assert.equal(listQueuedTasksSync({ workspaceId }).length, 1);
+});
+
+test("does not reserve or orphan a queue task when a ready collaboration node lacks runtime binding", () => {
+  const { workspaceId } = seedWorkspaceRuntime("collab-missing-binding");
+  const { run } = createCollaborationRunSync({
+    workspaceId,
+    title: "Prepare unbound analysis",
+    goal: "验证无 runtime binding 时不会留下 orphan queue。",
+    nodes: [
+      {
+        id: "node-unbound",
+        agentId: "Unbound",
+        title: "Unbound analyze",
+        instruction: "这个 agent 没有绑定 runtime。",
+      },
+    ],
+  });
+
+  const queued = queueCollaborationTaskNodeSync({
+    workspaceId,
+    nodeId: "node-unbound",
+    requestedByDisplayName: "Tianyu",
+  });
+
+  assert.equal(queued, null);
+  assert.equal(readCollaborationRunSync(run.id, workspaceId)?.status, "approved");
+  const node = readCollaborationTaskNodeSync("node-unbound", workspaceId);
+  assert.equal(node?.status, "ready");
+  assert.equal(node?.taskQueueId, undefined);
+  assert.equal(node?.queuedAt, undefined);
+  assert.equal(listQueuedTasksSync({ workspaceId }).length, 0);
+  assert.deepEqual(
+    listCollaborationRunEventsSync(run.id, workspaceId).map((event) => event.type),
+    ["run.created"],
+  );
 });
 
 test("keeps draft collaboration nodes pending until the run is approved", () => {

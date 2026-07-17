@@ -354,6 +354,7 @@ export function queueCollaborationTaskNodeSync(input: {
   requestedByDisplayName?: string;
 }): { node: CollaborationTaskNodeRecord; taskQueueId: string } | null {
   const workspaceId = input.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  const db = getDatabase();
   const node = readCollaborationTaskNodeSync(input.nodeId, workspaceId);
   if (!node) {
     throw new Error(`Collaboration task node "${input.nodeId}" does not exist.`);
@@ -366,36 +367,94 @@ export function queueCollaborationTaskNodeSync(input: {
     throw new Error(`Collaboration run "${node.runId}" does not exist.`);
   }
 
-  const queued = enqueueNativeTaskSync({
-    workspaceId,
-    assignee: node.agentId,
-    title: node.title,
-    priority: input.priority ?? "medium",
-    triggerType: "manual",
-    requestedByUserId: input.requestedByUserId,
-    requestedByDisplayName: input.requestedByDisplayName,
-    metadata: {
-      orchestrationRunId: run.id,
-      orchestrationStepId: node.id,
-      collaborationRunId: run.id,
-      collaborationNodeId: node.id,
-      goal: run.goal,
-      stepInstruction: node.instruction,
-      stepDependsOnIds: parseStringArray(node.dependsOnNodeIdsJson),
-    },
-  });
-  if (!queued) {
-    return null;
+  const now = new Date().toISOString();
+  const taskQueueId = `queue-${randomLikeId()}`;
+  let queuedNode: CollaborationTaskNodeRecord | null = null;
+  let missingRuntimeBinding = false;
+
+  try {
+    withTransaction(db, () => {
+      const reserved = db.prepare(
+        `UPDATE collaboration_task_node
+         SET status = 'queued',
+             queued_at = COALESCE(queued_at, ?),
+             updated_at = ?
+         WHERE workspace_id = ?
+           AND id = ?
+           AND status = 'ready'`,
+      ).run(now, now, workspaceId, node.id);
+      if (reserved.changes !== 1) {
+        throw new Error(`Collaboration task node "${node.id}" is not ready.`);
+      }
+
+      const queued = enqueueNativeTaskSync({
+        workspaceId,
+        queueId: taskQueueId,
+        assignee: node.agentId,
+        title: node.title,
+        priority: input.priority ?? "medium",
+        triggerType: "manual",
+        requestedByUserId: input.requestedByUserId,
+        requestedByDisplayName: input.requestedByDisplayName,
+        metadata: {
+          orchestrationRunId: run.id,
+          orchestrationStepId: node.id,
+          collaborationRunId: run.id,
+          collaborationNodeId: node.id,
+          goal: run.goal,
+          stepInstruction: node.instruction,
+          stepDependsOnIds: parseStringArray(node.dependsOnNodeIdsJson),
+        },
+      });
+      if (!queued) {
+        missingRuntimeBinding = true;
+        throw new MissingRuntimeBindingForCollaborationNode();
+      }
+
+      const linked = db.prepare(
+        `UPDATE collaboration_task_node
+         SET task_queue_id = ?,
+             updated_at = ?
+         WHERE workspace_id = ?
+           AND id = ?
+           AND status = 'queued'
+           AND task_queue_id IS NULL`,
+      ).run(taskQueueId, now, workspaceId, node.id);
+      if (linked.changes !== 1) {
+        throw new Error(`Collaboration task node "${node.id}" could not be linked to queued task "${taskQueueId}".`);
+      }
+      db.prepare(
+        `UPDATE collaboration_run
+         SET status = 'running',
+             updated_at = ?
+         WHERE workspace_id = ?
+           AND id = ?
+           AND status IN ('approved', 'running')`,
+      ).run(now, workspaceId, node.runId);
+      recordCollaborationRunEventInTransaction({
+        workspaceId,
+        runId: node.runId,
+        nodeId: node.id,
+        type: "node.queued",
+        summary: node.title,
+        data: { taskQueueId },
+        createdAt: now,
+      });
+      queuedNode = readRequiredCollaborationTaskNode(node.id, workspaceId);
+    });
+  } catch (error) {
+    if (error instanceof MissingRuntimeBindingForCollaborationNode || missingRuntimeBinding) {
+      return null;
+    }
+    throw error;
   }
 
-  const updated = markCollaborationTaskNodeQueuedSync({
-    nodeId: node.id,
-    taskQueueId: queued.id,
-    workspaceId,
-  });
+  if (!queuedNode) {
+    throw new Error(`Collaboration task node "${node.id}" could not be queued.`);
+  }
   return {
-    node: updated,
-    taskQueueId: queued.id,
+    node: queuedNode,
+    taskQueueId,
   };
 }
 
@@ -704,6 +763,13 @@ function recordCollaborationRunEventInTransaction(input: {
     JSON.stringify(input.data ?? {}),
     input.createdAt,
   );
+}
+
+class MissingRuntimeBindingForCollaborationNode extends Error {
+  constructor() {
+    super("Collaboration task node cannot be queued because its agent has no runtime binding.");
+    this.name = "MissingRuntimeBindingForCollaborationNode";
+  }
 }
 
 function assertAcyclicNodeGraph(nodeIds: string[], dependencies: string[][]): void {

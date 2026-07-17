@@ -774,6 +774,7 @@ export interface TaskExecutionEventRecord {
 
 export interface EnqueueTaskInput {
   workspaceId?: string;
+  queueId?: string;
   taskId?: string;
   assignee: string;
   title: string;
