@@ -1060,6 +1060,33 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
               ) : (
                 data.codeDevelopmentSessions.map((session) => {
                   const statusLabel = CODE_DEVELOPMENT_STATUS_LABELS[session.status];
+                  const isTerminalCodeDevelopmentSession =
+                    session.status === "merged" || session.status === "blocked" || session.status === "cancelled";
+                  const hasPatchManifest =
+                    Boolean(session.patchSummary) || session.changedFiles.length > 0 || Boolean(session.patchSha256);
+                  const canRecordPatch =
+                    !isTerminalCodeDevelopmentSession &&
+                    (session.status === "planned" ||
+                      session.status === "running" ||
+                      session.status === "patch_ready" ||
+                      session.reviewStatus === "needs_revision" ||
+                      session.reviewStatus === "rejected");
+                  const canRecordPreflight =
+                    !isTerminalCodeDevelopmentSession &&
+                    hasPatchManifest &&
+                    (session.status === "running" || session.status === "patch_ready" || session.status === "reviewed");
+                  const canReviewPatch =
+                    !isTerminalCodeDevelopmentSession &&
+                    hasPatchManifest &&
+                    (session.status === "patch_ready" ||
+                      session.reviewStatus === "needs_revision" ||
+                      session.reviewStatus === "rejected");
+                  const canMarkMerged =
+                    !isTerminalCodeDevelopmentSession &&
+                    session.status === "reviewed" &&
+                    session.reviewStatus === "approved" &&
+                    session.preflightStatus === "clean";
+                  const canMarkBlocked = !isTerminalCodeDevelopmentSession;
                   return (
                     <div className="automations-run" key={session.id}>
                       <div className="automations-run__header">
@@ -1068,7 +1095,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                           <span className={`automations-card__badge automations-card__badge--run-${statusLabel.badge}`}>
                             {tx(statusLabel.label, statusLabel.labelEn)}
                           </span>
-                          {session.status === "merged" || session.status === "blocked" || session.status === "cancelled" ? null : (
+                          {canRecordPatch ? (
                             <>
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
@@ -1086,6 +1113,10 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               >
                                 {tx("记录 Patch", "Record patch")}
                               </button>
+                            </>
+                          ) : null}
+                          {canRecordPreflight ? (
+                            <>
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
@@ -1102,6 +1133,10 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               >
                                 {tx("预检", "Preflight")}
                               </button>
+                            </>
+                          ) : null}
+                          {canReviewPatch ? (
+                            <>
                               <button
                                 className="knowledge-btn knowledge-btn--ghost"
                                 disabled={isPending}
@@ -1126,6 +1161,9 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               >
                                 {tx("驳回", "Reject")}
                               </button>
+                            </>
+                          ) : null}
+                          {canMarkMerged ? (
                               <button
                                 className="knowledge-btn knowledge-btn--primary"
                                 disabled={isPending}
@@ -1134,6 +1172,8 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               >
                                 {tx("标记已合并", "Mark merged")}
                               </button>
+                          ) : null}
+                          {canMarkBlocked ? (
                               <button
                                 className="knowledge-btn knowledge-btn--danger"
                                 disabled={isPending}
@@ -1142,8 +1182,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                               >
                                 {tx("阻塞", "Block")}
                               </button>
-                            </>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                       <p>{session.goal}</p>
