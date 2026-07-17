@@ -11,11 +11,13 @@ import {
   listCollaborationTaskNodesSync,
   listQueuedTasksSync,
   listReadyCollaborationTaskNodesSync,
+  readCollaborationRunSync,
   readQueuedTaskSync,
   registerDaemonRuntimesSync,
 } from "@agent-space/db";
 import {
   approveCollaborationPlanSync,
+  completeCollaborationNodeAndDispatchNextSync,
   createAndDispatchCollaborationRunSync,
   createCollaborationPlanDraftSync,
   dispatchReadyCollaborationNodesSync,
@@ -195,6 +197,141 @@ test("reports ready nodes without runtime binding as skipped instead of successf
   assert.equal(result.skipped[0]?.reason, "missing_runtime_binding");
   assert.equal(listQueuedTasksSync({ workspaceId }).length, 0);
   assert.deepEqual(listReadyCollaborationTaskNodesSync(result.run.id, workspaceId).map((node) => node.id), ["node-unbound"]);
+});
+
+test("dispatches downstream and synthesis nodes after dependencies complete", () => {
+  const { workspaceId } = seedWorkspaceRuntime("orchestrator-synthesis", ["Atlas", "Nova", "Synth"]);
+  const result = createAndDispatchCollaborationRunSync({
+    workspaceId,
+    title: "Fan-in synthesis",
+    goal: "两个 Agent 先并行执行，再由 Synth 汇总。",
+    requestedByDisplayName: "Tianyu",
+    nodes: [
+      {
+        id: "node-a",
+        agentId: "Atlas",
+        title: "A",
+        instruction: "输出 A 结果。",
+      },
+      {
+        id: "node-b",
+        agentId: "Nova",
+        title: "B",
+        instruction: "输出 B 结果。",
+      },
+    ],
+    synthesis: {
+      id: "node-synthesis",
+      agentId: "Synth",
+      title: "Synthesize",
+      instruction: "结合 A 和 B 的结果输出最终结论。",
+    },
+  });
+
+  assert.deepEqual(result.dispatched.map((item) => item.node.id), ["node-a", "node-b"]);
+  assert.deepEqual(
+    listCollaborationTaskNodesSync(result.run.id, workspaceId).map((node) => [node.id, node.status, JSON.parse(node.dependsOnNodeIdsJson)]),
+    [
+      ["node-a", "queued", []],
+      ["node-b", "queued", []],
+      ["node-synthesis", "pending", ["node-a", "node-b"]],
+    ],
+  );
+  assert.equal(JSON.parse(readCollaborationRunSync(result.run.id, workspaceId)!.planJson).synthesis.nodeId, "node-synthesis");
+
+  const afterA = completeCollaborationNodeAndDispatchNextSync({
+    workspaceId,
+    nodeId: "node-a",
+    result: { output: "A done" },
+    requestedByDisplayName: "Tianyu",
+  });
+  assert.deepEqual(afterA.dispatched, []);
+  assert.deepEqual(afterA.skipped, []);
+  assert.deepEqual(listReadyCollaborationTaskNodesSync(result.run.id, workspaceId), []);
+  assert.equal(listQueuedTasksSync({ workspaceId }).length, 2);
+
+  const afterB = completeCollaborationNodeAndDispatchNextSync({
+    workspaceId,
+    nodeId: "node-b",
+    result: { output: "B done" },
+    requestedByDisplayName: "Tianyu",
+  });
+  assert.deepEqual(afterB.readyNodes.map((node) => node.id), ["node-synthesis"]);
+  assert.deepEqual(afterB.dispatched.map((item) => item.node.id), ["node-synthesis"]);
+  assert.equal(listQueuedTasksSync({ workspaceId }).length, 3);
+  assert.equal(readCollaborationRunSync(result.run.id, workspaceId)?.status, "running");
+
+  const final = completeCollaborationNodeAndDispatchNextSync({
+    workspaceId,
+    nodeId: "node-synthesis",
+    result: { output: "Final answer" },
+    requestedByDisplayName: "Tianyu",
+  });
+  assert.equal(final.run.status, "completed");
+  assert.deepEqual(final.dispatched, []);
+  assert.equal(JSON.parse(readCollaborationRunSync(result.run.id, workspaceId)!.resultJson!).output, "Final answer");
+});
+
+test("completion dispatch is idempotent and reports unbound downstream nodes as skipped", () => {
+  const { workspaceId, runtimeId } = seedWorkspaceRuntime("orchestrator-next", ["Atlas"]);
+  const result = createAndDispatchCollaborationRunSync({
+    workspaceId,
+    title: "Completion dispatch",
+    goal: "完成上游后自动派发下游。",
+    nodes: [
+      {
+        id: "node-root",
+        agentId: "Atlas",
+        title: "Root",
+        instruction: "先完成 root。",
+      },
+      {
+        id: "node-next",
+        agentId: "Unbound",
+        title: "Next",
+        instruction: "未绑定 runtime 的下游。",
+        dependsOnNodeIds: ["node-root"],
+      },
+    ],
+  });
+
+  assert.deepEqual(result.dispatched.map((item) => item.node.id), ["node-root"]);
+  const afterRoot = completeCollaborationNodeAndDispatchNextSync({
+    workspaceId,
+    nodeId: "node-root",
+    result: { output: "root done" },
+  });
+
+  assert.deepEqual(afterRoot.dispatched, []);
+  assert.equal(afterRoot.skipped.length, 1);
+  assert.equal(afterRoot.skipped[0]?.node.id, "node-next");
+  assert.deepEqual(listReadyCollaborationTaskNodesSync(result.run.id, workspaceId).map((node) => node.id), ["node-next"]);
+  assert.equal(listQueuedTasksSync({ workspaceId }).length, 1);
+
+  const repeated = completeCollaborationNodeAndDispatchNextSync({
+    workspaceId,
+    nodeId: "node-root",
+    result: { output: "should not overwrite" },
+  });
+
+  assert.deepEqual(repeated.dispatched, []);
+  assert.deepEqual(repeated.skipped, []);
+  assert.equal(listQueuedTasksSync({ workspaceId }).length, 1);
+  const rootNode = listCollaborationTaskNodesSync(result.run.id, workspaceId).find((node) => node.id === "node-root");
+  assert.equal(JSON.parse(rootNode!.resultJson!).output, "root done");
+
+  bindEmployeeRuntimeSync({
+    workspaceId,
+    employeeName: "Unbound",
+    runtimeId,
+  });
+  const redispatched = dispatchReadyCollaborationNodesSync({
+    workspaceId,
+    runId: result.run.id,
+  });
+
+  assert.deepEqual(redispatched.dispatched.map((item) => item.node.id), ["node-next"]);
+  assert.equal(listQueuedTasksSync({ workspaceId }).length, 2);
 });
 
 function seedWorkspaceRuntime(prefix: string, boundEmployeeNames: string[]): { workspaceId: string; runtimeId: string } {

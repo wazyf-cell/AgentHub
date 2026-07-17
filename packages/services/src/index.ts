@@ -299,6 +299,7 @@ export {
 } from "./collaboration/proposals.ts";
 export {
   approveCollaborationPlanSync,
+  completeCollaborationNodeAndDispatchNextSync,
   createAndDispatchCollaborationRunSync,
   createCollaborationPlanDraftSync,
   dispatchReadyCollaborationNodesSync,
@@ -306,6 +307,9 @@ export {
   type ApproveCollaborationPlanResult,
   type CollaborationDispatchPriority,
   type CollaborationPlanResult,
+  type CollaborationSynthesisNodeInput,
+  type CompleteCollaborationNodeAndDispatchNextInput,
+  type CompleteCollaborationNodeAndDispatchNextResult,
   type CreateAndDispatchCollaborationRunInput,
   type CreateAndDispatchCollaborationRunResult,
   type CreateCollaborationPlanDraftInput,

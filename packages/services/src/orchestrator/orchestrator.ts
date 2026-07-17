@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
 import {
   approveCollaborationRunSync,
+  completeCollaborationTaskNodeSync,
   createCollaborationRunSync,
   listReadyCollaborationTaskNodesSync,
   queueCollaborationTaskNodeSync,
   readCollaborationRunSync,
+  readCollaborationTaskNodeSync,
   type CollaborationRunRecord,
   type CollaborationTaskNodeRecord,
   type CreateCollaborationTaskNodeInput,
@@ -20,6 +23,7 @@ export interface CreateCollaborationPlanDraftInput {
   createdByUserId?: string;
   createdByDisplayName?: string;
   nodes: CreateCollaborationTaskNodeInput[];
+  synthesis?: CollaborationSynthesisNodeInput;
 }
 
 export interface CollaborationPlanResult {
@@ -75,9 +79,40 @@ export interface CreateAndDispatchCollaborationRunResult extends CollaborationPl
   skipped: SkippedCollaborationNode[];
 }
 
+export interface CollaborationSynthesisNodeInput {
+  id?: string;
+  agentId: string;
+  title?: string;
+  instruction?: string;
+}
+
+export interface CompleteCollaborationNodeAndDispatchNextInput {
+  workspaceId?: string;
+  nodeId: string;
+  result?: Record<string, unknown>;
+  priority?: CollaborationDispatchPriority;
+  requestedByUserId?: string;
+  requestedByDisplayName?: string;
+  maxNodes?: number;
+}
+
+export interface CompleteCollaborationNodeAndDispatchNextResult {
+  node: CollaborationTaskNodeRecord;
+  run: CollaborationRunRecord;
+  readyNodes: CollaborationTaskNodeRecord[];
+  dispatched: DispatchedCollaborationNode[];
+  skipped: SkippedCollaborationNode[];
+}
+
 export function createCollaborationPlanDraftSync(input: CreateCollaborationPlanDraftInput): CollaborationPlanResult {
+  const planNodes = preparePlanNodesWithSynthesis(input.nodes, input.synthesis);
   return createCollaborationRunSync({
-    ...input,
+    id: input.id,
+    workspaceId: input.workspaceId,
+    title: input.title,
+    goal: input.goal,
+    createdByUserId: input.createdByUserId,
+    createdByDisplayName: input.createdByDisplayName,
     status: "draft",
     plan: {
       ...(input.plan ?? {}),
@@ -85,7 +120,9 @@ export function createCollaborationPlanDraftSync(input: CreateCollaborationPlanD
         ...(readObject(input.plan?.review)),
         required: true,
       },
+      synthesis: input.synthesis ? buildSynthesisPlanMetadata(planNodes, input.synthesis.id) : readObject(input.plan?.synthesis),
     },
+    nodes: planNodes,
   });
 }
 
@@ -141,6 +178,7 @@ export function dispatchReadyCollaborationNodesSync(
 export function createAndDispatchCollaborationRunSync(
   input: CreateAndDispatchCollaborationRunInput,
 ): CreateAndDispatchCollaborationRunResult {
+  const planNodes = preparePlanNodesWithSynthesis(input.nodes, input.synthesis);
   const created = createCollaborationRunSync({
     id: input.id,
     workspaceId: input.workspaceId,
@@ -153,11 +191,12 @@ export function createAndDispatchCollaborationRunSync(
         required: false,
         mode: "auto_approved",
       },
+      synthesis: input.synthesis ? buildSynthesisPlanMetadata(planNodes, input.synthesis.id) : readObject(input.plan?.synthesis),
     },
     createdByUserId: input.createdByUserId,
     createdByDisplayName: input.createdByDisplayName,
     status: "draft",
-    nodes: input.nodes,
+    nodes: planNodes,
   });
   const approved = approveCollaborationPlanSync({
     workspaceId: input.workspaceId,
@@ -182,6 +221,64 @@ export function createAndDispatchCollaborationRunSync(
   };
 }
 
+export function completeCollaborationNodeAndDispatchNextSync(
+  input: CompleteCollaborationNodeAndDispatchNextInput,
+): CompleteCollaborationNodeAndDispatchNextResult {
+  const existingNode = readCollaborationTaskNodeSync(input.nodeId, input.workspaceId);
+  if (!existingNode) {
+    throw new Error(`Collaboration task node "${input.nodeId}" does not exist.`);
+  }
+  const existingRun = readCollaborationRunSync(existingNode.runId, input.workspaceId);
+  if (!existingRun) {
+    throw new Error(`Collaboration run "${existingNode.runId}" does not exist.`);
+  }
+  if (isTerminalRunStatus(existingRun.status) && existingNode.status !== "completed") {
+    throw new Error(`Collaboration run "${existingRun.id}" is already terminal.`);
+  }
+  if (existingNode.status === "completed") {
+    return {
+      node: existingNode,
+      run: existingRun,
+      readyNodes: listReadyCollaborationTaskNodesSync(existingRun.id, input.workspaceId),
+      dispatched: [],
+      skipped: [],
+    };
+  }
+
+  const completed = completeCollaborationTaskNodeSync({
+    workspaceId: input.workspaceId,
+    nodeId: input.nodeId,
+    result: input.result,
+  });
+
+  if (isTerminalRunStatus(completed.run.status)) {
+    return {
+      node: completed.node,
+      run: completed.run,
+      readyNodes: completed.readyNodes,
+      dispatched: [],
+      skipped: [],
+    };
+  }
+
+  const dispatch = dispatchReadyCollaborationNodesSync({
+    workspaceId: input.workspaceId,
+    runId: completed.run.id,
+    priority: input.priority,
+    requestedByUserId: input.requestedByUserId,
+    requestedByDisplayName: input.requestedByDisplayName,
+    maxNodes: input.maxNodes,
+  });
+
+  return {
+    node: completed.node,
+    run: dispatch.run,
+    readyNodes: completed.readyNodes,
+    dispatched: dispatch.dispatched,
+    skipped: dispatch.skipped,
+  };
+}
+
 function normalizeMaxNodes(maxNodes: number | undefined): number | undefined {
   if (maxNodes === undefined) {
     return undefined;
@@ -194,4 +291,53 @@ function normalizeMaxNodes(maxNodes: number | undefined): number | undefined {
 
 function readObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function preparePlanNodesWithSynthesis(
+  nodes: CreateCollaborationTaskNodeInput[],
+  synthesis: CollaborationSynthesisNodeInput | undefined,
+): CreateCollaborationTaskNodeInput[] {
+  const normalizedNodes = nodes.map((node, index) => ({
+    ...node,
+    id: node.id ?? `collab-node-${randomUUID()}`,
+    sortOrder: node.sortOrder ?? index,
+  }));
+  if (!synthesis) {
+    return normalizedNodes;
+  }
+
+  const synthesisId = synthesis.id ?? `collab-node-synthesis-${randomUUID()}`;
+  if (normalizedNodes.some((node) => node.id === synthesisId)) {
+    throw new Error(`Synthesis node id "${synthesisId}" duplicates an existing collaboration node.`);
+  }
+  return [
+    ...normalizedNodes,
+    {
+      id: synthesisId,
+      agentId: synthesis.agentId,
+      title: synthesis.title ?? "Synthesize collaboration result",
+      instruction: synthesis.instruction ??
+        "Review all completed collaboration task results and produce the final consolidated answer.",
+      dependsOnNodeIds: normalizedNodes.map((node) => node.id!),
+      sortOrder: normalizedNodes.length,
+    },
+  ];
+}
+
+function buildSynthesisPlanMetadata(
+  nodes: CreateCollaborationTaskNodeInput[],
+  explicitSynthesisId: string | undefined,
+): Record<string, unknown> {
+  const synthesisNode = explicitSynthesisId
+    ? nodes.find((node) => node.id === explicitSynthesisId)
+    : nodes[nodes.length - 1];
+  return {
+    enabled: true,
+    nodeId: synthesisNode?.id,
+    dependsOnNodeIds: synthesisNode?.dependsOnNodeIds ?? [],
+  };
+}
+
+function isTerminalRunStatus(status: CollaborationRunRecord["status"]): boolean {
+  return status === "completed" || status === "failed" || status === "cancelled";
 }
