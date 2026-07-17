@@ -24,6 +24,7 @@ import {
   createCollaborationPlanDraftSync,
   dispatchReadyCollaborationNodesSync,
   failQueuedTaskAndAdvanceCollaborationSync,
+  listCodeDevelopmentSessionsSync,
   reviewCollaborationNodeSync,
 } from "../index.ts";
 
@@ -176,6 +177,62 @@ test("creates, auto-approves, dispatches ready nodes, and keeps repeated dispatc
   assert.deepEqual(repeated.dispatched, []);
   assert.deepEqual(repeated.skipped, []);
   assert.equal(listQueuedTasksSync({ workspaceId }).length, 2);
+});
+
+test("links code development sessions to collaboration nodes and queued task metadata", () => {
+  const { workspaceId } = seedWorkspaceRuntime("orchestrator-code-dev", ["Atlas"]);
+  const result = createAndDispatchCollaborationRunSync({
+    workspaceId,
+    title: "Code branch work",
+    goal: "Allocate isolated code development for a collaboration node.",
+    createdByUserId: "user-tianyu",
+    nodes: [
+      {
+        id: "node-router",
+        agentId: "Atlas",
+        title: "Router hardening",
+        instruction: "Prepare router hardening patch in an isolated worktree.",
+        codeDevelopment: {
+          repositoryRoot: "F:/repo",
+          baseRef: "main",
+        },
+      },
+    ],
+  });
+
+  const sessions = listCodeDevelopmentSessionsSync(workspaceId);
+  assert.equal(sessions.length, 1);
+  assert.equal(sessions[0]?.collaborationRunId, result.run.id);
+  assert.equal(sessions[0]?.collaborationNodeId, "node-router");
+  assert.equal(sessions[0]?.repositoryRoot, "F:/repo");
+  assert.match(sessions[0]?.worktreePath ?? "", /^F:\/repo\/.worktrees\/router-hardening-/);
+
+  const plan = JSON.parse(result.run.planJson) as {
+    codeDevelopment?: { sessions?: Array<Record<string, unknown>> };
+  };
+  assert.deepEqual(plan.codeDevelopment?.sessions?.[0], {
+    nodeId: "node-router",
+    sessionId: sessions[0]?.id,
+    repositoryRoot: "F:/repo",
+    worktreePath: sessions[0]?.worktreePath,
+    branchName: sessions[0]?.branchName,
+    baseRef: "main",
+    assignedAgentIds: ["Atlas"],
+  });
+
+  const queuedTask = readQueuedTaskSync(result.dispatched[0]!.taskQueueId);
+  assert.ok(queuedTask);
+  const payload = JSON.parse(queuedTask.inputJson) as {
+    codeDevelopmentSessionId?: string;
+    codeDevelopmentWorktreePath?: string;
+    codeDevelopmentBranchName?: string;
+    codeDevelopment?: { sessionId?: string; worktreePath?: string; branchName?: string };
+  };
+  assert.equal(payload.codeDevelopmentSessionId, sessions[0]?.id);
+  assert.equal(payload.codeDevelopmentWorktreePath, sessions[0]?.worktreePath);
+  assert.equal(payload.codeDevelopmentBranchName, sessions[0]?.branchName);
+  assert.equal(payload.codeDevelopment?.sessionId, sessions[0]?.id);
+  assert.equal(payload.codeDevelopment?.worktreePath, sessions[0]?.worktreePath);
 });
 
 test("reports ready nodes without runtime binding as skipped instead of successful dispatch", () => {

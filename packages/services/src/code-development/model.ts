@@ -56,6 +56,8 @@ function normalizeCodeDevelopmentSession(session: unknown): CodeDevelopmentSessi
     branchName: candidate.branchName,
     baseRef: typeof candidate.baseRef === "string" ? candidate.baseRef : undefined,
     assignedAgentIds: readStringArray(candidate.assignedAgentIds),
+    collaborationRunId: typeof candidate.collaborationRunId === "string" ? candidate.collaborationRunId : undefined,
+    collaborationNodeId: typeof candidate.collaborationNodeId === "string" ? candidate.collaborationNodeId : undefined,
     status: SESSION_STATUSES.has(candidate.status ?? "") ? candidate.status! : "planned",
     createdByType: candidate.createdByType,
     createdById: candidate.createdById,

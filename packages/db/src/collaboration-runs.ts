@@ -438,6 +438,7 @@ export function queueCollaborationTaskNodeSync(input: {
           goal: run.goal,
           stepInstruction: node.instruction,
           stepDependsOnIds: parseStringArray(node.dependsOnNodeIdsJson),
+          ...readCodeDevelopmentTaskMetadata(run.planJson, node.id),
         },
       });
       if (!queued) {
@@ -1083,4 +1084,32 @@ function parseStringArray(json: string): string[] {
   } catch {
     return [];
   }
+}
+
+function readCodeDevelopmentTaskMetadata(planJson: string, nodeId: string): Record<string, unknown> {
+  const plan = safeParseObject(planJson);
+  const codeDevelopment = readObject(plan.codeDevelopment);
+  const sessions = Array.isArray(codeDevelopment.sessions) ? codeDevelopment.sessions : [];
+  const session = sessions
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+    .find((item) => readString(item.nodeId) === nodeId);
+  if (!session) {
+    return {};
+  }
+
+  const metadata = {
+    sessionId: readString(session.sessionId),
+    repositoryRoot: readString(session.repositoryRoot),
+    worktreePath: readString(session.worktreePath),
+    branchName: readString(session.branchName),
+    baseRef: readString(session.baseRef),
+  };
+  return {
+    codeDevelopmentSessionId: metadata.sessionId,
+    codeDevelopmentRepositoryRoot: metadata.repositoryRoot,
+    codeDevelopmentWorktreePath: metadata.worktreePath,
+    codeDevelopmentBranchName: metadata.branchName,
+    codeDevelopmentBaseRef: metadata.baseRef,
+    codeDevelopment: metadata,
+  };
 }

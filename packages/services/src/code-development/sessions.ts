@@ -20,6 +20,8 @@ export interface CreateCodeDevelopmentSessionInput {
   branchName: string;
   baseRef?: string;
   assignedAgentIds: string[];
+  collaborationRunId?: string;
+  collaborationNodeId?: string;
   createdBy: CollaborationActorRef;
 }
 
@@ -32,6 +34,8 @@ export interface AllocateCodeDevelopmentSessionInput {
   branchName?: string;
   baseRef?: string;
   assignedAgentIds: string[];
+  collaborationRunId?: string;
+  collaborationNodeId?: string;
   createdBy: CollaborationActorRef;
 }
 
@@ -131,6 +135,8 @@ export function createCodeDevelopmentSessionSync(
     branchName,
     baseRef: input.baseRef?.trim() || undefined,
     assignedAgentIds: uniqueStringValues(input.assignedAgentIds),
+    collaborationRunId: input.collaborationRunId?.trim() || undefined,
+    collaborationNodeId: input.collaborationNodeId?.trim() || undefined,
     status: "planned",
     createdByType: input.createdBy.type,
     createdById,
@@ -176,6 +182,8 @@ export function allocateCodeDevelopmentSessionSync(
       branchName,
       baseRef: input.baseRef,
       assignedAgentIds: input.assignedAgentIds,
+      collaborationRunId: input.collaborationRunId,
+      collaborationNodeId: input.collaborationNodeId,
       createdBy: input.createdBy,
     },
     workspaceId,

@@ -680,6 +680,9 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                             <span className="automations-card__action" key={node.id} title={node.instruction}>
                               {index + 1}. {node.title} · {node.agentId} · {tx(nodeStatus.label, nodeStatus.labelEn)}
                               {node.taskQueueId ? ` · ${tx("队列", "Queue")}: ${node.taskQueueId.slice(0, 12)}` : ""}
+                              {node.codeDevelopmentSessionId ? ` · ${tx("代码会话", "Code session")}: ${node.codeDevelopmentSessionId.slice(0, 16)}` : ""}
+                              {node.codeDevelopmentBranchName ? ` · ${tx("Branch", "Branch")}: ${node.codeDevelopmentBranchName}` : ""}
+                              {node.codeDevelopmentWorktreePath ? ` · ${tx("Worktree", "Worktree")}: ${node.codeDevelopmentWorktreePath}` : ""}
                               {reviewStatus ? ` · ${tx(reviewStatus.label, reviewStatus.labelEn)}` : ""}
                             </span>
                           );
@@ -747,6 +750,12 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                       <small>
                         {tx("Worktree", "Worktree")}: {session.worktreePath}
                       </small>
+                      {session.collaborationRunId || session.collaborationNodeId ? (
+                        <small>
+                          {tx("编排关联", "Run link")}: {session.collaborationRunId ? `${tx("Run", "Run")} ${session.collaborationRunId}` : ""}
+                          {session.collaborationNodeId ? ` · ${tx("Node", "Node")} ${session.collaborationNodeId}` : ""}
+                        </small>
+                      ) : null}
                       <small>
                         {tx("参与 Agent", "Agents")}: {session.assignedAgentIds.length > 0 ? session.assignedAgentIds.join(", ") : tx("未指定", "Not specified")}
                       </small>

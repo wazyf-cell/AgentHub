@@ -4217,6 +4217,49 @@ function readStringListJson(value: string): string[] {
   }
 }
 
+function readCodeDevelopmentSessionsByNodeId(planJson: string): Map<string, {
+  sessionId?: string;
+  worktreePath?: string;
+  branchName?: string;
+}> {
+  const plan = safeParseJson(planJson);
+  const codeDevelopment = plan.codeDevelopment;
+  if (!codeDevelopment || typeof codeDevelopment !== "object" || Array.isArray(codeDevelopment)) {
+    return new Map();
+  }
+
+  const sessions = (codeDevelopment as Record<string, unknown>).sessions;
+  if (!Array.isArray(sessions)) {
+    return new Map();
+  }
+
+  const entries: Array<
+    readonly [
+      string,
+      { sessionId: string | undefined; worktreePath: string | undefined; branchName: string | undefined },
+    ]
+  > = [];
+  for (const item of sessions) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    const nodeId = readString(record.nodeId);
+    if (!nodeId) {
+      continue;
+    }
+    entries.push([
+      nodeId,
+      {
+        sessionId: readString(record.sessionId),
+        worktreePath: readString(record.worktreePath),
+        branchName: readString(record.branchName),
+      },
+    ]);
+  }
+  return new Map(entries);
+}
+
 function readCollaborationResultSummary(value: string | undefined): string | undefined {
   if (!value) {
     return undefined;
@@ -5428,6 +5471,9 @@ export interface CollaborationTaskNodeViewRecord {
   dependsOnNodeIds: string[];
   status: CollaborationTaskNodeStatus;
   taskQueueId?: string;
+  codeDevelopmentSessionId?: string;
+  codeDevelopmentWorktreePath?: string;
+  codeDevelopmentBranchName?: string;
   resultSummary?: string;
   evidenceSummary?: string;
   evidenceSourceCount?: number;
@@ -5473,6 +5519,8 @@ export interface CodeDevelopmentSessionViewRecord {
   branchName: string;
   baseRef?: string;
   assignedAgentIds: string[];
+  collaborationRunId?: string;
+  collaborationNodeId?: string;
   patchSummary?: string;
   patchRef?: string;
   patchSha256?: string;
@@ -5563,38 +5611,47 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
     }) satisfies AutoContinuationRunRecord);
   const collaborationRunCount = countCollaborationRunsCached(workspaceId);
   const collaborationRuns = listCollaborationRunsCached(workspaceId, 20)
-    .map((run) => ({
-      id: run.id,
-      title: run.title,
-      goal: run.goal,
-      status: run.status,
-      createdByDisplayName: run.createdByDisplayName,
-      createdAt: run.createdAt,
-      updatedAt: run.updatedAt,
-      finishedAt: run.finishedAt,
-      evidenceSummary: readCollaborationEvidenceSummary(run.resultJson),
-      evidenceSourceCount: readCollaborationEvidenceSourceCount(run.resultJson),
-      evidenceNodeCount: readCollaborationEvidenceNodeCount(run.resultJson),
-      nodes: listCollaborationTaskNodesCached(workspaceId, run.id).map((node) => ({
-        id: node.id,
-        agentId: node.agentId,
-        title: node.title,
-        instruction: node.instruction,
-        dependsOnNodeIds: readStringListJson(node.dependsOnNodeIdsJson),
-        status: node.status,
-        taskQueueId: node.taskQueueId,
-        resultSummary: readCollaborationResultSummary(node.resultJson),
-        evidenceSummary: readCollaborationEvidenceSummary(node.resultJson),
-        evidenceSourceCount: readCollaborationEvidenceSourceCount(node.resultJson),
-        reviewStatus: readCollaborationReviewStatus(node.resultJson),
-        reviewComment: readCollaborationReviewComment(node.resultJson),
-        reviewedBy: readCollaborationReviewedBy(node.resultJson),
-        reviewedAt: readCollaborationReviewedAt(node.resultJson),
-        errorText: node.errorText,
-        sortOrder: node.sortOrder,
-        updatedAt: node.updatedAt,
-      })),
-    }) satisfies CollaborationRunViewRecord);
+    .map((run) => {
+      const codeDevelopmentByNodeId = readCodeDevelopmentSessionsByNodeId(run.planJson);
+      return {
+        id: run.id,
+        title: run.title,
+        goal: run.goal,
+        status: run.status,
+        createdByDisplayName: run.createdByDisplayName,
+        createdAt: run.createdAt,
+        updatedAt: run.updatedAt,
+        finishedAt: run.finishedAt,
+        evidenceSummary: readCollaborationEvidenceSummary(run.resultJson),
+        evidenceSourceCount: readCollaborationEvidenceSourceCount(run.resultJson),
+        evidenceNodeCount: readCollaborationEvidenceNodeCount(run.resultJson),
+        nodes: listCollaborationTaskNodesCached(workspaceId, run.id).map((node) => {
+          const codeDevelopment = codeDevelopmentByNodeId.get(node.id);
+          return {
+            id: node.id,
+            agentId: node.agentId,
+            title: node.title,
+            instruction: node.instruction,
+            dependsOnNodeIds: readStringListJson(node.dependsOnNodeIdsJson),
+            status: node.status,
+            taskQueueId: node.taskQueueId,
+            codeDevelopmentSessionId: codeDevelopment?.sessionId,
+            codeDevelopmentWorktreePath: codeDevelopment?.worktreePath,
+            codeDevelopmentBranchName: codeDevelopment?.branchName,
+            resultSummary: readCollaborationResultSummary(node.resultJson),
+            evidenceSummary: readCollaborationEvidenceSummary(node.resultJson),
+            evidenceSourceCount: readCollaborationEvidenceSourceCount(node.resultJson),
+            reviewStatus: readCollaborationReviewStatus(node.resultJson),
+            reviewComment: readCollaborationReviewComment(node.resultJson),
+            reviewedBy: readCollaborationReviewedBy(node.resultJson),
+            reviewedAt: readCollaborationReviewedAt(node.resultJson),
+            errorText: node.errorText,
+            sortOrder: node.sortOrder,
+            updatedAt: node.updatedAt,
+          };
+        }),
+      } satisfies CollaborationRunViewRecord;
+    });
   const allPanelDiscussions = listPanelDiscussionsCached(workspaceId);
   const panelDiscussions = allPanelDiscussions.slice(0, 20).map((discussion) => {
     const latestOpinion = discussion.opinions.at(-1);
@@ -5636,6 +5693,8 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
     branchName: session.branchName,
     baseRef: session.baseRef,
     assignedAgentIds: session.assignedAgentIds,
+    collaborationRunId: session.collaborationRunId,
+    collaborationNodeId: session.collaborationNodeId,
     patchSummary: session.patch?.summary,
     patchRef: session.patch?.patchRef,
     patchSha256: session.patch?.patchSha256,

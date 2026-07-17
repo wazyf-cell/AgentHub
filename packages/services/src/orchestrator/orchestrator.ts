@@ -17,8 +17,24 @@ import {
   type CreateCollaborationTaskNodeInput,
   type QueuedTaskRecord,
 } from "@agent-space/db";
+import { allocateCodeDevelopmentSessionSync } from "../code-development/sessions.ts";
 
 export type CollaborationDispatchPriority = "low" | "medium" | "high";
+
+export interface CollaborationCodeDevelopmentNodeInput {
+  repositoryRoot: string;
+  worktreeRoot?: string;
+  branchPrefix?: string;
+  branchName?: string;
+  baseRef?: string;
+  title?: string;
+  goal?: string;
+  assignedAgentIds?: string[];
+}
+
+export interface CollaborationPlanTaskNodeInput extends CreateCollaborationTaskNodeInput {
+  codeDevelopment?: CollaborationCodeDevelopmentNodeInput;
+}
 
 export interface CreateCollaborationPlanDraftInput {
   id?: string;
@@ -28,7 +44,7 @@ export interface CreateCollaborationPlanDraftInput {
   plan?: Record<string, unknown>;
   createdByUserId?: string;
   createdByDisplayName?: string;
-  nodes: CreateCollaborationTaskNodeInput[];
+  nodes: CollaborationPlanTaskNodeInput[];
   synthesis?: CollaborationSynthesisNodeInput;
 }
 
@@ -177,9 +193,16 @@ export function reviewCollaborationNodeSync(input: ReviewCollaborationNodeInput)
 }
 
 export function createCollaborationPlanDraftSync(input: CreateCollaborationPlanDraftInput): CollaborationPlanResult {
-  const planNodes = preparePlanNodesWithSynthesis(input.nodes, input.synthesis);
+  const runId = input.id ?? `collab-run-${randomUUID()}`;
+  const planPreparation = preparePlanNodesWithSynthesis(input.nodes, input.synthesis);
+  const codeDevelopment = allocateCodeDevelopmentSessionsForPlan({
+    workspaceId: input.workspaceId,
+    runId,
+    nodes: planPreparation.nodes,
+    createdByUserId: input.createdByUserId,
+  });
   return createCollaborationRunSync({
-    id: input.id,
+    id: runId,
     workspaceId: input.workspaceId,
     title: input.title,
     goal: input.goal,
@@ -188,13 +211,19 @@ export function createCollaborationPlanDraftSync(input: CreateCollaborationPlanD
     status: "draft",
     plan: {
       ...(input.plan ?? {}),
+      codeDevelopment: codeDevelopment.length > 0
+        ? {
+            version: 1,
+            sessions: codeDevelopment,
+          }
+        : readObject(input.plan?.codeDevelopment),
       review: {
         ...(readObject(input.plan?.review)),
         required: true,
       },
-      synthesis: input.synthesis ? buildSynthesisPlanMetadata(planNodes, input.synthesis.id) : readObject(input.plan?.synthesis),
+      synthesis: input.synthesis ? buildSynthesisPlanMetadata(planPreparation.nodes, input.synthesis.id) : readObject(input.plan?.synthesis),
     },
-    nodes: planNodes,
+    nodes: planPreparation.nodes,
   });
 }
 
@@ -250,25 +279,38 @@ export function dispatchReadyCollaborationNodesSync(
 export function createAndDispatchCollaborationRunSync(
   input: CreateAndDispatchCollaborationRunInput,
 ): CreateAndDispatchCollaborationRunResult {
-  const planNodes = preparePlanNodesWithSynthesis(input.nodes, input.synthesis);
+  const runId = input.id ?? `collab-run-${randomUUID()}`;
+  const planPreparation = preparePlanNodesWithSynthesis(input.nodes, input.synthesis);
+  const codeDevelopment = allocateCodeDevelopmentSessionsForPlan({
+    workspaceId: input.workspaceId,
+    runId,
+    nodes: planPreparation.nodes,
+    createdByUserId: input.createdByUserId ?? input.requestedByUserId,
+  });
   const created = createCollaborationRunSync({
-    id: input.id,
+    id: runId,
     workspaceId: input.workspaceId,
     title: input.title,
     goal: input.goal,
     plan: {
       ...(input.plan ?? {}),
+      codeDevelopment: codeDevelopment.length > 0
+        ? {
+            version: 1,
+            sessions: codeDevelopment,
+          }
+        : readObject(input.plan?.codeDevelopment),
       review: {
         ...(readObject(input.plan?.review)),
         required: false,
         mode: "auto_approved",
       },
-      synthesis: input.synthesis ? buildSynthesisPlanMetadata(planNodes, input.synthesis.id) : readObject(input.plan?.synthesis),
+      synthesis: input.synthesis ? buildSynthesisPlanMetadata(planPreparation.nodes, input.synthesis.id) : readObject(input.plan?.synthesis),
     },
     createdByUserId: input.createdByUserId,
     createdByDisplayName: input.createdByDisplayName,
     status: "draft",
-    nodes: planNodes,
+    nodes: planPreparation.nodes,
   });
   const approved = approveCollaborationPlanSync({
     workspaceId: input.workspaceId,
@@ -639,26 +681,31 @@ function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+interface PreparedCollaborationPlanNode extends CreateCollaborationTaskNodeInput {
+  codeDevelopment?: CollaborationCodeDevelopmentNodeInput;
+}
+
 function preparePlanNodesWithSynthesis(
-  nodes: CreateCollaborationTaskNodeInput[],
+  nodes: CollaborationPlanTaskNodeInput[],
   synthesis: CollaborationSynthesisNodeInput | undefined,
-): CreateCollaborationTaskNodeInput[] {
+): { nodes: PreparedCollaborationPlanNode[] } {
   const normalizedNodes = nodes.map((node, index) => ({
     ...node,
     id: node.id ?? `collab-node-${randomUUID()}`,
     sortOrder: node.sortOrder ?? index,
   }));
   if (!synthesis) {
-    return normalizedNodes;
+    return { nodes: normalizedNodes };
   }
 
   const synthesisId = synthesis.id ?? `collab-node-synthesis-${randomUUID()}`;
   if (normalizedNodes.some((node) => node.id === synthesisId)) {
     throw new Error(`Synthesis node id "${synthesisId}" duplicates an existing collaboration node.`);
   }
-  return [
-    ...normalizedNodes,
-    {
+  return {
+    nodes: [
+      ...normalizedNodes,
+      {
       id: synthesisId,
       agentId: synthesis.agentId,
       title: synthesis.title ?? "Synthesize collaboration result",
@@ -666,8 +713,9 @@ function preparePlanNodesWithSynthesis(
         "Review all completed collaboration task results and produce the final consolidated answer.",
       dependsOnNodeIds: normalizedNodes.map((node) => node.id!),
       sortOrder: normalizedNodes.length,
-    },
-  ];
+      },
+    ],
+  };
 }
 
 function buildSynthesisPlanMetadata(
@@ -682,6 +730,47 @@ function buildSynthesisPlanMetadata(
     nodeId: synthesisNode?.id,
     dependsOnNodeIds: synthesisNode?.dependsOnNodeIds ?? [],
   };
+}
+
+function allocateCodeDevelopmentSessionsForPlan(input: {
+  workspaceId?: string;
+  runId: string;
+  nodes: PreparedCollaborationPlanNode[];
+  createdByUserId?: string;
+}): Array<Record<string, unknown>> {
+  return input.nodes
+    .filter((node) => node.codeDevelopment)
+    .map((node) => {
+      const codeDevelopment = node.codeDevelopment!;
+      const session = allocateCodeDevelopmentSessionSync(
+        {
+          title: codeDevelopment.title ?? node.title,
+          goal: codeDevelopment.goal ?? node.instruction,
+          repositoryRoot: codeDevelopment.repositoryRoot,
+          worktreeRoot: codeDevelopment.worktreeRoot,
+          branchPrefix: codeDevelopment.branchPrefix,
+          branchName: codeDevelopment.branchName,
+          baseRef: codeDevelopment.baseRef,
+          assignedAgentIds: codeDevelopment.assignedAgentIds ?? [node.agentId],
+          collaborationRunId: input.runId,
+          collaborationNodeId: node.id!,
+          createdBy: {
+            type: input.createdByUserId ? "human" : "system",
+            id: input.createdByUserId ?? "collaboration-orchestrator",
+          },
+        },
+        input.workspaceId,
+      );
+      return {
+        nodeId: node.id,
+        sessionId: session.id,
+        repositoryRoot: session.repositoryRoot,
+        worktreePath: session.worktreePath,
+        branchName: session.branchName,
+        baseRef: session.baseRef,
+        assignedAgentIds: session.assignedAgentIds,
+      };
+    });
 }
 
 function isTerminalRunStatus(status: CollaborationRunRecord["status"]): boolean {

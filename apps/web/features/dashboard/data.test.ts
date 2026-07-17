@@ -29,6 +29,7 @@ import {
   createChannelSync,
   createChannelDocumentFromAttachmentSync,
   createChannelDocumentSync,
+  createAndDispatchCollaborationRunSync,
   createEmployeeSync,
   createPanelDiscussionSync,
   createTaskSync,
@@ -1198,6 +1199,52 @@ describe("dashboard data", () => {
       preflightConflictFiles: [],
       preflightWarnings: ["Review requested before merge."],
       preflightRecommendation: "Review warnings before running a clean preflight.",
+    });
+  });
+
+  it("shows code development links on collaboration nodes in automations page data", () => {
+    const runtime = registerDaemonRuntimesSync({
+      daemonKey: "code-dev-box",
+      deviceName: "Code Dev Box",
+      runtimes: [{ provider: "codex", name: "Codex Runtime" }],
+    }).runtimes[0];
+    expect(runtime?.id).toBeTruthy();
+    createEmployeeSync({ name: "Atlas", remarkName: "Atlas" });
+    bindEmployeeRuntimeSync("Atlas", runtime!.id);
+
+    const run = createAndDispatchCollaborationRunSync({
+      title: "Router code branch",
+      goal: "让 Atlas 在隔离 worktree 中准备代码 patch。",
+      nodes: [
+        {
+          id: "node-router-code",
+          agentId: "Atlas",
+          title: "Router hardening",
+          instruction: "Prepare router hardening patch.",
+          codeDevelopment: {
+            repositoryRoot: "F:/repo",
+            baseRef: "main",
+          },
+        },
+      ],
+    });
+
+    const automationsPage = getAutomationsPageData();
+    const runView = automationsPage.collaborationRuns.find((item) => item.id === run.run.id);
+    const nodeView = runView?.nodes.find((node) => node.id === "node-router-code");
+    const sessionView = automationsPage.codeDevelopmentSessions.find((session) => session.collaborationNodeId === "node-router-code");
+
+    expect(runView).toBeTruthy();
+    expect(nodeView).toMatchObject({
+      codeDevelopmentSessionId: expect.stringMatching(/^code-dev-/),
+      codeDevelopmentWorktreePath: expect.stringMatching(/^F:\/repo\/.worktrees\/router-hardening-/),
+      codeDevelopmentBranchName: expect.stringMatching(/^agent-space\/router-hardening-/),
+    });
+    expect(sessionView).toMatchObject({
+      collaborationRunId: run.run.id,
+      collaborationNodeId: "node-router-code",
+      worktreePath: nodeView?.codeDevelopmentWorktreePath,
+      branchName: nodeView?.codeDevelopmentBranchName,
     });
   });
 

@@ -70,6 +70,8 @@ export interface CodeDevelopmentSession {
   branchName: string;
   baseRef?: string;
   assignedAgentIds: string[];
+  collaborationRunId?: string;
+  collaborationNodeId?: string;
   status: CodeDevelopmentSessionStatus;
   createdByType: CollaborationActorType;
   createdById: string;
