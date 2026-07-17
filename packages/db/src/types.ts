@@ -270,6 +270,9 @@ export interface AgentTaskAttemptRecord {
   finishedAt?: string;
   errorText?: string;
   handoffSnapshotId?: string;
+  leaseToken?: string;
+  leaseExpiresAt?: string;
+  heartbeatAt?: string;
   metadataJson: string;
   createdAt: string;
   updatedAt: string;
@@ -654,6 +657,7 @@ export interface QueuedTaskRecord {
   workspaceId: string;
   agentId: string;
   runtimeId: string;
+  activeAttemptId?: string;
   routerSessionId?: string;
   issueId?: string;
   triggerType: string;
@@ -672,6 +676,13 @@ export interface QueuedTaskRecord {
   finishedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ClaimedTaskRecord extends QueuedTaskRecord {
+  activeAttemptId: string;
+  leaseToken: string;
+  leaseExpiresAt: string;
+  heartbeatAt: string;
 }
 
 export interface TaskMessageRecord {

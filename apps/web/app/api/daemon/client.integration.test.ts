@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -26,6 +26,7 @@ import { POST as heartbeatPOST } from "./heartbeat/route";
 import { POST as deregisterPOST } from "./deregister/route";
 import { POST as claimPOST } from "./runtimes/[runtimeId]/tasks/claim/route";
 import { POST as startPOST } from "./tasks/[taskId]/start/route";
+import { POST as taskHeartbeatPOST } from "./tasks/[taskId]/heartbeat/route";
 import { POST as messagesPOST } from "./tasks/[taskId]/messages/route";
 import { POST as failPOST } from "./tasks/[taskId]/fail/route";
 import { GET as inputBundleGET } from "./tasks/[taskId]/input-bundle/route";
@@ -36,9 +37,9 @@ const tempRoot = mkdtempSync(join(tmpdir(), "agent-space-remote-daemon-integrati
 const repositoryRoot = resolve(process.cwd(), "../..");
 
 beforeAll(() => {
+  process.env.AGENT_SPACE_REPOSITORY_ROOT = repositoryRoot;
   writeFileSync(join(tempRoot, "Target.md"), "# test\n");
   mkdirSync(join(tempRoot, "data"), { recursive: true });
-  symlinkSync(join(repositoryRoot, "packages"), join(tempRoot, "packages"), "dir");
   process.chdir(tempRoot);
 });
 
@@ -454,6 +455,10 @@ async function dispatchToRoute(request: Request): Promise<Response> {
   if (request.method === "POST" && /^\/api\/daemon\/tasks\/[^/]+\/start$/.test(url.pathname)) {
     const taskId = url.pathname.split("/")[4] ?? "";
     return startPOST(request, { params: Promise.resolve({ taskId }) });
+  }
+  if (request.method === "POST" && /^\/api\/daemon\/tasks\/[^/]+\/heartbeat$/.test(url.pathname)) {
+    const taskId = url.pathname.split("/")[4] ?? "";
+    return taskHeartbeatPOST(request, { params: Promise.resolve({ taskId }) });
   }
   if (request.method === "GET" && /^\/api\/daemon\/tasks\/[^/]+\/input-bundle$/.test(url.pathname)) {
     const taskId = url.pathname.split("/")[4] ?? "";

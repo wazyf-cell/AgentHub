@@ -306,9 +306,13 @@ const NORMALIZED_ROW_KEY_ALIASES = new Map([
   ["archivedat", "archivedAt"],
   ["actorid", "actorId"],
   ["actortype", "actorType"],
+  ["activeattemptid", "activeAttemptId"],
   ["attemptid", "attemptId"],
   ["dedupekey", "dedupeKey"],
   ["handoffsnapshotid", "handoffSnapshotId"],
+  ["heartbeatat", "heartbeatAt"],
+  ["leaseexpiresat", "leaseExpiresAt"],
+  ["leasetoken", "leaseToken"],
   ["resourceid", "resourceId"],
   ["resourcetype", "resourceType"],
 ]);

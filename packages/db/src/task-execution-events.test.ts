@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { before, beforeEach } from "node:test";
@@ -21,12 +21,9 @@ const tempRoot = mkdtempSync(join(tmpdir(), "agent-space-task-events-"));
 const repositoryRoot = existsSync(join(originalCwd, "Target.md")) ? originalCwd : join(originalCwd, "..", "..");
 
 before(() => {
+  process.env.AGENT_SPACE_REPOSITORY_ROOT = repositoryRoot;
   writeFileSync(join(tempRoot, "Target.md"), "# test\n");
   mkdirSync(join(tempRoot, "data"), { recursive: true });
-  const packagesLink = join(tempRoot, "packages");
-  if (!existsSync(packagesLink)) {
-    symlinkSync(join(repositoryRoot, "packages"), packagesLink, "dir");
-  }
   process.chdir(tempRoot);
 });
 
@@ -44,6 +41,11 @@ beforeEach(() => {
   db.exec("DELETE FROM employee_runtime_binding");
   db.exec("DELETE FROM agent_runtime");
   db.exec("DELETE FROM daemon_connection");
+  db.prepare(
+    `INSERT INTO workspace (id, slug, name, created_by, created_at, updated_at)
+     VALUES ('default', 'default', 'Default Workspace', 'test', ?, ?)
+     ON CONFLICT(id) DO NOTHING`,
+  ).run("2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z");
 });
 
 test("records lifecycle, tool, message, and artifact execution events", () => {
@@ -57,13 +59,19 @@ test("records lifecycle, tool, message, and artifact execution events", () => {
   });
   assert.ok(queued);
 
-  claimNextQueuedTaskForRuntimeSync(runtimeId);
-  startQueuedTaskSync(queued.id);
+  const claimed = claimNextQueuedTaskForRuntimeSync(runtimeId);
+  assert.ok(claimed);
+  const lease = {
+    attemptId: claimed.activeAttemptId,
+    leaseToken: claimed.leaseToken,
+  };
+  startQueuedTaskSync(queued.id, lease);
   appendTaskMessageSync({ taskId: queued.id, type: "tool_use", tool: "exec_command", content: "bash: npm test" });
   appendTaskMessageSync({ taskId: queued.id, type: "tool_result", tool: "exec_command", content: "tests passed" });
   appendTaskMessageSync({ taskId: queued.id, type: "text", content: "Launch plan ready." });
   completeQueuedTaskSync({
     taskId: queued.id,
+    ...lease,
     resultJson: {
       output: "Launch plan ready.",
       attachments: [{ id: "att-launch", fileName: "launch-plan.md", mediaType: "text/markdown", sizeBytes: 128 }],

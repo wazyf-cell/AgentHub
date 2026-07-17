@@ -1,6 +1,15 @@
+import { randomBytes } from "node:crypto";
 import { isDaemonProvider, type DaemonProvider } from "@agent-space/domain";
 import { getDatabase, randomLikeId, DEFAULT_WORKSPACE_ID } from "./database.ts";
-import { type QueuedTaskRecord, type EnqueueTaskInput, isNativeTaskStatus, priorityToNumber } from "./types.ts";
+import {
+  type AgentTaskAttemptRecord,
+  type AgentTaskAttemptStatus,
+  type ClaimedTaskRecord,
+  type QueuedTaskRecord,
+  type EnqueueTaskInput,
+  isNativeTaskStatus,
+  priorityToNumber,
+} from "./types.ts";
 import { readEmployeeRuntimeBindingSync } from "./employee-bindings.ts";
 import { buildTaskExecutionEventContext, recordTaskExecutionEventSync } from "./task-execution-events.ts";
 import {
@@ -16,6 +25,8 @@ import {
 } from "./agent-router-sessions.ts";
 import { readAgentRuntimeSync } from "./daemons.ts";
 import { canUserUseRuntimeSync } from "./runtime-grants.ts";
+
+const DEFAULT_TASK_LEASE_DURATION_MS = 5 * 60 * 1000;
 
 export function enqueueNativeTaskSync(input: EnqueueTaskInput): QueuedTaskRecord | null {
   const db = getDatabase();
@@ -138,6 +149,7 @@ export function listQueuedTasksSync(options?: {
         workspace_id AS workspaceId,
         agent_id AS agentId,
         runtime_id AS runtimeId,
+        active_attempt_id AS activeAttemptId,
         router_session_id AS routerSessionId,
         issue_id AS issueId,
         trigger_type AS triggerType,
@@ -216,6 +228,7 @@ export function readQueuedTaskSync(taskId: string): QueuedTaskRecord | null {
         workspace_id AS workspaceId,
         agent_id AS agentId,
         runtime_id AS runtimeId,
+        active_attempt_id AS activeAttemptId,
         router_session_id AS routerSessionId,
         issue_id AS issueId,
         trigger_type AS triggerType,
@@ -242,10 +255,10 @@ export function readQueuedTaskSync(taskId: string): QueuedTaskRecord | null {
   return row ? mapQueuedTaskRecord(row) : null;
 }
 
-export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId?: string): QueuedTaskRecord | null {
+export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId?: string): ClaimedTaskRecord | null {
   const db = getDatabase();
   const now = new Date().toISOString();
-  let task: QueuedTaskRecord | null = null;
+  let task: ClaimedTaskRecord | null = null;
   let attemptId: string | undefined;
   let providerSessionId: string | undefined;
   let provider: DaemonProvider | undefined;
@@ -253,6 +266,7 @@ export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId
 
   db.exec("BEGIN");
   try {
+    recoverExpiredTaskLeasesInTransaction(db, workspaceId);
     let row = selectQueuedTaskForRuntime(db, runtimeId, workspaceId);
     if (!row) {
       const fallback = selectFallbackQueuedTaskForRuntime(db, runtimeId, workspaceId);
@@ -290,6 +304,9 @@ export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId
           throw new Error(`Claimed task "${row.id}" is missing its runtime or router session.`);
         }
         const providerSession = chooseProviderSessionForTaskSync({ task: claimedTask });
+        const leaseToken = createTaskLeaseToken();
+        const heartbeatAt = now;
+        const leaseExpiresAt = new Date(Date.now() + DEFAULT_TASK_LEASE_DURATION_MS).toISOString();
         const attempt = createAgentTaskAttemptSync({
           workspaceId: claimedTask.workspaceId,
           taskQueueId: claimedTask.id,
@@ -297,6 +314,9 @@ export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId
           runtimeId: claimedTask.runtimeId,
           provider: runtime.provider,
           providerSessionId: providerSession?.providerSessionId,
+          leaseToken,
+          leaseExpiresAt,
+          heartbeatAt,
           status: "claimed",
           metadata: {
             routingMode: providerSession ? "same_provider_resume" : fallbackReason ? "cold_rebuild_fallback" : "cold_rebuild",
@@ -304,7 +324,19 @@ export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId
             previousRuntimeId: fallbackReason ? readStringFromTaskInput(claimedTask.inputJson, "__previousRuntimeId") : undefined,
           },
         });
-        task = claimedTask;
+        db.prepare(
+          `UPDATE agent_task_queue
+           SET active_attempt_id = ?,
+               updated_at = ?
+           WHERE id = ?`,
+        ).run(attempt.id, now, claimedTask.id);
+        task = {
+          ...claimedTask,
+          activeAttemptId: attempt.id,
+          leaseToken,
+          leaseExpiresAt,
+          heartbeatAt,
+        };
         attemptId = attempt.id;
         providerSessionId = providerSession?.providerSessionId;
         provider = runtime.provider;
@@ -328,24 +360,166 @@ export function claimNextQueuedTaskForRuntimeSync(runtimeId: string, workspaceId
   return task;
 }
 
-export function startQueuedTaskSync(taskId: string): QueuedTaskRecord {
+export function assertActiveTaskLeaseSync(input: {
+  taskId: string;
+  attemptId: string;
+  leaseToken: string;
+}): AgentTaskAttemptRecord {
+  const row = getDatabase()
+    .prepare(
+      `SELECT
+        id,
+        workspace_id AS workspaceId,
+        task_queue_id AS taskQueueId,
+        router_session_id AS routerSessionId,
+        runtime_id AS runtimeId,
+        provider,
+        provider_session_id AS providerSessionId,
+        status,
+        started_at AS startedAt,
+        finished_at AS finishedAt,
+        error_text AS errorText,
+        handoff_snapshot_id AS handoffSnapshotId,
+        lease_token AS leaseToken,
+        lease_expires_at AS leaseExpiresAt,
+        heartbeat_at AS heartbeatAt,
+       metadata_json AS metadataJson,
+       created_at AS createdAt,
+       updated_at AS updatedAt
+       FROM agent_task_attempt
+       WHERE id = ?
+         AND task_queue_id = ?
+         AND lease_token = ?
+         AND status IN ('claimed', 'running')
+         AND lease_expires_at > CURRENT_TIMESTAMP
+         AND EXISTS (
+           SELECT 1
+           FROM agent_task_queue q
+           WHERE q.id = agent_task_attempt.task_queue_id
+             AND q.active_attempt_id = agent_task_attempt.id
+             AND q.status IN ('claimed', 'running')
+         )
+       LIMIT 1`,
+    )
+    .get(input.attemptId, input.taskId, input.leaseToken) as Record<string, unknown> | undefined;
+  if (!row) {
+    throw new Error(`Task lease for attempt "${input.attemptId}" is not active.`);
+  }
+  return mapTaskAttemptLeaseRecord(row);
+}
+
+export function heartbeatQueuedTaskLeaseSync(input: {
+  taskId: string;
+  attemptId: string;
+  leaseToken: string;
+  leaseDurationMs?: number;
+}): AgentTaskAttemptRecord {
+  assertActiveTaskLeaseSync(input);
+  const heartbeatAt = new Date().toISOString();
+  const leaseExpiresAt = new Date(Date.now() + Math.max(1_000, input.leaseDurationMs ?? DEFAULT_TASK_LEASE_DURATION_MS)).toISOString();
+  const result = getDatabase()
+    .prepare(
+      `UPDATE agent_task_attempt
+       SET heartbeat_at = ?,
+           lease_expires_at = ?,
+           updated_at = ?
+       WHERE id = ?
+         AND task_queue_id = ?
+         AND lease_token = ?
+         AND status IN ('claimed', 'running')
+         AND lease_expires_at > CURRENT_TIMESTAMP
+         AND EXISTS (
+           SELECT 1
+           FROM agent_task_queue q
+           WHERE q.id = agent_task_attempt.task_queue_id
+             AND q.active_attempt_id = agent_task_attempt.id
+             AND q.status IN ('claimed', 'running')
+         )`,
+    )
+    .run(heartbeatAt, leaseExpiresAt, heartbeatAt, input.attemptId, input.taskId, input.leaseToken);
+  if (result.changes !== 1) {
+    throw new Error(`Task lease for attempt "${input.attemptId}" is not active.`);
+  }
+  return assertActiveTaskLeaseSync(input);
+}
+
+export function recoverExpiredTaskLeasesSync(workspaceId?: string): number {
+  const db = getDatabase();
+  db.exec("BEGIN");
+  try {
+    const recovered = recoverExpiredTaskLeasesInTransaction(db, workspaceId);
+    db.exec("COMMIT");
+    return recovered;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function resolveActiveTaskLeaseForMutation(input: {
+  taskId: string;
+  lease?: { attemptId: string; leaseToken: string };
+  action: "start" | "complete" | "fail";
+  heartbeat?: boolean;
+}): AgentTaskAttemptRecord | null {
+  const task = readQueuedTaskSync(input.taskId);
+  if (!task) {
+    throw new Error(`Queued task "${input.taskId}" does not exist.`);
+  }
+  const requiresLease = Boolean(task.activeAttemptId) || task.status === "claimed" || task.status === "running";
+  if (!input.lease) {
+    if (requiresLease) {
+      throw new Error(`Task lease is required to ${input.action} queued task "${input.taskId}".`);
+    }
+    return null;
+  }
+  return input.heartbeat
+    ? heartbeatQueuedTaskLeaseSync({ taskId: input.taskId, ...input.lease })
+    : assertActiveTaskLeaseSync({ taskId: input.taskId, ...input.lease });
+}
+
+export function startQueuedTaskSync(
+  taskId: string,
+  lease?: { attemptId: string; leaseToken: string },
+): QueuedTaskRecord {
   const db = getDatabase();
   const now = new Date().toISOString();
   const previous = readQueuedTaskSync(taskId);
-  db.prepare(
-    `UPDATE agent_task_queue
-     SET status = 'running',
-         started_at = COALESCE(started_at, ?),
-         updated_at = ?
-     WHERE id = ?`,
-  ).run(now, now, taskId);
+  const activeAttempt = resolveActiveTaskLeaseForMutation({
+    taskId,
+    lease,
+    action: "start",
+    heartbeat: true,
+  });
+  if (activeAttempt) {
+    const result = db.prepare(
+      `UPDATE agent_task_queue
+       SET status = 'running',
+           started_at = COALESCE(started_at, ?),
+           updated_at = ?
+       WHERE id = ?
+         AND active_attempt_id = ?
+         AND status IN ('claimed', 'running')`,
+    ).run(now, now, taskId, activeAttempt.id);
+    if (result.changes !== 1) {
+      throw new Error(`Task lease for attempt "${activeAttempt.id}" is not active.`);
+    }
+  } else {
+    db.prepare(
+      `UPDATE agent_task_queue
+       SET status = 'running',
+           started_at = COALESCE(started_at, ?),
+           updated_at = ?
+       WHERE id = ?`,
+    ).run(now, now, taskId);
+  }
 
   const task = readQueuedTaskSync(taskId);
   if (!task) {
     throw new Error(`Queued task "${taskId}" does not exist.`);
   }
   if (previous?.status !== "running") {
-    const attempt = readLatestAgentTaskAttemptForTaskSync(task.id);
+    const attempt = activeAttempt ?? readLatestAgentTaskAttemptForTaskSync(task.id);
     if (attempt && attempt.status !== "running") {
       updateAgentTaskAttemptSync({ attemptId: attempt.id, status: "running" });
     }
@@ -376,6 +550,8 @@ export function startQueuedTaskSync(taskId: string): QueuedTaskRecord {
 
 export function completeQueuedTaskSync(input: {
   taskId: string;
+  attemptId?: string;
+  leaseToken?: string;
   resultJson?: Record<string, unknown>;
   sessionId?: string;
   workDir?: string;
@@ -383,30 +559,63 @@ export function completeQueuedTaskSync(input: {
   const db = getDatabase();
   const now = new Date().toISOString();
   const previous = readQueuedTaskSync(input.taskId);
-  db.prepare(
-    `UPDATE agent_task_queue
-     SET status = 'completed',
-         result_json = ?,
-         session_id = ?,
-         work_dir = ?,
-         finished_at = ?,
-         updated_at = ?
-     WHERE id = ?`,
-  ).run(
-    input.resultJson ? JSON.stringify(input.resultJson) : null,
-    input.sessionId ?? null,
-    input.workDir ?? null,
-    now,
-    now,
-    input.taskId,
-  );
+  const activeAttempt = resolveActiveTaskLeaseForMutation({
+    taskId: input.taskId,
+    lease: input.attemptId && input.leaseToken ? { attemptId: input.attemptId, leaseToken: input.leaseToken } : undefined,
+    action: "complete",
+  });
+  if (activeAttempt) {
+    const result = db.prepare(
+      `UPDATE agent_task_queue
+       SET status = 'completed',
+           active_attempt_id = NULL,
+           result_json = ?,
+           session_id = ?,
+           work_dir = ?,
+           finished_at = ?,
+           updated_at = ?
+       WHERE id = ?
+         AND active_attempt_id = ?
+         AND status IN ('claimed', 'running')`,
+    ).run(
+      input.resultJson ? JSON.stringify(input.resultJson) : null,
+      input.sessionId ?? null,
+      input.workDir ?? null,
+      now,
+      now,
+      input.taskId,
+      activeAttempt.id,
+    );
+    if (result.changes !== 1) {
+      throw new Error(`Task lease for attempt "${activeAttempt.id}" is not active.`);
+    }
+  } else {
+    db.prepare(
+      `UPDATE agent_task_queue
+       SET status = 'completed',
+           active_attempt_id = NULL,
+           result_json = ?,
+           session_id = ?,
+           work_dir = ?,
+           finished_at = ?,
+           updated_at = ?
+       WHERE id = ?`,
+    ).run(
+      input.resultJson ? JSON.stringify(input.resultJson) : null,
+      input.sessionId ?? null,
+      input.workDir ?? null,
+      now,
+      now,
+      input.taskId,
+    );
+  }
 
   const task = readQueuedTaskSync(input.taskId);
   if (!task) {
     throw new Error(`Queued task "${input.taskId}" does not exist.`);
   }
   if (previous?.status !== "completed") {
-    const attempt = readLatestAgentTaskAttemptForTaskSync(task.id);
+    const attempt = activeAttempt ?? readLatestAgentTaskAttemptForTaskSync(task.id);
     const runtime = readAgentRuntimeSync(task.runtimeId);
     if (attempt) {
       updateAgentTaskAttemptSync({
@@ -466,6 +675,8 @@ export function completeQueuedTaskSync(input: {
 
 export function failQueuedTaskSync(input: {
   taskId: string;
+  attemptId?: string;
+  leaseToken?: string;
   errorText: string;
   sessionId?: string;
   workDir?: string;
@@ -477,16 +688,41 @@ export function failQueuedTaskSync(input: {
   const db = getDatabase();
   const now = new Date().toISOString();
   const previous = readQueuedTaskSync(input.taskId);
-  db.prepare(
-    `UPDATE agent_task_queue
-     SET status = 'failed',
-         error_text = ?,
-         session_id = COALESCE(?, session_id),
-         work_dir = COALESCE(?, work_dir),
-         finished_at = ?,
-         updated_at = ?
-     WHERE id = ?`,
-  ).run(input.errorText, input.sessionId ?? null, input.workDir ?? null, now, now, input.taskId);
+  const activeAttempt = resolveActiveTaskLeaseForMutation({
+    taskId: input.taskId,
+    lease: input.attemptId && input.leaseToken ? { attemptId: input.attemptId, leaseToken: input.leaseToken } : undefined,
+    action: "fail",
+  });
+  if (activeAttempt) {
+    const result = db.prepare(
+      `UPDATE agent_task_queue
+       SET status = 'failed',
+           active_attempt_id = NULL,
+           error_text = ?,
+           session_id = COALESCE(?, session_id),
+           work_dir = COALESCE(?, work_dir),
+           finished_at = ?,
+           updated_at = ?
+       WHERE id = ?
+         AND active_attempt_id = ?
+         AND status IN ('claimed', 'running')`,
+    ).run(input.errorText, input.sessionId ?? null, input.workDir ?? null, now, now, input.taskId, activeAttempt.id);
+    if (result.changes !== 1) {
+      throw new Error(`Task lease for attempt "${activeAttempt.id}" is not active.`);
+    }
+  } else {
+    db.prepare(
+      `UPDATE agent_task_queue
+       SET status = 'failed',
+           active_attempt_id = NULL,
+           error_text = ?,
+           session_id = COALESCE(?, session_id),
+           work_dir = COALESCE(?, work_dir),
+           finished_at = ?,
+           updated_at = ?
+       WHERE id = ?`,
+    ).run(input.errorText, input.sessionId ?? null, input.workDir ?? null, now, now, input.taskId);
+  }
 
   const task = readQueuedTaskSync(input.taskId);
   if (!task) {
@@ -494,7 +730,7 @@ export function failQueuedTaskSync(input: {
   }
   if (previous?.status !== "failed") {
     const blocked = isBlockedFailure(input);
-    const attempt = readLatestAgentTaskAttemptForTaskSync(task.id);
+    const attempt = activeAttempt ?? readLatestAgentTaskAttemptForTaskSync(task.id);
     const runtime = readAgentRuntimeSync(task.runtimeId);
     const handoffSnapshot = task.routerSessionId
       ? createAgentRouterContextSnapshotSync({
@@ -609,6 +845,7 @@ export function cancelQueuedTaskSync(input: {
   db.prepare(
     `UPDATE agent_task_queue
      SET status = 'cancelled',
+         active_attempt_id = NULL,
          error_text = COALESCE(?, error_text),
          finished_at = ?,
          updated_at = ?
@@ -989,6 +1226,74 @@ function existsUsableOnlineRuntimeForProvider(input: {
   );
 }
 
+function recoverExpiredTaskLeasesInTransaction(
+  db: ReturnType<typeof getDatabase>,
+  workspaceId?: string,
+): number {
+  const rows = db.prepare(
+    `SELECT
+       a.id,
+       a.task_queue_id AS taskQueueId
+     FROM agent_task_attempt a
+     JOIN agent_task_queue q ON q.id = a.task_queue_id
+     WHERE a.status IN ('claimed', 'running')
+       AND a.lease_expires_at IS NOT NULL
+       AND a.lease_expires_at <= CURRENT_TIMESTAMP
+       AND q.status IN ('claimed', 'running')
+       AND q.active_attempt_id = a.id
+       ${typeof workspaceId === "string" ? "AND a.workspace_id = ?" : ""}`,
+  ).all(...(typeof workspaceId === "string" ? [workspaceId] : [])) as Array<Record<string, unknown>>;
+
+  const now = new Date().toISOString();
+  let recovered = 0;
+  for (const row of rows) {
+    const attemptId = typeof row.id === "string" ? row.id : undefined;
+    const taskQueueId = typeof row.taskQueueId === "string" ? row.taskQueueId : undefined;
+    if (!attemptId || !taskQueueId) {
+      continue;
+    }
+    const attemptResult = db.prepare(
+      `UPDATE agent_task_attempt
+       SET status = 'failed',
+           finished_at = COALESCE(finished_at, ?),
+           error_text = COALESCE(error_text, 'Task lease expired before completion.'),
+           updated_at = ?
+       WHERE id = ?
+         AND task_queue_id = ?
+         AND status IN ('claimed', 'running')
+         AND lease_expires_at IS NOT NULL
+         AND lease_expires_at <= CURRENT_TIMESTAMP
+         AND EXISTS (
+           SELECT 1
+           FROM agent_task_queue q
+           WHERE q.id = agent_task_attempt.task_queue_id
+             AND q.active_attempt_id = agent_task_attempt.id
+             AND q.status IN ('claimed', 'running')
+         )`,
+    ).run(now, now, attemptId, taskQueueId);
+    if (attemptResult.changes !== 1) {
+      continue;
+    }
+    const result = db.prepare(
+      `UPDATE agent_task_queue
+       SET status = 'queued',
+           active_attempt_id = NULL,
+           claimed_at = NULL,
+           started_at = NULL,
+           updated_at = ?
+       WHERE id = ?
+         AND active_attempt_id = ?
+         AND status IN ('claimed', 'running')`,
+    ).run(now, taskQueueId, attemptId);
+    recovered += Number(result.changes);
+  }
+  return recovered;
+}
+
+function createTaskLeaseToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
 function isBlockedFailure(input: {
   errorText: string;
   errorCode?: string;
@@ -1131,6 +1436,7 @@ function mapQueuedTaskRecord(value: Record<string, unknown>): QueuedTaskRecord |
     workspaceId: value.workspaceId,
     agentId: value.agentId,
     runtimeId: value.runtimeId,
+    activeAttemptId: typeof value.activeAttemptId === "string" ? value.activeAttemptId : undefined,
     routerSessionId: typeof value.routerSessionId === "string" ? value.routerSessionId : undefined,
     issueId: typeof value.issueId === "string" ? value.issueId : undefined,
     triggerType: value.triggerType,
@@ -1150,4 +1456,55 @@ function mapQueuedTaskRecord(value: Record<string, unknown>): QueuedTaskRecord |
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };
+}
+
+function mapTaskAttemptLeaseRecord(value: Record<string, unknown>): AgentTaskAttemptRecord {
+  const provider = typeof value.provider === "string" && isDaemonProvider(value.provider) ? value.provider : null;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.workspaceId !== "string" ||
+    typeof value.taskQueueId !== "string" ||
+    typeof value.routerSessionId !== "string" ||
+    typeof value.runtimeId !== "string" ||
+    provider === null ||
+    (value.providerSessionId !== null && value.providerSessionId !== undefined && typeof value.providerSessionId !== "string") ||
+    !isAgentTaskAttemptStatus(value.status) ||
+    typeof value.metadataJson !== "string" ||
+    typeof value.createdAt !== "string" ||
+    typeof value.updatedAt !== "string"
+  ) {
+    throw new Error("Task lease record could not be mapped.");
+  }
+  return {
+    id: value.id,
+    workspaceId: value.workspaceId,
+    taskQueueId: value.taskQueueId,
+    routerSessionId: value.routerSessionId,
+    runtimeId: value.runtimeId,
+    provider,
+    providerSessionId: typeof value.providerSessionId === "string" ? value.providerSessionId : undefined,
+    status: value.status,
+    startedAt: typeof value.startedAt === "string" ? value.startedAt : undefined,
+    finishedAt: typeof value.finishedAt === "string" ? value.finishedAt : undefined,
+    errorText: typeof value.errorText === "string" ? value.errorText : undefined,
+    handoffSnapshotId: typeof value.handoffSnapshotId === "string" ? value.handoffSnapshotId : undefined,
+    leaseToken: typeof value.leaseToken === "string" ? value.leaseToken : undefined,
+    leaseExpiresAt: readTimestampString(value.leaseExpiresAt),
+    heartbeatAt: readTimestampString(value.heartbeatAt),
+    metadataJson: value.metadataJson,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  };
+}
+
+function isAgentTaskAttemptStatus(value: unknown): value is AgentTaskAttemptStatus {
+  return value === "claimed" || value === "running" || value === "completed" || value === "failed" || value === "cancelled";
+}
+
+function readTimestampString(value: unknown): string | undefined {
+  if (!(typeof value === "string" || value instanceof Date)) {
+    return undefined;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
 }

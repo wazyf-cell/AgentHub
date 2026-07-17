@@ -26,7 +26,7 @@ import {
   sameValue,
   type AgentDocumentContext,
 } from "@agent-space/services";
-import { readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
+import { heartbeatTaskLeaseForRequest, readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
 import { getGoogleWorkspaceAccessTokenForAgent } from "@/features/integrations/google-workspace";
 import { GOOGLE_WORKSPACE_CLI_TOKEN_ENV } from "@/features/integrations/google-workspace-cli";
 
@@ -46,6 +46,10 @@ export async function GET(
   const task = readTaskForWorkspace(taskId, auth.workspaceId);
   if (task instanceof Response) {
     return task;
+  }
+  const lease = heartbeatTaskLeaseForRequest(request, task);
+  if (lease instanceof Response) {
+    return lease;
   }
 
   const runtime = readAgentRuntimeSync(task.runtimeId);

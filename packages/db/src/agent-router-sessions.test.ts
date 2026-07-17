@@ -182,9 +182,14 @@ test("records attempts, events, and context snapshots for router sessions", () =
   assert.equal(attempt.provider, "codex");
   assert.equal(listAgentTaskAttemptsSync({ routerSessionId: task.routerSessionId }).length, 1);
 
-  startQueuedTaskSync(task.id);
+  startQueuedTaskSync(task.id, {
+    attemptId: claimed.activeAttemptId,
+    leaseToken: claimed.leaseToken,
+  });
   completeQueuedTaskSync({
     taskId: task.id,
+    attemptId: claimed.activeAttemptId,
+    leaseToken: claimed.leaseToken,
     sessionId: "provider-session-complete",
     workDir: "/tmp/work",
     resultJson: { output: "Brief complete" },
@@ -293,7 +298,7 @@ function seedQueue(workspaceId: string, runtimeId: string, routerSessionId: stri
       queued_at,
       created_at,
       updated_at
-    ) VALUES (?, ?, 'Atlas', ?, ?, ?, 'manual', 0, 'claimed', '{}', ?, ?, ?)`,
+    ) VALUES (?, ?, 'Atlas', ?, ?, ?, 'manual', 0, 'queued', '{}', ?, ?, ?)`,
   ).run(queueId, workspaceId, runtimeId, routerSessionId, queueId, "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z");
   return queueId;
 }

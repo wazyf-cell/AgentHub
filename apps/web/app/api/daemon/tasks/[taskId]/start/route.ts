@@ -1,7 +1,7 @@
 import { startQueuedTaskSync } from "@agent-space/db";
 import { parseTaskPayload } from "agent-space-daemon";
 import { postMessageSync } from "@agent-space/services";
-import { readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
+import { heartbeatTaskLeaseForRequest, readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,9 +20,13 @@ export async function POST(
   if (task instanceof Response) {
     return task;
   }
+  const lease = heartbeatTaskLeaseForRequest(request, task);
+  if (lease instanceof Response) {
+    return lease;
+  }
 
   const shouldPostStartNotice = task.status !== "running";
-  const started = startQueuedTaskSync(task.id);
+  const started = startQueuedTaskSync(task.id, lease);
   const payload = parseTaskPayload(started);
   if (shouldPostStartNotice && payload.channel && !payload.contactId) {
     postMessageSync({

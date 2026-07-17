@@ -6,16 +6,22 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test, { before } from "node:test";
 import {
+  assertActiveTaskLeaseSync,
   bindEmployeeRuntimeSync,
   claimNextQueuedTaskForRuntimeSync,
+  completeQueuedTaskSync,
   createAgentTaskAttemptSync,
   createWorkspaceSync,
   enqueueNativeTaskSync,
+  failQueuedTaskSync,
   getDatabase,
+  heartbeatQueuedTaskLeaseSync,
   listAgentRouterEventsSync,
   listAgentTaskAttemptsSync,
   readQueuedTaskSync,
   registerDaemonRuntimesSync,
+  recoverExpiredTaskLeasesSync,
+  startQueuedTaskSync,
 } from "./index.ts";
 import { getPostgresSchemaStatements } from "./postgres-schema.ts";
 
@@ -40,6 +46,148 @@ test("claim returns only after creating one active attempt", () => {
     listAgentTaskAttemptsSync({ taskQueueId: queued.id }).map((attempt) => attempt.status),
     ["claimed"],
   );
+});
+
+test("claim returns an active lease bound to the queue active attempt", () => {
+  const { workspaceId, runtimeId } = seedWorkspaceRuntime("claim-lease");
+  const queued = enqueueTask(workspaceId);
+
+  const claimed = claimNextQueuedTaskForRuntimeSync(runtimeId, workspaceId);
+
+  assert.equal(claimed?.id, queued.id);
+  assert.ok(claimed?.activeAttemptId);
+  assert.ok(claimed?.leaseToken);
+  assert.ok(claimed?.leaseExpiresAt);
+  assert.ok(claimed?.heartbeatAt);
+  assert.equal(readQueuedTaskSync(queued.id)?.activeAttemptId, claimed.activeAttemptId);
+  const attempts = listAgentTaskAttemptsSync({ taskQueueId: queued.id });
+  assert.equal(attempts.length, 1);
+  assert.equal(attempts[0]?.id, claimed.activeAttemptId);
+  assert.equal(attempts[0]?.leaseToken, claimed.leaseToken);
+  assert.equal(attempts[0]?.leaseExpiresAt, claimed.leaseExpiresAt);
+});
+
+test("active lease assertions require the queue active attempt pointer", () => {
+  const { workspaceId, runtimeId } = seedWorkspaceRuntime("claim-lease-active-pointer");
+  const queued = enqueueTask(workspaceId);
+  const claimed = claimNextQueuedTaskForRuntimeSync(runtimeId, workspaceId);
+  assert.ok(claimed?.activeAttemptId);
+  assert.ok(claimed.leaseToken);
+
+  assert.equal(
+    assertActiveTaskLeaseSync({
+      taskId: queued.id,
+      attemptId: claimed.activeAttemptId,
+      leaseToken: claimed.leaseToken,
+    }).id,
+    claimed.activeAttemptId,
+  );
+
+  getDatabase().prepare("UPDATE agent_task_queue SET active_attempt_id = NULL WHERE id = ?").run(queued.id);
+
+  assert.throws(
+    () =>
+      assertActiveTaskLeaseSync({
+        taskId: queued.id,
+        attemptId: claimed.activeAttemptId!,
+        leaseToken: claimed.leaseToken!,
+      }),
+    /not active/i,
+  );
+});
+
+test("wrong task lease cannot start, complete, or fail a claimed task", () => {
+  const { workspaceId, runtimeId } = seedWorkspaceRuntime("claim-lease-reject");
+  const queued = enqueueTask(workspaceId);
+  const claimed = claimNextQueuedTaskForRuntimeSync(runtimeId, workspaceId);
+  assert.ok(claimed?.activeAttemptId);
+
+  assert.throws(
+    () => startQueuedTaskSync(queued.id),
+    /lease is required/i,
+  );
+  assert.equal(readQueuedTaskSync(queued.id)?.status, "claimed");
+
+  assert.throws(
+    () => startQueuedTaskSync(queued.id, { attemptId: claimed.activeAttemptId!, leaseToken: "wrong-token" }),
+    /not active/i,
+  );
+  assert.equal(readQueuedTaskSync(queued.id)?.status, "claimed");
+
+  assert.throws(
+    () =>
+      completeQueuedTaskSync({
+        taskId: queued.id,
+        attemptId: claimed.activeAttemptId,
+        leaseToken: "wrong-token",
+        resultJson: { output: "done" },
+      }),
+    /not active/i,
+  );
+  assert.equal(readQueuedTaskSync(queued.id)?.status, "claimed");
+
+  assert.throws(
+    () =>
+      failQueuedTaskSync({
+        taskId: queued.id,
+        attemptId: claimed.activeAttemptId,
+        leaseToken: "wrong-token",
+        errorText: "boom",
+      }),
+    /not active/i,
+  );
+  assert.equal(readQueuedTaskSync(queued.id)?.status, "claimed");
+});
+
+test("heartbeat extends the active task lease", () => {
+  const { workspaceId, runtimeId } = seedWorkspaceRuntime("claim-lease-heartbeat");
+  const queued = enqueueTask(workspaceId);
+  const claimed = claimNextQueuedTaskForRuntimeSync(runtimeId, workspaceId);
+  assert.ok(claimed?.activeAttemptId);
+  assert.ok(claimed.leaseToken);
+  assert.ok(claimed.leaseExpiresAt);
+
+  const refreshed = heartbeatQueuedTaskLeaseSync({
+    taskId: queued.id,
+    attemptId: claimed.activeAttemptId,
+    leaseToken: claimed.leaseToken,
+    leaseDurationMs: 15 * 60 * 1000,
+  });
+
+  assert.equal(refreshed.id, claimed.activeAttemptId);
+  assert.ok(refreshed.heartbeatAt);
+  assert.ok(refreshed.leaseExpiresAt);
+  assert.ok(new Date(refreshed.leaseExpiresAt).getTime() > new Date(claimed.leaseExpiresAt).getTime());
+});
+
+test("expired active leases are recovered and stale attempts cannot finish the task", () => {
+  const { workspaceId, runtimeId } = seedWorkspaceRuntime("claim-lease-recover");
+  const queued = enqueueTask(workspaceId);
+  const claimed = claimNextQueuedTaskForRuntimeSync(runtimeId, workspaceId);
+  assert.ok(claimed?.activeAttemptId);
+  assert.ok(claimed.leaseToken);
+
+  getDatabase()
+    .prepare("UPDATE agent_task_attempt SET lease_expires_at = ? WHERE id = ?")
+    .run("2000-01-01T00:00:00.000Z", claimed.activeAttemptId);
+
+  assert.equal(recoverExpiredTaskLeasesSync(workspaceId), 1);
+  const recoveredTask = readQueuedTaskSync(queued.id);
+  assert.equal(recoveredTask?.status, "queued");
+  assert.equal(recoveredTask?.activeAttemptId, undefined);
+  assert.equal(listAgentTaskAttemptsSync({ taskQueueId: queued.id })[0]?.status, "failed");
+
+  assert.throws(
+    () =>
+      completeQueuedTaskSync({
+        taskId: queued.id,
+        attemptId: claimed.activeAttemptId,
+        leaseToken: claimed.leaseToken,
+        resultJson: { output: "late completion" },
+      }),
+    /not active/i,
+  );
+  assert.equal(readQueuedTaskSync(queued.id)?.status, "queued");
 });
 
 test("a second claim does not return or duplicate an already claimed task", () => {

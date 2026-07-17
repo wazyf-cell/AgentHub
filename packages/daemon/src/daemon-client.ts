@@ -18,6 +18,11 @@ import type {
   StartRuntimeAppOperationRequest,
 } from "./daemon-api.ts";
 
+interface TaskLeaseHeaders {
+  attemptId: string;
+  leaseToken: string;
+}
+
 export type {
   ClaimTaskResponse,
   CompleteTaskRequest,
@@ -43,6 +48,7 @@ export class HttpDaemonClient {
   private readonly daemonToken: string;
   private readonly retryDelayMs: number;
   private readonly maxRetryAttempts: number;
+  private readonly taskLeases = new Map<string, TaskLeaseHeaders>();
 
   constructor(
     serverUrl: string,
@@ -75,7 +81,18 @@ export class HttpDaemonClient {
   }
 
   async claimTask(runtimeId: string): Promise<ClaimTaskResponse> {
-    return this.postJson(`/api/daemon/runtimes/${encodeURIComponent(runtimeId)}/tasks/claim`, {}, { retryable: true });
+    const response = await this.postJson<ClaimTaskResponse>(
+      `/api/daemon/runtimes/${encodeURIComponent(runtimeId)}/tasks/claim`,
+      {},
+      { retryable: true },
+    );
+    if (response.task) {
+      this.taskLeases.set(response.task.id, {
+        attemptId: response.task.activeAttemptId,
+        leaseToken: response.task.leaseToken,
+      });
+    }
+    return response;
   }
 
   async claimRuntimeAppOperation(runtimeId: string): Promise<ClaimRuntimeAppOperationResponse> {
@@ -95,38 +112,44 @@ export class HttpDaemonClient {
   }
 
   async startTask(taskId: string): Promise<void> {
-    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/start`, {});
+    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/start`, {}, { taskId });
+  }
+
+  async heartbeatTask(taskId: string): Promise<void> {
+    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/heartbeat`, {}, { taskId, retryable: true });
   }
 
   async getInputBundle(taskId: string): Promise<DaemonTaskInputBundle> {
-    return this.getJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/input-bundle`, { retryable: true });
+    return this.getJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/input-bundle`, { retryable: true, taskId });
   }
 
   async reportMessages(taskId: string, body: ReportTaskMessagesRequest): Promise<void> {
-    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/messages`, body);
+    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/messages`, body, { taskId });
   }
 
   async createRuntimeApproval(taskId: string, body: CreateRuntimeApprovalRequest): Promise<CreateRuntimeApprovalResponse> {
-    return this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/runtime-approvals`, body);
+    return this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/runtime-approvals`, body, { taskId });
   }
 
   async getRuntimeApproval(taskId: string, approvalId: string): Promise<GetRuntimeApprovalResponse> {
     return this.getJson(
       `/api/daemon/tasks/${encodeURIComponent(taskId)}/runtime-approvals/${encodeURIComponent(approvalId)}`,
-      { retryable: true },
+      { retryable: true, taskId },
     );
   }
 
   async uploadOutputBundle(taskId: string, bundle: DaemonTaskOutputBundle): Promise<void> {
-    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/output-bundle`, bundle);
+    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/output-bundle`, bundle, { taskId });
   }
 
   async completeTask(taskId: string, body: CompleteTaskRequest): Promise<void> {
-    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/complete`, body);
+    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/complete`, body, { taskId });
+    this.taskLeases.delete(taskId);
   }
 
   async failTask(taskId: string, body: FailTaskRequest): Promise<void> {
-    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/fail`, body);
+    await this.postJson(`/api/daemon/tasks/${encodeURIComponent(taskId)}/fail`, body, { taskId });
+    this.taskLeases.delete(taskId);
   }
 
   async deregister(daemonKey: string, lastError?: string): Promise<void> {
@@ -136,26 +159,34 @@ export class HttpDaemonClient {
     });
   }
 
-  private async getJson<T>(path: string, options?: { retryable?: boolean }): Promise<T> {
+  private async getJson<T>(path: string, options?: { retryable?: boolean; taskId?: string }): Promise<T> {
     return this.requestJson<T>(path, {
       method: "GET",
       retryable: options?.retryable,
+      taskId: options?.taskId,
     });
   }
 
-  private async postJson<T>(path: string, body: unknown, options?: { retryable?: boolean }): Promise<T> {
+  private async postJson<T>(path: string, body: unknown, options?: { retryable?: boolean; taskId?: string }): Promise<T> {
     return this.requestJson<T>(path, {
       method: "POST",
       body: JSON.stringify(body),
       retryable: options?.retryable,
+      taskId: options?.taskId,
     });
   }
 
-  private buildHeaders(): Record<string, string> {
-    return {
+  private buildHeaders(taskId?: string): Record<string, string> {
+    const headers: Record<string, string> = {
       authorization: `Bearer ${this.daemonToken}`,
       "content-type": "application/json",
     };
+    const lease = taskId ? this.taskLeases.get(taskId) : undefined;
+    if (lease) {
+      headers["x-agent-space-attempt-id"] = lease.attemptId;
+      headers["x-agent-space-lease-token"] = lease.leaseToken;
+    }
+    return headers;
   }
 
   private resolveUrl(path: string): string {
@@ -168,6 +199,7 @@ export class HttpDaemonClient {
       method: "GET" | "POST";
       body?: string;
       retryable?: boolean;
+      taskId?: string;
     },
   ): Promise<T> {
     let lastError: unknown;
@@ -176,7 +208,7 @@ export class HttpDaemonClient {
       try {
         const response = await fetch(this.resolveUrl(path), {
           method: options.method,
-          headers: this.buildHeaders(),
+          headers: this.buildHeaders(options.taskId),
           body: options.body,
         });
 

@@ -22,12 +22,24 @@ test("postgres schema includes the expected core and derived tables", () => {
     statements,
     /CREATE TABLE IF NOT EXISTS employee_runtime_binding.*binding_version INTEGER NOT NULL DEFAULT 1.*model_id TEXT.*capability_ids_json JSONB NOT NULL DEFAULT '\[\]'::jsonb/s,
   );
+  assert.match(
+    statements,
+    /CREATE TABLE IF NOT EXISTS agent_task_queue.*active_attempt_id TEXT/s,
+  );
+  assert.match(
+    statements,
+    /CREATE TABLE IF NOT EXISTS agent_task_attempt.*lease_token TEXT.*lease_expires_at TIMESTAMPTZ.*heartbeat_at TIMESTAMPTZ/s,
+  );
   assert.match(statements, /ALTER TABLE employee_runtime_binding\s+ADD COLUMN IF NOT EXISTS binding_version INTEGER NOT NULL DEFAULT 1/);
   assert.match(statements, /ALTER TABLE employee_runtime_binding\s+ADD COLUMN IF NOT EXISTS model_id TEXT/);
   assert.match(
     statements,
     /ALTER TABLE employee_runtime_binding\s+ADD COLUMN IF NOT EXISTS capability_ids_json JSONB NOT NULL DEFAULT '\[\]'::jsonb/,
   );
+  assert.match(statements, /ALTER TABLE agent_task_queue\s+ADD COLUMN IF NOT EXISTS active_attempt_id TEXT/);
+  assert.match(statements, /ALTER TABLE agent_task_attempt\s+ADD COLUMN IF NOT EXISTS lease_token TEXT/);
+  assert.match(statements, /ALTER TABLE agent_task_attempt\s+ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ/);
+  assert.match(statements, /ALTER TABLE agent_task_attempt\s+ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ/);
   assert.match(
     statements,
     /WITH ranked_active_attempts AS.*PARTITION BY task_queue_id\s+ORDER BY created_at DESC, id DESC.*SET status = 'failed'.*finished_at = COALESCE\(attempt\.finished_at, CURRENT_TIMESTAMP\).*error_text = COALESCE\(.*attempt\.error_text,.*Schema v19 migration: superseded duplicate active attempt\./s,
@@ -51,6 +63,13 @@ test("collectSqliteMigrationSnapshotSync extracts relational rows and derived at
     db.exec(`
       CREATE TABLE app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       INSERT INTO app_metadata (key, value) VALUES ('schema_version', '5');
+
+      CREATE TABLE agent_access_request (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE agent_router_session (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE agent_router_provider_session (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE agent_task_attempt (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE agent_router_event (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE agent_router_context_snapshot (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
 
       CREATE TABLE workspace (
         id TEXT PRIMARY KEY,
@@ -723,8 +742,9 @@ test("collectSqliteMigrationSnapshotSync extracts relational rows and derived at
     db.close();
   }
 
+  let sourceDb: DatabaseSync | null = null;
   try {
-    const sourceDb = new DatabaseSync(sqlitePath);
+    sourceDb = new DatabaseSync(sqlitePath);
     const snapshot = collectSqliteMigrationSnapshotSync(sourceDb, "2026-04-23T13:00:00.000Z");
 
     const workspaceRows = snapshot.tables.find((table) => table.tableName === "workspace")?.rows ?? [];
@@ -744,9 +764,9 @@ test("collectSqliteMigrationSnapshotSync extracts relational rows and derived at
     assert.equal((auditLogRows[0] as { code?: string }).code, "workspace.cross_workspace_access_denied");
     assert.equal((auditLogRows[0] as { source?: string }).source, "workspace_snapshot_ledger");
     assert.deepEqual(snapshot.warnings, []);
-    sourceDb.close();
   } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
+    sourceDb?.close();
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
 

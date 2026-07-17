@@ -1,4 +1,4 @@
-export const POSTGRES_SCHEMA_VERSION = "20";
+export const POSTGRES_SCHEMA_VERSION = "21";
 
 export const POSTGRES_TABLE_NAMES = [
   "app_metadata",
@@ -705,6 +705,7 @@ export function getPostgresSchemaStatements(): string[] {
         workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
         agent_id TEXT NOT NULL,
         runtime_id TEXT NOT NULL REFERENCES agent_runtime(id) ON DELETE CASCADE,
+        active_attempt_id TEXT,
         router_session_id TEXT,
         issue_id TEXT,
         trigger_type TEXT NOT NULL DEFAULT 'manual',
@@ -773,6 +774,9 @@ export function getPostgresSchemaStatements(): string[] {
         finished_at TIMESTAMPTZ,
         error_text TEXT,
         handoff_snapshot_id TEXT,
+        lease_token TEXT,
+        lease_expires_at TIMESTAMPTZ,
+        heartbeat_at TIMESTAMPTZ,
         metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
@@ -1228,6 +1232,22 @@ export function getPostgresSchemaStatements(): string[] {
     `
       CREATE INDEX IF NOT EXISTS idx_agent_task_attempt_router_created
         ON agent_task_attempt(workspace_id, router_session_id, created_at DESC)
+    `,
+    `
+      ALTER TABLE agent_task_queue
+        ADD COLUMN IF NOT EXISTS active_attempt_id TEXT
+    `,
+    `
+      ALTER TABLE agent_task_attempt
+        ADD COLUMN IF NOT EXISTS lease_token TEXT
+    `,
+    `
+      ALTER TABLE agent_task_attempt
+        ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ
+    `,
+    `
+      ALTER TABLE agent_task_attempt
+        ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ
     `,
     `
       WITH ranked_active_attempts AS (

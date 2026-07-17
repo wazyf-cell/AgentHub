@@ -553,51 +553,56 @@ async function executeRemoteTask(
 
   try {
     await client.startTask(task.id);
-    const bundle = await client.getInputBundle(task.id);
-    materializeInputBundle(workDir, bundle);
+    const taskLeaseHeartbeat = startTaskLeaseHeartbeat(client, task.id, config.heartbeatIntervalMs);
+    try {
+      const bundle = await client.getInputBundle(task.id);
+      materializeInputBundle(workDir, bundle);
 
-    const result = await runProviderTask(
-      runtime,
-      bundle.prompt,
-      workDir,
-      {
-        sessionId: bundle.metadata.routerSession?.providerSessionId ?? resolveRemoteTaskProviderSessionId(task.inputJson),
-        taskTimeoutMs: config.taskTimeoutMs,
-        contextEnv: buildRuntimeContextEnv({
-          AGENT_SPACE_CONTEXT_TASK_ID: task.id,
-          AGENT_SPACE_CONTEXT_AGENT_NAME: readRemoteTaskAgentName(task),
-          AGENT_SPACE_CONTEXT_TRIGGER_TYPE: task.triggerType,
-        }, bundle.metadata.googleWorkspace),
-        runtimeApps: bundle.metadata.runtimeApps?.apps ?? [],
-        runtimeToolCapabilities: bundle.metadata.runtimeToolCapabilities?.capabilities ?? [],
-        onEvent: (event) => {
-          void client.reportMessages(task.id, { messages: [event] }).catch((error) => {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`Failed to report remote task message for ${task.id}: ${message}`);
-          });
+      const result = await runProviderTask(
+        runtime,
+        bundle.prompt,
+        workDir,
+        {
+          sessionId: bundle.metadata.routerSession?.providerSessionId ?? resolveRemoteTaskProviderSessionId(task.inputJson),
+          taskTimeoutMs: config.taskTimeoutMs,
+          contextEnv: buildRuntimeContextEnv({
+            AGENT_SPACE_CONTEXT_TASK_ID: task.id,
+            AGENT_SPACE_CONTEXT_AGENT_NAME: readRemoteTaskAgentName(task),
+            AGENT_SPACE_CONTEXT_TRIGGER_TYPE: task.triggerType,
+          }, bundle.metadata.googleWorkspace),
+          runtimeApps: bundle.metadata.runtimeApps?.apps ?? [],
+          runtimeToolCapabilities: bundle.metadata.runtimeToolCapabilities?.capabilities ?? [],
+          onEvent: (event) => {
+            void client.reportMessages(task.id, { messages: [event] }).catch((error) => {
+              const message = error instanceof Error ? error.message : String(error);
+              console.error(`Failed to report remote task message for ${task.id}: ${message}`);
+            });
+          },
+          onApprovalRequest: (request) => waitForRuntimeApproval(client, task.id, request),
         },
-        onApprovalRequest: (request) => waitForRuntimeApproval(client, task.id, request),
-      },
-    );
+      );
 
-    const preparedSkillImports = prepareSkillImportOperationArtifacts(workDir);
-    for (const warning of preparedSkillImports.warnings) {
-      await client.reportMessages(task.id, { messages: [{ type: "status", content: warning }] }).catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`Failed to report skill import warning for ${task.id}: ${message}`);
+      const preparedSkillImports = prepareSkillImportOperationArtifacts(workDir);
+      for (const warning of preparedSkillImports.warnings) {
+        await client.reportMessages(task.id, { messages: [{ type: "status", content: warning }] }).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`Failed to report skill import warning for ${task.id}: ${message}`);
+        });
+      }
+
+      const outputBundle = collectRuntimeOutputBundle(workDir);
+      if (outputBundle) {
+        await client.uploadOutputBundle(task.id, outputBundle);
+      }
+
+      await client.completeTask(task.id, {
+        outputText: result.output,
+        sessionId: result.sessionId,
+        workDir,
       });
+    } finally {
+      taskLeaseHeartbeat.stop();
     }
-
-    const outputBundle = collectRuntimeOutputBundle(workDir);
-    if (outputBundle) {
-      await client.uploadOutputBundle(task.id, outputBundle);
-    }
-
-    await client.completeTask(task.id, {
-      outputText: result.output,
-      sessionId: result.sessionId,
-      workDir,
-    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const failureMetadata = readProviderTaskFailureMetadata(error);
@@ -617,6 +622,23 @@ async function executeRemoteTask(
       rmSync(workDir, { recursive: true, force: true });
     }
   }
+}
+
+function startTaskLeaseHeartbeat(
+  client: HttpDaemonClient,
+  taskId: string,
+  heartbeatIntervalMs: number,
+): { stop: () => void } {
+  const intervalMs = Math.max(1_000, Math.min(30_000, Math.floor(heartbeatIntervalMs / 2)));
+  const timer = setInterval(() => {
+    void client.heartbeatTask(taskId).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Task lease heartbeat failed for ${taskId}: ${message}`);
+    });
+  }, intervalMs);
+  return {
+    stop: () => clearInterval(timer),
+  };
 }
 
 function buildRuntimeContextEnv(

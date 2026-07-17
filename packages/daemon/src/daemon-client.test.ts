@@ -65,6 +65,78 @@ test("HttpDaemonClient does not retry non-retryable task completion requests", a
   }
 });
 
+test("HttpDaemonClient sends cached task lease headers until terminal report succeeds", async () => {
+  const originalFetch = globalThis.fetch;
+  const seenHeaders: Array<Record<string, string | null>> = [];
+
+  globalThis.fetch = (async (input, init) => {
+    const url = String(input);
+    const headers = new Headers(init?.headers);
+    seenHeaders.push({
+      attemptId: headers.get("x-agent-space-attempt-id"),
+      leaseToken: headers.get("x-agent-space-lease-token"),
+    });
+    if (url.endsWith("/api/daemon/runtimes/runtime-1/tasks/claim")) {
+      return new Response(JSON.stringify({
+        task: {
+          id: "task-1",
+          workspaceId: "default",
+          agentId: "Atlas",
+          runtimeId: "runtime-1",
+          activeAttemptId: "attempt-1",
+          leaseToken: "lease-1",
+          leaseExpiresAt: "2026-01-01T00:05:00.000Z",
+          heartbeatAt: "2026-01-01T00:00:00.000Z",
+          triggerType: "manual",
+          priority: 0,
+          status: "claimed",
+          inputJson: "{}",
+          queuedAt: "2026-01-01T00:00:00.000Z",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/api/daemon/tasks/task-1/complete")) {
+      return new Response(JSON.stringify({ error: "temporary terminal failure" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  try {
+    const client = new HttpDaemonClient("http://localhost:1455", "adt_test", {
+      retryDelayMs: 0,
+      maxRetryAttempts: 1,
+    });
+
+    await client.claimTask("runtime-1");
+    await client.startTask("task-1");
+    await assert.rejects(
+      () => client.completeTask("task-1", { outputText: "done" }),
+      /temporary terminal failure/,
+    );
+    await client.failTask("task-1", { errorText: "fallback failure report" });
+
+    assert.deepEqual(seenHeaders.map((headers) => headers.attemptId), [
+      null,
+      "attempt-1",
+      "attempt-1",
+      "attempt-1",
+    ]);
+    assert.deepEqual(seenHeaders.map((headers) => headers.leaseToken), [
+      null,
+      "lease-1",
+      "lease-1",
+      "lease-1",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("built library surface exports HttpDaemonClient", async (t) => {
   const builtIndexPath = resolve(sourceDir, "../dist/index.js");
   const builtClientPath = resolve(sourceDir, "../dist/daemon-client.js");

@@ -1,7 +1,9 @@
 import {
   readAgentRuntimeSync,
+  heartbeatQueuedTaskLeaseSync,
   readDaemonConnectionSync,
   readQueuedTaskSync,
+  assertActiveTaskLeaseSync,
   validateDaemonApiTokenSync,
   type AgentRuntimeRecord,
   type DaemonApiTokenRecord,
@@ -13,6 +15,11 @@ import { tryRecordWorkspaceAuditEventSync } from "@agent-space/services";
 export interface DaemonAuthContext {
   token: DaemonApiTokenRecord;
   workspaceId: string;
+}
+
+export interface TaskLeaseContext {
+  attemptId: string;
+  leaseToken: string;
 }
 
 export function requireDaemonAuth(request: Request): DaemonAuthContext | Response {
@@ -85,6 +92,39 @@ export function readTaskForWorkspace(taskId: string, workspaceId: string): Queue
     return Response.json({ error: "Task does not belong to this workspace." }, { status: 403 });
   }
   return task;
+}
+
+export function requireTaskLeaseForRequest(request: Request, task: QueuedTaskRecord): TaskLeaseContext | Response {
+  const attemptId = request.headers.get("x-agent-space-attempt-id")?.trim();
+  const leaseToken = request.headers.get("x-agent-space-lease-token")?.trim();
+  if (!attemptId || !leaseToken) {
+    return Response.json({ error: "Task lease headers are required." }, { status: 428 });
+  }
+  try {
+    assertActiveTaskLeaseSync({ taskId: task.id, attemptId, leaseToken });
+    return { attemptId, leaseToken };
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 409 },
+    );
+  }
+}
+
+export function heartbeatTaskLeaseForRequest(request: Request, task: QueuedTaskRecord): TaskLeaseContext | Response {
+  const lease = requireTaskLeaseForRequest(request, task);
+  if (lease instanceof Response) {
+    return lease;
+  }
+  try {
+    heartbeatQueuedTaskLeaseSync({ taskId: task.id, ...lease });
+    return lease;
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 409 },
+    );
+  }
 }
 
 function recordDaemonWorkspaceAccessDenied(input: {

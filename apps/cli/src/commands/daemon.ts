@@ -42,6 +42,7 @@ import {
   getDaemonTaskWorkDirPath,
   getLocalDaemonStateDirPath,
   heartbeatDaemonSync,
+  heartbeatQueuedTaskLeaseSync,
   listDaemonApiTokensSync,
   listDaemonSnapshotsSync,
   listAgentRouterEventsSync,
@@ -57,6 +58,7 @@ import {
   startQueuedTaskSync,
   recordTokenUsageSync,
   type AgentRuntimeRecord,
+  type ClaimedTaskRecord,
   type QueuedTaskRecord,
 } from "@agent-space/db";
 import {
@@ -783,57 +785,62 @@ async function executeRemoteQueuedTask(
 
   try {
     await client.startTask(task.id);
-    const bundle = await client.getInputBundle(task.id);
-    materializeInputBundle(workDir, bundle);
+    const taskLeaseHeartbeat = startTaskLeaseHeartbeat(client, task.id);
+    try {
+      const bundle = await client.getInputBundle(task.id);
+      materializeInputBundle(workDir, bundle);
 
-    const result = await runProviderTask(
-      runtime,
-      bundle.prompt,
-      workDir,
-      {
-        sessionId: (bundle.metadata.routerSession?.providerSessionId ?? payload.channelSessionId?.trim()) || undefined,
-        contextEnv: buildRuntimeContextEnv({
-          AGENT_SPACE_CONTEXT_AGENT_NAME: payload.assignee ?? task.agentId,
-          AGENT_SPACE_CONTEXT_TASK_ID: task.id,
-          AGENT_SPACE_CONTEXT_TRIGGER_TYPE: task.triggerType,
-        }, bundle.metadata.googleWorkspace),
-        runtimeToolCapabilities: bundle.metadata.runtimeToolCapabilities?.capabilities ?? [],
-        onEvent: (event) => {
-          void client.reportMessages(task.id, {
-            messages: [
-              {
-                type: event.type,
-              content: event.content,
-              tool: event.tool,
-              inputJson: event.inputJson,
-              output: event.output,
-            },
-          ],
+      const result = await runProviderTask(
+        runtime,
+        bundle.prompt,
+        workDir,
+        {
+          sessionId: (bundle.metadata.routerSession?.providerSessionId ?? payload.channelSessionId?.trim()) || undefined,
+          contextEnv: buildRuntimeContextEnv({
+            AGENT_SPACE_CONTEXT_AGENT_NAME: payload.assignee ?? task.agentId,
+            AGENT_SPACE_CONTEXT_TASK_ID: task.id,
+            AGENT_SPACE_CONTEXT_TRIGGER_TYPE: task.triggerType,
+          }, bundle.metadata.googleWorkspace),
+          runtimeToolCapabilities: bundle.metadata.runtimeToolCapabilities?.capabilities ?? [],
+          onEvent: (event) => {
+            void client.reportMessages(task.id, {
+              messages: [
+                {
+                  type: event.type,
+                  content: event.content,
+                  tool: event.tool,
+                  inputJson: event.inputJson,
+                  output: event.output,
+                },
+              ],
             }).catch((error) => {
               const message = error instanceof Error ? error.message : String(error);
               console.error(`Failed to report remote task message for ${task.id}: ${message}`);
             });
+          },
         },
-      },
-    );
+      );
 
-    const preparedSkillImports = prepareSkillImportOperationArtifacts(workDir);
-    for (const warning of preparedSkillImports.warnings) {
-      await client.reportMessages(task.id, { messages: [{ type: "status", content: warning }] }).catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`Failed to report skill import warning for ${task.id}: ${message}`);
+      const preparedSkillImports = prepareSkillImportOperationArtifacts(workDir);
+      for (const warning of preparedSkillImports.warnings) {
+        await client.reportMessages(task.id, { messages: [{ type: "status", content: warning }] }).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`Failed to report skill import warning for ${task.id}: ${message}`);
+        });
+      }
+
+      const outputBundle = collectRuntimeOutputBundle(workDir);
+      if (outputBundle) {
+        await client.uploadOutputBundle(task.id, outputBundle);
+      }
+      await client.completeTask(task.id, {
+        outputText: result.output,
+        sessionId: result.sessionId,
+        workDir,
       });
+    } finally {
+      taskLeaseHeartbeat.stop();
     }
-
-    const outputBundle = collectRuntimeOutputBundle(workDir);
-    if (outputBundle) {
-      await client.uploadOutputBundle(task.id, outputBundle);
-    }
-    await client.completeTask(task.id, {
-      outputText: result.output,
-      sessionId: result.sessionId,
-      workDir,
-    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const failureMetadata = readProviderTaskFailureMetadata(error);
@@ -865,8 +872,41 @@ async function executeRemoteQueuedTask(
   }
 }
 
-async function executeQueuedTask(runtime: AgentRuntimeRecord, queuedTask: QueuedTaskRecord): Promise<void> {
-  const task = startQueuedTaskSync(queuedTask.id);
+function startTaskLeaseHeartbeat(client: HttpDaemonClient, taskId: string): { stop: () => void } {
+  const timer = setInterval(() => {
+    void client.heartbeatTask(taskId).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Task lease heartbeat failed for ${taskId}: ${message}`);
+    });
+  }, 30_000);
+  return {
+    stop: () => clearInterval(timer),
+  };
+}
+
+function startLocalTaskLeaseHeartbeat(
+  taskId: string,
+  lease: { attemptId: string; leaseToken: string },
+): { stop: () => void } {
+  const timer = setInterval(() => {
+    try {
+      heartbeatQueuedTaskLeaseSync({ taskId, ...lease });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Local task lease heartbeat failed for ${taskId}: ${message}`);
+    }
+  }, 30_000);
+  return {
+    stop: () => clearInterval(timer),
+  };
+}
+
+async function executeQueuedTask(runtime: AgentRuntimeRecord, queuedTask: ClaimedTaskRecord): Promise<void> {
+  const taskLease = {
+    attemptId: queuedTask.activeAttemptId,
+    leaseToken: queuedTask.leaseToken,
+  };
+  const task = startQueuedTaskSync(queuedTask.id, taskLease);
   writeWorkspaceStateSync(markChannelDocumentRunStepRunningSync(task.id, task.workspaceId), task.workspaceId);
   const payload = parseTaskPayload(task);
 
@@ -879,7 +919,7 @@ async function executeQueuedTask(runtime: AgentRuntimeRecord, queuedTask: Queued
     const pct = Math.round(budgetCheck.percentUsed * 100);
     const msg = `Budget exceeded (${pct}% of $${budgetCheck.budget.limitUsd.toFixed(2)}). Task paused.`;
     appendTaskMessageSync({ taskId: task.id, type: "status", content: msg });
-    failQueuedTaskSync({ taskId: task.id, errorText: msg });
+    failQueuedTaskSync({ taskId: task.id, ...taskLease, errorText: msg });
     if (payload.taskId) updateTaskStatusSync(payload.taskId, "blocked", task.workspaceId);
     return;
   }
@@ -952,6 +992,7 @@ async function executeQueuedTask(runtime: AgentRuntimeRecord, queuedTask: Queued
     modelId: resolveModelId(runtime),
   };
   let persistedOutputAttachments: MessageAttachment[] = [];
+  const taskLeaseHeartbeat = startLocalTaskLeaseHeartbeat(task.id, taskLease);
 
   try {
     const providerSession = chooseProviderSessionForTaskSync({ task });
@@ -1078,6 +1119,7 @@ async function executeQueuedTask(runtime: AgentRuntimeRecord, queuedTask: Queued
     }
     completeQueuedTaskSync({
       taskId: task.id,
+      ...taskLease,
       resultJson: {
         provider: runtime.provider,
         output: outputEnvelope.text,
@@ -1216,6 +1258,7 @@ async function executeQueuedTask(runtime: AgentRuntimeRecord, queuedTask: Queued
     }
     failQueuedTaskSync({
       taskId: task.id,
+      ...taskLease,
       errorText: message,
       errorCode: providerError?.code,
       errorCategory: providerError?.category,
@@ -1291,6 +1334,7 @@ async function executeQueuedTask(runtime: AgentRuntimeRecord, queuedTask: Queued
       }, task.workspaceId);
     }
   } finally {
+    taskLeaseHeartbeat.stop();
     try {
       clearTaskOutputArtifacts(workDir);
       pruneOrphanWorkspaceAttachmentsSync(task.workspaceId);

@@ -27,7 +27,7 @@ import {
   updateTaskStatusSync,
   writeWorkspaceStateSync,
 } from "@agent-space/services";
-import { readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
+import { heartbeatTaskLeaseForRequest, readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
 import {
   clearDaemonTaskOutputStaging,
   getDaemonTaskOutputStagingDir,
@@ -54,6 +54,10 @@ export async function POST(
   const task = readTaskForWorkspace(taskId, auth.workspaceId);
   if (task instanceof Response) {
     return task;
+  }
+  const lease = heartbeatTaskLeaseForRequest(request, task);
+  if (lease instanceof Response) {
+    return lease;
   }
 
   const runtime = readAgentRuntimeSync(task.runtimeId);
@@ -226,30 +230,6 @@ export async function POST(
       });
     }
 
-    completeQueuedTaskSync({
-      taskId: task.id,
-      resultJson: {
-        provider: runtime.provider,
-        output: finalOutputText,
-        attachments: outputEnvelope.attachments.map((attachment) => ({
-          id: attachment.id,
-          fileName: attachment.fileName,
-          mediaType: attachment.mediaType,
-          kind: attachment.kind,
-          sizeBytes: attachment.sizeBytes,
-        })),
-        skillImports: skillImportOperations.imports,
-        documentUpdates: documentOperations.documentUpdates,
-        externalDocumentLinks: documentRuntimeOutputOperations.externalDocumentLinks,
-        documentPermissionRequests: documentRuntimeOutputOperations.permissionRequests,
-        knowledgeProposals: knowledgeProposalOperations.knowledgeProposals,
-        externalSheetOperations: externalSheetOperations.operations,
-        externalGoogleDocOperations: externalGoogleDocOperations.operations,
-      },
-      sessionId: body.sessionId,
-      workDir: body.workDir,
-    });
-
     if (payload.taskId) {
       updateTaskStatusSync(payload.taskId, "done", task.workspaceId);
     }
@@ -353,6 +333,32 @@ export async function POST(
       workDir: body.workDir,
     });
 
+    completeQueuedTaskSync({
+      taskId: task.id,
+      attemptId: lease.attemptId,
+      leaseToken: lease.leaseToken,
+      resultJson: {
+        provider: runtime.provider,
+        output: finalOutputText,
+        attachments: outputEnvelope.attachments.map((attachment) => ({
+          id: attachment.id,
+          fileName: attachment.fileName,
+          mediaType: attachment.mediaType,
+          kind: attachment.kind,
+          sizeBytes: attachment.sizeBytes,
+        })),
+        skillImports: skillImportOperations.imports,
+        documentUpdates: documentOperations.documentUpdates,
+        externalDocumentLinks: documentRuntimeOutputOperations.externalDocumentLinks,
+        documentPermissionRequests: documentRuntimeOutputOperations.permissionRequests,
+        knowledgeProposals: knowledgeProposalOperations.knowledgeProposals,
+        externalSheetOperations: externalSheetOperations.operations,
+        externalGoogleDocOperations: externalGoogleDocOperations.operations,
+      },
+      sessionId: body.sessionId,
+      workDir: body.workDir,
+    });
+
     return Response.json({
       task: {
         id: task.id,
@@ -379,6 +385,8 @@ export async function POST(
       : undefined;
     failQueuedTaskSync({
       taskId: task.id,
+      attemptId: lease.attemptId,
+      leaseToken: lease.leaseToken,
       errorText: message,
       errorCode: providerError?.code,
       errorCategory: providerError?.category,

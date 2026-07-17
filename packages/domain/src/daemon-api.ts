@@ -133,6 +133,10 @@ export interface ClaimedDaemonTask {
   workspaceId: string;
   agentId: string;
   runtimeId: string;
+  activeAttemptId: string;
+  leaseToken: string;
+  leaseExpiresAt: string;
+  heartbeatAt?: string;
   routerSessionId?: string;
   triggerType: string;
   priority: number;

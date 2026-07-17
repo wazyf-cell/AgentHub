@@ -2,7 +2,7 @@ import { buildTaskExecutionEventContext, recordTaskExecutionEventSync } from "@a
 import type { DaemonTaskOutputBundle } from "@agent-space/domain";
 import { parseTaskPayload } from "agent-space-daemon";
 import { postMessageSync } from "@agent-space/services";
-import { readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
+import { heartbeatTaskLeaseForRequest, readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
 import { materializeOutputBundleToStaging } from "../../../_lib/output-bundle";
 
 export const runtime = "nodejs";
@@ -21,6 +21,10 @@ export async function POST(
   const task = readTaskForWorkspace(taskId, auth.workspaceId);
   if (task instanceof Response) {
     return task;
+  }
+  const lease = heartbeatTaskLeaseForRequest(request, task);
+  if (lease instanceof Response) {
+    return lease;
   }
 
   const body = (await request.json()) as Partial<DaemonTaskOutputBundle>;

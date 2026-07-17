@@ -1,5 +1,5 @@
 import { listApprovalsSync } from "@agent-space/services";
-import { readTaskForWorkspace, requireDaemonAuth } from "../../../../_lib/auth";
+import { readTaskForWorkspace, requireDaemonAuth, requireTaskLeaseForRequest } from "../../../../_lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +17,10 @@ export async function GET(
   const task = readTaskForWorkspace(taskId, auth.workspaceId);
   if (task instanceof Response) {
     return task;
+  }
+  const lease = requireTaskLeaseForRequest(request, task);
+  if (lease instanceof Response) {
+    return lease;
   }
 
   const approval = listApprovalsSync(auth.workspaceId).find((item) => item.id === approvalId);

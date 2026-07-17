@@ -446,6 +446,9 @@ export function createAgentTaskAttemptSync(input: {
   runtimeId: string;
   provider: AgentRuntimeRecord["provider"];
   providerSessionId?: string;
+  leaseToken?: string;
+  leaseExpiresAt?: string;
+  heartbeatAt?: string;
   status?: AgentTaskAttemptStatus;
   metadata?: Record<string, unknown>;
 }): AgentTaskAttemptRecord {
@@ -467,10 +470,13 @@ export function createAgentTaskAttemptSync(input: {
       finished_at,
       error_text,
       handoff_snapshot_id,
+      lease_token,
+      lease_expires_at,
+      heartbeat_at,
       metadata_json,
       created_at,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.workspaceId ?? DEFAULT_WORKSPACE_ID,
@@ -481,6 +487,9 @@ export function createAgentTaskAttemptSync(input: {
     input.providerSessionId ?? null,
     status,
     status === "running" ? now : null,
+    input.leaseToken ?? null,
+    input.leaseExpiresAt ?? null,
+    input.heartbeatAt ?? null,
     JSON.stringify(input.metadata ?? {}),
     now,
     now,
@@ -507,6 +516,9 @@ export function readAgentTaskAttemptSync(id: string): AgentTaskAttemptRecord | n
       finished_at AS finishedAt,
       error_text AS errorText,
       handoff_snapshot_id AS handoffSnapshotId,
+      lease_token AS leaseToken,
+      lease_expires_at AS leaseExpiresAt,
+      heartbeat_at AS heartbeatAt,
       metadata_json AS metadataJson,
       created_at AS createdAt,
       updated_at AS updatedAt
@@ -531,6 +543,9 @@ export function readLatestAgentTaskAttemptForTaskSync(taskQueueId: string): Agen
       finished_at AS finishedAt,
       error_text AS errorText,
       handoff_snapshot_id AS handoffSnapshotId,
+      lease_token AS leaseToken,
+      lease_expires_at AS leaseExpiresAt,
+      heartbeat_at AS heartbeatAt,
       metadata_json AS metadataJson,
       created_at AS createdAt,
       updated_at AS updatedAt
@@ -576,6 +591,9 @@ export function listAgentTaskAttemptsSync(options: {
       finished_at AS finishedAt,
       error_text AS errorText,
       handoff_snapshot_id AS handoffSnapshotId,
+      lease_token AS leaseToken,
+      lease_expires_at AS leaseExpiresAt,
+      heartbeat_at AS heartbeatAt,
       metadata_json AS metadataJson,
       created_at AS createdAt,
       updated_at AS updatedAt
@@ -593,6 +611,9 @@ export function updateAgentTaskAttemptSync(input: {
   providerSessionId?: string | null;
   errorText?: string | null;
   handoffSnapshotId?: string | null;
+  leaseToken?: string | null;
+  leaseExpiresAt?: string | null;
+  heartbeatAt?: string | null;
   metadata?: Record<string, unknown>;
 }): AgentTaskAttemptRecord {
   const now = new Date().toISOString();
@@ -604,6 +625,9 @@ export function updateAgentTaskAttemptSync(input: {
          finished_at = CASE WHEN ? IN ('completed', 'failed', 'cancelled') THEN COALESCE(finished_at, ?) ELSE finished_at END,
          error_text = COALESCE(?, error_text),
          handoff_snapshot_id = COALESCE(?, handoff_snapshot_id),
+         lease_token = COALESCE(?, lease_token),
+         lease_expires_at = COALESCE(?, lease_expires_at),
+         heartbeat_at = COALESCE(?, heartbeat_at),
          metadata_json = COALESCE(?, metadata_json),
          updated_at = ?
      WHERE id = ?`,
@@ -616,6 +640,9 @@ export function updateAgentTaskAttemptSync(input: {
     now,
     input.errorText ?? null,
     input.handoffSnapshotId ?? null,
+    input.leaseToken ?? null,
+    input.leaseExpiresAt ?? null,
+    input.heartbeatAt ?? null,
     input.metadata ? JSON.stringify(input.metadata) : null,
     now,
     input.attemptId,
@@ -940,6 +967,9 @@ function mapAgentTaskAttemptRecord(value: Record<string, unknown>): AgentTaskAtt
     finishedAt: typeof value.finishedAt === "string" ? value.finishedAt : undefined,
     errorText: typeof value.errorText === "string" ? value.errorText : undefined,
     handoffSnapshotId: typeof value.handoffSnapshotId === "string" ? value.handoffSnapshotId : undefined,
+    leaseToken: typeof value.leaseToken === "string" ? value.leaseToken : undefined,
+    leaseExpiresAt: readTimestampString(value.leaseExpiresAt),
+    heartbeatAt: readTimestampString(value.heartbeatAt),
     metadataJson: value.metadataJson,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
@@ -1017,6 +1047,14 @@ function isAgentRouterContextSnapshotType(value: unknown): value is AgentRouterC
 
 function isAgentTaskAttemptStatus(value: unknown): value is AgentTaskAttemptStatus {
   return value === "claimed" || value === "running" || value === "completed" || value === "failed" || value === "cancelled";
+}
+
+function readTimestampString(value: unknown): string | undefined {
+  if (!(typeof value === "string" || value instanceof Date)) {
+    return undefined;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
 }
 
 function normalizeLimit(limit: number | undefined, defaultLimit: number): number {

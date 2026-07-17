@@ -1,6 +1,6 @@
 import { createRuntimeToolApprovalRequestSync } from "@agent-space/services";
 import type { CreateRuntimeApprovalRequest } from "@agent-space/domain";
-import { readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
+import { heartbeatTaskLeaseForRequest, readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +18,10 @@ export async function POST(
   const task = readTaskForWorkspace(taskId, auth.workspaceId);
   if (task instanceof Response) {
     return task;
+  }
+  const lease = heartbeatTaskLeaseForRequest(request, task);
+  if (lease instanceof Response) {
+    return lease;
   }
 
   const body = (await request.json()) as Partial<CreateRuntimeApprovalRequest>;

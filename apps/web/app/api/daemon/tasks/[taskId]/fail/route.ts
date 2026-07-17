@@ -15,7 +15,7 @@ import {
   updateTaskStatusSync,
   writeWorkspaceStateSync,
 } from "@agent-space/services";
-import { readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
+import { heartbeatTaskLeaseForRequest, readTaskForWorkspace, requireDaemonAuth } from "../../../_lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +34,10 @@ export async function POST(
   if (task instanceof Response) {
     return task;
   }
+  const lease = heartbeatTaskLeaseForRequest(request, task);
+  if (lease instanceof Response) {
+    return lease;
+  }
 
   const body = (await request.json()) as Partial<FailTaskRequest>;
   if (!body.errorText?.trim()) {
@@ -47,6 +51,8 @@ export async function POST(
       ?? (payload.contactId ? resolveCompatibleDirectChannelRecord(workspaceState, payload.contactId)?.name : undefined);
   failQueuedTaskSync({
     taskId: task.id,
+    attemptId: lease.attemptId,
+    leaseToken: lease.leaseToken,
     errorText: body.errorText.trim(),
     sessionId: body.sessionId,
     workDir: body.workDir,
