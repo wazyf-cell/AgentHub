@@ -20,6 +20,11 @@ import type {
 import {
   createCodeDevelopmentCollaborationRunAction,
   createAutomationRuleAction,
+  markCodeDevelopmentSessionBlockedAction,
+  markCodeDevelopmentSessionMergedAction,
+  recordCodeDevelopmentMergePreflightAction,
+  recordCodeDevelopmentPatchManifestAction,
+  reviewCodeDevelopmentPatchAction,
   toggleAutomationRuleAction,
   deleteAutomationRuleAction,
   stopAutoContinuationAction,
@@ -190,6 +195,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
   const [codeDevBranchPrefix, setCodeDevBranchPrefix] = useState("agent-space");
   const [codeDevBranchName, setCodeDevBranchName] = useState("");
   const [codeDevError, setCodeDevError] = useState<string | null>(null);
+  const [codeDevActionError, setCodeDevActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const selectedRule = data.rules.find((rule) => rule.id === selectedId);
   const selectedBuiltinSequenceRule = selectedId === BUILTIN_SEQUENCE_RULE_ID;
@@ -294,6 +300,117 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
         refreshWorkspaceModule(onDataChanged, router);
       } catch (error) {
         setCodeDevError(error instanceof Error ? error.message : tx("创建失败。", "Failed to create run."));
+      }
+    });
+  }
+
+  function handleRecordCodeDevelopmentPatch(session: CodeDevelopmentSessionViewRecord): void {
+    const summary = window.prompt(tx("Patch 摘要", "Patch summary"), session.patchSummary ?? "");
+    if (!summary?.trim()) return;
+    const filesRaw = window.prompt(tx("变更文件，多个文件用逗号分隔", "Changed files, comma separated"), session.changedFiles.join(", "));
+    const fileChanges = parseCodeDevelopmentFileChanges(filesRaw);
+    if (fileChanges.length === 0) {
+      setCodeDevActionError(tx("至少需要一个变更文件。", "At least one changed file is required."));
+      return;
+    }
+    const riskNotesRaw = window.prompt(tx("风险备注，可选，多个用逗号分隔", "Risk notes, optional, comma separated"), session.riskNotes.join(", "));
+
+    startTransition(async () => {
+      try {
+        setCodeDevActionError(null);
+        await recordCodeDevelopmentPatchManifestAction({
+          sessionId: session.id,
+          summary: summary.trim(),
+          fileChanges,
+          baseRef: session.baseRef,
+          headRef: session.branchName,
+          riskNotes: parseCommaSeparatedValues(riskNotesRaw),
+        });
+        refreshWorkspaceModule(onDataChanged, router);
+      } catch (error) {
+        setCodeDevActionError(error instanceof Error ? error.message : tx("记录 Patch 失败。", "Failed to record patch."));
+      }
+    });
+  }
+
+  function handleRecordCodeDevelopmentPreflight(session: CodeDevelopmentSessionViewRecord): void {
+    const targetBranch = window.prompt(tx("目标分支", "Target branch"), session.preflightTargetBranch ?? session.baseRef ?? "main");
+    if (!targetBranch?.trim()) return;
+    const checkedFilesRaw = window.prompt(tx("预检文件，多个文件用逗号分隔", "Checked files, comma separated"), session.changedFiles.join(", "));
+    if (checkedFilesRaw === null) return;
+    const conflictFilesRaw = window.prompt(tx("冲突文件，可选，多个用逗号分隔", "Conflict files, optional, comma separated"), session.preflightConflictFiles.join(", "));
+    const warningsRaw = window.prompt(tx("预检警告，可选，多个用逗号分隔", "Warnings, optional, comma separated"), session.preflightWarnings.join(", "));
+
+    startTransition(async () => {
+      try {
+        setCodeDevActionError(null);
+        await recordCodeDevelopmentMergePreflightAction({
+          sessionId: session.id,
+          targetBranch: targetBranch.trim(),
+          checkedFiles: parseCommaSeparatedValues(checkedFilesRaw),
+          conflictFiles: parseCommaSeparatedValues(conflictFilesRaw),
+          warnings: parseCommaSeparatedValues(warningsRaw),
+          baseRef: session.baseRef,
+          headRef: session.branchName,
+        });
+        refreshWorkspaceModule(onDataChanged, router);
+      } catch (error) {
+        setCodeDevActionError(error instanceof Error ? error.message : tx("记录预检失败。", "Failed to record preflight."));
+      }
+    });
+  }
+
+  function handleReviewCodeDevelopmentPatch(
+    session: CodeDevelopmentSessionViewRecord,
+    status: "approved" | "rejected" | "needs_revision",
+  ): void {
+    const comment = window.prompt(tx("审查备注，可选", "Review comment, optional"), session.reviewComment ?? "");
+    if (comment === null) return;
+    startTransition(async () => {
+      try {
+        setCodeDevActionError(null);
+        await reviewCodeDevelopmentPatchAction({
+          sessionId: session.id,
+          status,
+          comment: comment ?? undefined,
+        });
+        refreshWorkspaceModule(onDataChanged, router);
+      } catch (error) {
+        setCodeDevActionError(error instanceof Error ? error.message : tx("审查失败。", "Failed to review patch."));
+      }
+    });
+  }
+
+  function handleMarkCodeDevelopmentMerged(session: CodeDevelopmentSessionViewRecord): void {
+    const notes = window.prompt(tx("合并备注，可选", "Merge notes, optional"), session.mergeNotes ?? "");
+    if (notes === null) return;
+    startTransition(async () => {
+      try {
+        setCodeDevActionError(null);
+        await markCodeDevelopmentSessionMergedAction({
+          sessionId: session.id,
+          notes: notes ?? undefined,
+        });
+        refreshWorkspaceModule(onDataChanged, router);
+      } catch (error) {
+        setCodeDevActionError(error instanceof Error ? error.message : tx("标记合并失败。", "Failed to mark merged."));
+      }
+    });
+  }
+
+  function handleMarkCodeDevelopmentBlocked(session: CodeDevelopmentSessionViewRecord): void {
+    const reason = window.prompt(tx("阻塞原因", "Blocked reason"), session.blockedReason ?? "");
+    if (!reason?.trim()) return;
+    startTransition(async () => {
+      try {
+        setCodeDevActionError(null);
+        await markCodeDevelopmentSessionBlockedAction({
+          sessionId: session.id,
+          reason: reason.trim(),
+        });
+        refreshWorkspaceModule(onDataChanged, router);
+      } catch (error) {
+        setCodeDevActionError(error instanceof Error ? error.message : tx("标记阻塞失败。", "Failed to mark blocked."));
       }
     });
   }
@@ -860,6 +977,7 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                 {isPending ? tx("创建中...", "Creating...") : tx("创建开发运行", "Create development run")}
               </button>
             </div>
+            {codeDevActionError ? <small>{codeDevActionError}</small> : null}
             <div className="automations-run-list">
               {data.codeDevelopmentSessions.length === 0 ? (
                 <EmptyState
@@ -875,9 +993,71 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                     <div className="automations-run" key={session.id}>
                       <div className="automations-run__header">
                         <strong>{session.title}</strong>
-                        <span className={`automations-card__badge automations-card__badge--run-${statusLabel.badge}`}>
-                          {tx(statusLabel.label, statusLabel.labelEn)}
-                        </span>
+                        <div className="automations-run__header-actions">
+                          <span className={`automations-card__badge automations-card__badge--run-${statusLabel.badge}`}>
+                            {tx(statusLabel.label, statusLabel.labelEn)}
+                          </span>
+                          {session.status === "merged" || session.status === "blocked" || session.status === "cancelled" ? null : (
+                            <>
+                              <button
+                                className="knowledge-btn knowledge-btn--ghost"
+                                disabled={isPending}
+                                onClick={() => handleRecordCodeDevelopmentPatch(session)}
+                                type="button"
+                              >
+                                {tx("记录 Patch", "Record patch")}
+                              </button>
+                              <button
+                                className="knowledge-btn knowledge-btn--ghost"
+                                disabled={isPending}
+                                onClick={() => handleRecordCodeDevelopmentPreflight(session)}
+                                type="button"
+                              >
+                                {tx("预检", "Preflight")}
+                              </button>
+                              <button
+                                className="knowledge-btn knowledge-btn--ghost"
+                                disabled={isPending}
+                                onClick={() => handleReviewCodeDevelopmentPatch(session, "approved")}
+                                type="button"
+                              >
+                                {tx("批准", "Approve")}
+                              </button>
+                              <button
+                                className="knowledge-btn knowledge-btn--ghost"
+                                disabled={isPending}
+                                onClick={() => handleReviewCodeDevelopmentPatch(session, "needs_revision")}
+                                type="button"
+                              >
+                                {tx("需修改", "Needs revision")}
+                              </button>
+                              <button
+                                className="knowledge-btn knowledge-btn--ghost"
+                                disabled={isPending}
+                                onClick={() => handleReviewCodeDevelopmentPatch(session, "rejected")}
+                                type="button"
+                              >
+                                {tx("驳回", "Reject")}
+                              </button>
+                              <button
+                                className="knowledge-btn knowledge-btn--primary"
+                                disabled={isPending}
+                                onClick={() => handleMarkCodeDevelopmentMerged(session)}
+                                type="button"
+                              >
+                                {tx("标记已合并", "Mark merged")}
+                              </button>
+                              <button
+                                className="knowledge-btn knowledge-btn--danger"
+                                disabled={isPending}
+                                onClick={() => handleMarkCodeDevelopmentBlocked(session)}
+                                type="button"
+                              >
+                                {tx("阻塞", "Block")}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                       <p>{session.goal}</p>
                       <small>
@@ -1106,4 +1286,24 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
       </div>
     </section>
   );
+}
+
+function parseCommaSeparatedValues(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseCodeDevelopmentFileChanges(value: string | null): Array<{
+  path: string;
+  changeType: "modified";
+}> {
+  return parseCommaSeparatedValues(value).map((path) => ({
+    path,
+    changeType: "modified",
+  }));
 }
