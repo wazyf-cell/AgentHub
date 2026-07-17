@@ -297,6 +297,23 @@ export {
   listCollaborationChangeProposalsSync,
   rejectCollaborationChangeProposalSync,
 } from "./collaboration/proposals.ts";
+export {
+  approveCollaborationPlanSync,
+  createAndDispatchCollaborationRunSync,
+  createCollaborationPlanDraftSync,
+  dispatchReadyCollaborationNodesSync,
+  type ApproveCollaborationPlanInput,
+  type ApproveCollaborationPlanResult,
+  type CollaborationDispatchPriority,
+  type CollaborationPlanResult,
+  type CreateAndDispatchCollaborationRunInput,
+  type CreateAndDispatchCollaborationRunResult,
+  type CreateCollaborationPlanDraftInput,
+  type DispatchReadyCollaborationNodesInput,
+  type DispatchReadyCollaborationNodesResult,
+  type DispatchedCollaborationNode,
+  type SkippedCollaborationNode,
+} from "./orchestrator/orchestrator.ts";
 
 // Materials
 export {

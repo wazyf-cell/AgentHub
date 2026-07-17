@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { before, beforeEach } from "node:test";
 import {
+  approveCollaborationRunSync,
   bindEmployeeRuntimeSync,
   completeCollaborationTaskNodeSync,
   createCollaborationRunSync,
@@ -150,6 +151,62 @@ test("queues a ready collaboration node into the native task queue with orchestr
   assert.equal(payload.orchestrationRunId, run.id);
   assert.equal(payload.orchestrationStepId, "node-analysis");
   assert.equal(payload.stepInstruction, "分析用户输入并产出要点。");
+});
+
+test("keeps draft collaboration nodes pending until the run is approved", () => {
+  const { workspaceId } = seedWorkspaceRuntime("collab-approval");
+  const { run, nodes } = createCollaborationRunSync({
+    workspaceId,
+    title: "Draft implementation plan",
+    goal: "先审阅计划，再派发多个 Agent。",
+    status: "draft",
+    createdByDisplayName: "Tianyu",
+    nodes: [
+      {
+        id: "node-plan",
+        agentId: "Atlas",
+        title: "Plan",
+        instruction: "输出实现计划。",
+      },
+      {
+        id: "node-review",
+        agentId: "Nova",
+        title: "Review",
+        instruction: "审查计划。",
+        dependsOnNodeIds: ["node-plan"],
+      },
+    ],
+  });
+
+  assert.equal(run.status, "draft");
+  assert.equal(run.approvedAt, undefined);
+  assert.deepEqual(nodes.map((node) => [node.id, node.status]), [
+    ["node-plan", "pending"],
+    ["node-review", "pending"],
+  ]);
+  assert.deepEqual(listReadyCollaborationTaskNodesSync(run.id, workspaceId), []);
+
+  const approved = approveCollaborationRunSync({
+    workspaceId,
+    runId: run.id,
+    approvedByDisplayName: "Tianyu",
+  });
+
+  assert.equal(approved.run.status, "approved");
+  assert.ok(approved.run.approvedAt);
+  assert.deepEqual(approved.nodes.map((node) => [node.id, node.status]), [
+    ["node-plan", "ready"],
+    ["node-review", "pending"],
+  ]);
+  assert.deepEqual(approved.readyNodes.map((node) => node.id), ["node-plan"]);
+  assert.deepEqual(
+    listCollaborationRunEventsSync(run.id, workspaceId).map((event) => event.type),
+    ["run.created", "run.approved"],
+  );
+  assert.throws(
+    () => approveCollaborationRunSync({ workspaceId, runId: run.id }),
+    /not a draft/i,
+  );
 });
 
 test("failing a collaboration node blocks downstream dependents", () => {

@@ -273,6 +273,79 @@ export function listReadyCollaborationTaskNodesSync(
   return listCollaborationTaskNodesSync(runId, workspaceId).filter((node) => node.status === "ready");
 }
 
+export function approveCollaborationRunSync(input: {
+  runId: string;
+  workspaceId?: string;
+  approvedByUserId?: string;
+  approvedByDisplayName?: string;
+}): {
+  run: CollaborationRunRecord;
+  nodes: CollaborationTaskNodeRecord[];
+  readyNodes: CollaborationTaskNodeRecord[];
+} {
+  const workspaceId = input.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  const now = new Date().toISOString();
+  const db = getDatabase();
+  withTransaction(db, () => {
+    const run = readCollaborationRunSync(input.runId, workspaceId);
+    if (!run) {
+      throw new Error(`Collaboration run "${input.runId}" does not exist.`);
+    }
+    if (run.status !== "draft") {
+      throw new Error(`Collaboration run "${input.runId}" is not a draft.`);
+    }
+
+    const result = db.prepare(
+      `UPDATE collaboration_run
+       SET status = 'approved',
+           approved_at = COALESCE(approved_at, ?),
+           updated_at = ?
+       WHERE workspace_id = ?
+         AND id = ?
+         AND status = 'draft'`,
+    ).run(now, now, workspaceId, input.runId);
+    if (result.changes !== 1) {
+      throw new Error(`Collaboration run "${input.runId}" could not be approved.`);
+    }
+
+    db.prepare(
+      `UPDATE collaboration_task_node
+       SET status = 'ready',
+           updated_at = ?
+       WHERE workspace_id = ?
+         AND run_id = ?
+         AND status = 'pending'
+         AND depends_on_node_ids_json = '[]'`,
+    ).run(now, workspaceId, input.runId);
+
+    const readyNodeIds = listCollaborationTaskNodesSync(input.runId, workspaceId)
+      .filter((node) => node.status === "ready")
+      .map((node) => node.id);
+
+    recordCollaborationRunEventInTransaction({
+      workspaceId,
+      runId: input.runId,
+      type: "run.approved",
+      summary: run.title,
+      data: {
+        approvedByUserId: input.approvedByUserId,
+        approvedByDisplayName: input.approvedByDisplayName,
+        readyNodeIds,
+        readyNodeCount: readyNodeIds.length,
+      },
+      createdAt: now,
+    });
+  });
+
+  const run = readRequiredCollaborationRun(input.runId, workspaceId);
+  const nodes = listCollaborationTaskNodesSync(input.runId, workspaceId);
+  return {
+    run,
+    nodes,
+    readyNodes: nodes.filter((node) => node.status === "ready"),
+  };
+}
+
 export function queueCollaborationTaskNodeSync(input: {
   nodeId: string;
   workspaceId?: string;

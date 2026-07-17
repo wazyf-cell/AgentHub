@@ -414,6 +414,7 @@ export {
 
 // Collaboration runs
 export {
+  approveCollaborationRunSync,
   createCollaborationRunSync,
   listCollaborationRunsSync,
   readCollaborationRunSync,
