@@ -306,6 +306,19 @@ export {
   type RecordPanelOpinionInput,
 } from "./collaboration/panel.ts";
 export {
+  createCodeDevelopmentSessionSync,
+  listCodeDevelopmentSessionsSync,
+  markCodeDevelopmentSessionBlockedSync,
+  markCodeDevelopmentSessionMergedSync,
+  recordCodeDevelopmentPatchSync,
+  reviewCodeDevelopmentPatchSync,
+  type CreateCodeDevelopmentSessionInput,
+  type MarkCodeDevelopmentSessionBlockedInput,
+  type MarkCodeDevelopmentSessionMergedInput,
+  type RecordCodeDevelopmentPatchInput,
+  type ReviewCodeDevelopmentPatchInput,
+} from "./code-development/sessions.ts";
+export {
   acceptCollaborationChangeProposalSync,
   createCollaborationChangeProposalSync,
   listCollaborationChangeProposalsSync,

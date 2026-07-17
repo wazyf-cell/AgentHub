@@ -28,6 +28,7 @@ import {
   createChannelSync,
   createChannelDocumentFromAttachmentSync,
   createChannelDocumentSync,
+  createCodeDevelopmentSessionSync,
   createEmployeeSync,
   createPanelDiscussionSync,
   createTaskSync,
@@ -35,8 +36,10 @@ import {
   createWorkspaceSkillSync,
   grantRuntimeUseToUserForActorSync,
   readWorkspaceStateSync,
+  recordCodeDevelopmentPatchSync,
   recordPanelDecisionSync,
   recordPanelOpinionSync,
+  reviewCodeDevelopmentPatchSync,
   resetWorkspaceStateSync,
   setEmployeeSkillIdsSync,
   writeWorkspaceStateSync,
@@ -1019,8 +1022,8 @@ describe("dashboard data", () => {
 
     const automationsPage = getAutomationsPageData();
 
-    expect(automationsPage.totalCount).toBe(3);
-    expect(automationsPage.enabledCount).toBe(3);
+    expect(automationsPage.totalCount).toBe(4);
+    expect(automationsPage.enabledCount).toBe(4);
     expect(automationsPage.documentRunCount).toBe(1);
     expect(automationsPage.documentRuns[0]).toMatchObject({
       id: "run-planning-1",
@@ -1060,8 +1063,8 @@ describe("dashboard data", () => {
 
     const automationsPage = getAutomationsPageData();
 
-    expect(automationsPage.totalCount).toBe(3);
-    expect(automationsPage.enabledCount).toBe(3);
+    expect(automationsPage.totalCount).toBe(4);
+    expect(automationsPage.enabledCount).toBe(4);
     expect(automationsPage.autoContinuationRunCount).toBe(1);
     expect(automationsPage.autoContinuationRuns[0]).toMatchObject({
       channelName: "planning",
@@ -1131,6 +1134,52 @@ describe("dashboard data", () => {
     });
   });
 
+  it("includes safe code development sessions in automations page data", () => {
+    const session = createCodeDevelopmentSessionSync({
+      title: "Router hardening branch",
+      goal: "Let Atlas prepare a patch in an isolated worktree before manual merge.",
+      repositoryRoot: "F:/repo",
+      worktreePath: "F:/repo/.worktrees/router-hardening",
+      branchName: "feature/router-hardening",
+      baseRef: "main",
+      assignedAgentIds: ["Atlas", "Nova"],
+      createdBy: { type: "human", id: "Tianyu" },
+    });
+    recordCodeDevelopmentPatchSync({
+      sessionId: session.id,
+      summary: "Router lease checks are stricter.",
+      patchRef: "patches/router-hardening.diff",
+      changedFiles: ["packages/daemon/src/router.ts", "packages/db/src/task-queue.ts"],
+      riskNotes: ["Needs daemon route regression."],
+      createdBy: { type: "agent", id: "Atlas" },
+    });
+    reviewCodeDevelopmentPatchSync({
+      sessionId: session.id,
+      status: "needs_revision",
+      reviewer: { type: "human", id: "Tianyu" },
+      comment: "Add one more fencing test before merge.",
+    });
+
+    const automationsPage = getAutomationsPageData();
+
+    expect(automationsPage.totalCount).toBe(4);
+    expect(automationsPage.enabledCount).toBe(4);
+    expect(automationsPage.codeDevelopmentSessionCount).toBe(1);
+    expect(automationsPage.codeDevelopmentSessions[0]).toMatchObject({
+      id: session.id,
+      title: "Router hardening branch",
+      status: "reviewed",
+      branchName: "feature/router-hardening",
+      assignedAgentIds: ["Atlas", "Nova"],
+      patchSummary: "Router lease checks are stricter.",
+      patchRef: "patches/router-hardening.diff",
+      changedFiles: ["packages/daemon/src/router.ts", "packages/db/src/task-queue.ts"],
+      riskNotes: ["Needs daemon route regression."],
+      reviewStatus: "needs_revision",
+      reviewComment: "Add one more fencing test before merge.",
+    });
+  });
+
   it("includes collaboration runs in automations page data", () => {
     createCollaborationRunSync({
       id: "collab-run-planning",
@@ -1181,8 +1230,8 @@ describe("dashboard data", () => {
 
     const automationsPage = getAutomationsPageData();
 
-    expect(automationsPage.totalCount).toBe(3);
-    expect(automationsPage.enabledCount).toBe(3);
+    expect(automationsPage.totalCount).toBe(4);
+    expect(automationsPage.enabledCount).toBe(4);
     expect(automationsPage.collaborationRunCount).toBe(1);
     expect(automationsPage.collaborationRuns[0]).toMatchObject({
       id: "collab-run-planning",

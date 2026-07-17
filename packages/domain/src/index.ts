@@ -4,6 +4,7 @@ export * from "./mention-plan.ts";
 export * from "./channel-document-runs.ts";
 export * from "./channel-document-collab.ts";
 export * from "./collaboration.ts";
+export * from "./code-development.ts";
 export * from "./daemon-api.ts";
 export * from "./daemon-provider.ts";
 export * from "./execution-binding.ts";

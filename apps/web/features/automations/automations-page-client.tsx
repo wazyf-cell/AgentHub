@@ -6,6 +6,7 @@ import type {
   AutoContinuationRunRecord,
   AutomationsPageData,
   ChannelDocumentRunRecord,
+  CodeDevelopmentSessionViewRecord,
   CollaborationRunViewRecord,
   PanelDiscussionViewRecord,
 } from "@/features/dashboard/data";
@@ -123,9 +124,20 @@ const PANEL_DISCUSSION_STATUS_LABELS: Record<PanelDiscussionViewRecord["status"]
   decided: { label: "已决策", labelEn: "Decided", badge: "completed" },
 };
 
+const CODE_DEVELOPMENT_STATUS_LABELS: Record<CodeDevelopmentSessionViewRecord["status"], { label: string; labelEn: string; badge: string }> = {
+  planned: { label: "已规划", labelEn: "Planned", badge: "queued" },
+  running: { label: "开发中", labelEn: "Running", badge: "running" },
+  patch_ready: { label: "Patch 待审", labelEn: "Patch ready", badge: "queued" },
+  reviewed: { label: "已审查", labelEn: "Reviewed", badge: "completed" },
+  merged: { label: "已合并", labelEn: "Merged", badge: "completed" },
+  blocked: { label: "已阻塞", labelEn: "Blocked", badge: "failed" },
+  cancelled: { label: "已取消", labelEn: "Cancelled", badge: "cancelled" },
+};
+
 const BUILTIN_SEQUENCE_RULE_ID = "builtin:channel-sequential-then";
 const BUILTIN_AUTO_CONTINUATION_RULE_ID = "builtin:auto-continuation-until";
 const BUILTIN_COLLABORATION_ORCHESTRATOR_RULE_ID = "builtin:collaboration-orchestrator";
+const BUILTIN_SAFE_CODE_DEVELOPMENT_RULE_ID = "builtin:safe-code-development";
 
 function getConditionFieldLabel(field: string, tx: (zh: string, en: string) => string): string {
   const option = CONDITION_FIELDS.find((item) => item.value === field);
@@ -173,9 +185,13 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
   const selectedBuiltinSequenceRule = selectedId === BUILTIN_SEQUENCE_RULE_ID;
   const selectedBuiltinAutoContinuationRule = selectedId === BUILTIN_AUTO_CONTINUATION_RULE_ID;
   const selectedBuiltinCollaborationRule = selectedId === BUILTIN_COLLABORATION_ORCHESTRATOR_RULE_ID;
+  const selectedBuiltinSafeCodeDevelopmentRule = selectedId === BUILTIN_SAFE_CODE_DEVELOPMENT_RULE_ID;
   const activeAutoContinuationRuns = data.autoContinuationRuns.filter((run) => run.status === "active");
   const activeCollaborationRuns = data.collaborationRuns.filter((run) => run.status === "running" || run.status === "approved");
   const openPanelDiscussions = data.panelDiscussions.filter((discussion) => discussion.status === "open");
+  const activeCodeDevelopmentSessions = data.codeDevelopmentSessions.filter((session) =>
+    session.status === "planned" || session.status === "running" || session.status === "patch_ready" || session.status === "reviewed"
+  );
   const selectedConditionField = CONDITION_FIELDS.find((field) => field.value === createConditionField) ?? CONDITION_FIELDS[0]!;
   const selectedTriggerLabel = TRIGGER_TYPES.find((trigger) => trigger.value === createTriggerType);
   const selectedOperatorLabel = CONDITION_OPERATORS.find((operator) => operator.value === createConditionOperator);
@@ -371,6 +387,37 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
               <div className="automations-card__meta">
                 {tx("运行实例", "Runs")}: {data.collaborationRunCount}
                 {` · ${tx("Panel 讨论", "Panel discussions")}: ${data.panelDiscussionCount}`}
+              </div>
+            </div>
+
+            <div
+              className={`automations-card${selectedBuiltinSafeCodeDevelopmentRule ? " automations-card--selected" : ""}`}
+              onClick={() => setSelectedId(selectedBuiltinSafeCodeDevelopmentRule ? null : BUILTIN_SAFE_CODE_DEVELOPMENT_RULE_ID)}
+            >
+              <div className="automations-card__header">
+                <div className="automations-card__title">
+                  <strong>{tx("安全并行开发", "Safe parallel development")}</strong>
+                  <span className="automations-card__badge automations-card__badge--enabled">
+                    {tx("内置", "Built-in")}
+                  </span>
+                  {activeCodeDevelopmentSessions.length > 0 ? (
+                    <span className="automations-card__badge automations-card__badge--run-running">
+                      {tx(`${activeCodeDevelopmentSessions.length} 个会话`, `${activeCodeDevelopmentSessions.length} sessions`)}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <p className="automations-card__description">
+                {tx("记录多 Agent 代码开发必须使用的隔离 worktree、patch 摘要和合并前审查状态，避免多个 Agent 直接覆盖同一个代码树。", "Tracks isolated worktrees, patch summaries, and pre-merge review state so multiple agents do not overwrite the same code tree.")}
+              </p>
+              <div className="automations-card__flow">
+                <span className="automations-card__trigger">{tx("隔离 worktree", "Isolated worktree")}</span>
+                <span className="automations-card__conditions">→ {tx("Patch 待审", "Patch review")}</span>
+                <span className="automations-card__arrow">→</span>
+                <span className="automations-card__action">{tx("人工合并确认", "Manual merge gate")}</span>
+              </div>
+              <div className="automations-card__meta">
+                {tx("开发会话", "Development sessions")}: {data.codeDevelopmentSessionCount}
               </div>
             </div>
 
@@ -656,6 +703,71 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                         </div>
                       ) : null}
                       <small>{tx("最近更新", "Updated")}: {formatCompactTimestamp(run.updatedAt, { emptyFallback: run.updatedAt })}</small>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {selectedBuiltinSafeCodeDevelopmentRule ? (
+          <div className="automations-detail">
+            <div className="automations-detail__header">
+              <h2>{tx("安全并行开发", "Safe parallel development")}</h2>
+              <span>{tx("内置规则", "Built-in rule")}</span>
+            </div>
+            <p>
+              {tx("这条入口用于查看多 Agent 代码开发会话。当前阶段只记录隔离 worktree、patch 摘要和审查状态，不会自动执行 git merge。", "This entry shows multi-agent code development sessions. This stage records isolated worktrees, patch summaries, and review state; it does not run git merge automatically.")}
+            </p>
+            <div className="automations-run-list">
+              {data.codeDevelopmentSessions.length === 0 ? (
+                <EmptyState
+                  body={tx("还没有创建安全并行开发会话。", "No safe parallel development sessions have been created yet.")}
+                  eyebrow={tx("开发会话", "Development sessions")}
+                  title={tx("暂无开发记录", "No development sessions yet")}
+                  variant="warm"
+                />
+              ) : (
+                data.codeDevelopmentSessions.map((session) => {
+                  const statusLabel = CODE_DEVELOPMENT_STATUS_LABELS[session.status];
+                  return (
+                    <div className="automations-run" key={session.id}>
+                      <div className="automations-run__header">
+                        <strong>{session.title}</strong>
+                        <span className={`automations-card__badge automations-card__badge--run-${statusLabel.badge}`}>
+                          {tx(statusLabel.label, statusLabel.labelEn)}
+                        </span>
+                      </div>
+                      <p>{session.goal}</p>
+                      <small>
+                        {tx("Branch", "Branch")}: {session.branchName}
+                        {session.baseRef ? ` · ${tx("Base", "Base")}: ${session.baseRef}` : ""}
+                      </small>
+                      <small>
+                        {tx("Worktree", "Worktree")}: {session.worktreePath}
+                      </small>
+                      <small>
+                        {tx("参与 Agent", "Agents")}: {session.assignedAgentIds.length > 0 ? session.assignedAgentIds.join(", ") : tx("未指定", "Not specified")}
+                      </small>
+                      {session.patchSummary ? (
+                        <small>
+                          {tx("Patch", "Patch")}: {session.patchSummary}
+                          {session.changedFiles.length > 0 ? ` · ${tx("文件", "Files")}: ${session.changedFiles.join(", ")}` : ""}
+                        </small>
+                      ) : null}
+                      {session.reviewStatus ? (
+                        <small>
+                          {tx("审查", "Review")}: {session.reviewStatus}
+                          {session.reviewComment ? ` · ${session.reviewComment}` : ""}
+                        </small>
+                      ) : null}
+                      {session.riskNotes.length > 0 ? (
+                        <small>{tx("风险", "Risks")}: {session.riskNotes.join(" · ")}</small>
+                      ) : null}
+                      {session.mergeNotes ? <small>{tx("合并备注", "Merge notes")}: {session.mergeNotes}</small> : null}
+                      {session.blockedReason ? <small>{tx("阻塞原因", "Blocked reason")}: {session.blockedReason}</small> : null}
+                      <small>{tx("最近更新", "Updated")}: {formatCompactTimestamp(session.updatedAt, { emptyFallback: session.updatedAt })}</small>
                     </div>
                   );
                 })

@@ -20,6 +20,7 @@ import type {
   CollaborationComment,
   CollaborationCommentThread,
 } from "./collaboration.ts";
+import type { CodeDevelopmentSession } from "./code-development.ts";
 
 export interface WorkspaceStat {
   label: string;
@@ -503,6 +504,7 @@ export interface AgentSpaceState {
   collaborationComments: CollaborationComment[];
   collaborationActivities: CollaborationActivity[];
   collaborationChangeProposals: CollaborationChangeProposal[];
+  codeDevelopmentSessions: CodeDevelopmentSession[];
   materials: MaterialInput[];
   knowledgePages: KnowledgePage[];
   messages: WorkspaceMessage[];
@@ -568,6 +570,7 @@ export interface WorkspaceSnapshot {
   collaborationComments: CollaborationComment[];
   collaborationActivities: CollaborationActivity[];
   collaborationChangeProposals: CollaborationChangeProposal[];
+  codeDevelopmentSessions: CodeDevelopmentSession[];
   materials: MaterialInput[];
   knowledgePages: KnowledgePage[];
   messages: WorkspaceMessage[];
@@ -612,6 +615,7 @@ export const defaultWorkspaceState: AgentSpaceState = {
   collaborationComments: [],
   collaborationActivities: [],
   collaborationChangeProposals: [],
+  codeDevelopmentSessions: [],
   materials: [],
   knowledgePages: [],
   messages: [],
@@ -655,6 +659,7 @@ export function createWorkspaceSnapshot(state: AgentSpaceState): WorkspaceSnapsh
     collaborationComments: state.collaborationComments,
     collaborationActivities: state.collaborationActivities,
     collaborationChangeProposals: state.collaborationChangeProposals,
+    codeDevelopmentSessions: state.codeDevelopmentSessions,
     materials: state.materials,
     knowledgePages: state.knowledgePages,
     messages: state.messages,

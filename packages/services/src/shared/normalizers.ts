@@ -40,6 +40,7 @@ import {
   normalizeCollaborationComments,
   normalizeCollaborationCommentThreads,
 } from "../collaboration/model.ts";
+import { normalizeCodeDevelopmentSessions } from "../code-development/model.ts";
 import {
   createOpaqueId,
   slugify,
@@ -130,6 +131,10 @@ export function normalizeWorkspaceState(state: Partial<AgentSpaceState>): AgentS
     collaborationChangeProposals: normalizeCollaborationChangeProposals(
       state.collaborationChangeProposals,
       fallback.collaborationChangeProposals,
+    ),
+    codeDevelopmentSessions: normalizeCodeDevelopmentSessions(
+      state.codeDevelopmentSessions,
+      fallback.codeDevelopmentSessions,
     ),
     materials: state.materials ?? fallback.materials,
     knowledgePages: normalizeKnowledgePages(state.knowledgePages, fallback.knowledgePages),

@@ -26,6 +26,7 @@ import {
   listAgentForkInvitationsForSourceAgentSync,
   listAgentAccessRequestsForActorSync,
   listPanelDiscussionsSync,
+  listCodeDevelopmentSessionsSync,
 } from "@agent-space/services";
 import type { AgentAccessRequestRecord, AgentForkInvitationRecord, PerformanceDashboardData, WorkspaceNotificationRecord } from "@agent-space/services";
 import {
@@ -119,6 +120,7 @@ const listCollaborationTaskNodesCached = cache((workspaceId: string, runId: stri
   listCollaborationTaskNodesSync(runId, workspaceId)
 );
 const listPanelDiscussionsCached = cache((workspaceId: string) => listPanelDiscussionsSync(workspaceId));
+const listCodeDevelopmentSessionsCached = cache((workspaceId: string) => listCodeDevelopmentSessionsSync(workspaceId));
 const readAgentRouterSessionCached = cache((routerSessionId: string) => readAgentRouterSessionSync(routerSessionId));
 const listAgentTaskAttemptsCached = cache((workspaceId: string, taskQueueId: string) =>
   listAgentTaskAttemptsSync({ workspaceId, taskQueueId, limit: 20 })
@@ -5391,12 +5393,14 @@ export interface AutomationsPageData {
   autoContinuationRuns: AutoContinuationRunRecord[];
   collaborationRuns: CollaborationRunViewRecord[];
   panelDiscussions: PanelDiscussionViewRecord[];
+  codeDevelopmentSessions: CodeDevelopmentSessionViewRecord[];
   totalCount: number;
   enabledCount: number;
   documentRunCount: number;
   autoContinuationRunCount: number;
   collaborationRunCount: number;
   panelDiscussionCount: number;
+  codeDevelopmentSessionCount: number;
   channels: Array<{ name: string }>;
   agents: Array<{ id: string; name: string }>;
 }
@@ -5455,6 +5459,28 @@ export interface PanelDiscussionViewRecord {
     decidedById?: string;
     decidedAt: string;
   };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CodeDevelopmentSessionViewRecord {
+  id: string;
+  title: string;
+  goal: string;
+  status: "planned" | "running" | "patch_ready" | "reviewed" | "merged" | "blocked" | "cancelled";
+  repositoryRoot: string;
+  worktreePath: string;
+  branchName: string;
+  baseRef?: string;
+  assignedAgentIds: string[];
+  patchSummary?: string;
+  patchRef?: string;
+  changedFiles: string[];
+  riskNotes: string[];
+  reviewStatus?: "approved" | "rejected" | "needs_revision";
+  reviewComment?: string;
+  mergeNotes?: string;
+  blockedReason?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -5590,6 +5616,28 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
       updatedAt: discussion.updatedAt,
     } satisfies PanelDiscussionViewRecord;
   });
+  const allCodeDevelopmentSessions = listCodeDevelopmentSessionsCached(workspaceId);
+  const codeDevelopmentSessions = allCodeDevelopmentSessions.slice(0, 20).map((session) => ({
+    id: session.id,
+    title: session.title,
+    goal: session.goal,
+    status: session.status,
+    repositoryRoot: session.repositoryRoot,
+    worktreePath: session.worktreePath,
+    branchName: session.branchName,
+    baseRef: session.baseRef,
+    assignedAgentIds: session.assignedAgentIds,
+    patchSummary: session.patch?.summary,
+    patchRef: session.patch?.patchRef,
+    changedFiles: session.patch?.changedFiles ?? [],
+    riskNotes: session.patch?.riskNotes ?? [],
+    reviewStatus: session.patch?.review?.status,
+    reviewComment: session.patch?.review?.comment,
+    mergeNotes: session.mergeNotes,
+    blockedReason: session.blockedReason,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+  }) satisfies CodeDevelopmentSessionViewRecord);
 
   return {
     rules,
@@ -5597,12 +5645,14 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
     autoContinuationRuns,
     collaborationRuns,
     panelDiscussions,
-    totalCount: rules.length + 3,
-    enabledCount: rules.filter((r) => r.enabled).length + 3,
+    codeDevelopmentSessions,
+    totalCount: rules.length + 4,
+    enabledCount: rules.filter((r) => r.enabled).length + 4,
     documentRunCount: documentRuns.length,
     autoContinuationRunCount: autoContinuationRuns.length,
     collaborationRunCount,
     panelDiscussionCount: allPanelDiscussions.length,
+    codeDevelopmentSessionCount: allCodeDevelopmentSessions.length,
     channels: state.channels.map((ch) => ({ name: ch.name })),
     agents: state.activeEmployees.map((e) => ({
       id: e.name,
