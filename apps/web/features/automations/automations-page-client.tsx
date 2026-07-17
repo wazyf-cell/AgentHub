@@ -565,6 +565,13 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                         </span>
                       </div>
                       <p>{run.goal}</p>
+                      {run.evidenceSummary ? (
+                        <p>
+                          {tx("运行证据", "Run evidence")}: {run.evidenceSummary}
+                          {run.evidenceNodeCount ? ` · ${tx("节点", "Nodes")}: ${run.evidenceNodeCount}` : ""}
+                          {run.evidenceSourceCount ? ` · ${tx("证据", "Evidence")}: ${run.evidenceSourceCount}` : ""}
+                        </p>
+                      ) : null}
                       <div className="automations-card__flow">
                         {run.nodes.map((node, index) => {
                           const nodeStatus = COLLABORATION_NODE_STATUS_LABELS[node.status];

@@ -755,6 +755,7 @@ function updateRunTerminalStateInTransaction(
 ): void {
   const nodes = listCollaborationTaskNodesSync(runId, workspaceId);
   if (nodes.length > 0 && nodes.every((node) => node.status === "completed")) {
+    const runResult = buildCompletedRunResult(nodes, result);
     getDatabase().prepare(
       `UPDATE collaboration_run
        SET status = 'completed',
@@ -762,7 +763,7 @@ function updateRunTerminalStateInTransaction(
            finished_at = COALESCE(finished_at, ?),
            updated_at = ?
        WHERE workspace_id = ? AND id = ?`,
-    ).run(result ? JSON.stringify(result) : null, now, now, workspaceId, runId);
+    ).run(JSON.stringify(runResult), now, now, workspaceId, runId);
     return;
   }
   getDatabase().prepare(
@@ -771,6 +772,50 @@ function updateRunTerminalStateInTransaction(
          updated_at = ?
      WHERE workspace_id = ? AND id = ?`,
   ).run(now, workspaceId, runId);
+}
+
+function buildCompletedRunResult(
+  nodes: CollaborationTaskNodeRecord[],
+  finalNodeResult: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const nodeSummaries = nodes.map((node) => {
+    const result = node.resultJson ? safeParseObject(node.resultJson) : {};
+    const evidence = readObject(result.evidence);
+    const review = readObject(result.review);
+    return {
+      nodeId: node.id,
+      agentId: node.agentId,
+      title: node.title,
+      summary: readString(evidence.summary) ?? readString(result.summary) ?? readString(result.output) ?? readString(result.taskOutput),
+      evidenceSourceCount: readNumber(evidence.sourceCount),
+      reviewStatus: readString(review.status),
+    };
+  });
+  const sourceCount = nodeSummaries.reduce((total, node) => total + (node.evidenceSourceCount ?? 0), 0);
+  const finalSummary = finalNodeResult
+    ? readString(finalNodeResult.summary) ?? readString(finalNodeResult.output) ?? readString(finalNodeResult.taskOutput)
+    : undefined;
+  const fallbackSummary = nodeSummaries
+    .map((node) => node.summary)
+    .filter((summary): summary is string => typeof summary === "string" && summary.trim().length > 0)
+    .join("\n");
+
+  return {
+    ...(finalNodeResult ?? {}),
+    evidence: {
+      version: 1,
+      status: "completed",
+      summary: truncateRunEvidenceSummary(finalSummary ?? fallbackSummary ?? "Collaboration run completed."),
+      nodeCount: nodes.length,
+      sourceCount,
+      nodes: nodeSummaries,
+    },
+  };
+}
+
+function truncateRunEvidenceSummary(value: string): string {
+  const normalized = value.trim();
+  return normalized.length > 500 ? `${normalized.slice(0, 497)}...` : normalized;
 }
 
 function blockDependentNodesInTransaction(
@@ -899,6 +944,18 @@ function safeParseObject(value: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+function readObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function normalizeListLimit(limit: number | undefined, defaultLimit: number): number {

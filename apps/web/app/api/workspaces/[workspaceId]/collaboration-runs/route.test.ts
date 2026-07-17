@@ -43,7 +43,17 @@ describe("workspace collaboration runs route", () => {
 
   it("lists collaboration runs with nodes for the current workspace", async () => {
     mockListCollaborationRunsSync.mockReturnValue([
-      buildRun({ id: "run-1", title: "Release plan" }),
+      buildRun({
+        id: "run-1",
+        title: "Release plan",
+        resultJson: JSON.stringify({
+          evidence: {
+            summary: "Run completed with two node summaries.",
+            sourceCount: 3,
+            nodeCount: 2,
+          },
+        }),
+      }),
     ]);
     mockListCollaborationTaskNodesSync.mockReturnValue([
       buildNode({ id: "node-1", runId: "run-1", title: "Draft" }),
@@ -66,6 +76,9 @@ describe("workspace collaboration runs route", () => {
     expect(payload.runs[0]).toMatchObject({
       id: "run-1",
       title: "Release plan",
+      evidenceSummary: "Run completed with two node summaries.",
+      evidenceSourceCount: 3,
+      evidenceNodeCount: 2,
       nodes: [{ id: "node-1" }, { id: "node-2" }],
     });
     expect(payload.runs[0].planJson).toBeUndefined();
@@ -233,7 +246,11 @@ function buildWorkspaceContext(options: { accessScope?: "workspace" | "channel";
   };
 }
 
-function buildRun(overrides: Partial<ReturnType<typeof buildRunShape>> = {}) {
+type TestCollaborationRun = ReturnType<typeof buildRunShape> & {
+  resultJson?: string;
+};
+
+function buildRun(overrides: Partial<TestCollaborationRun> = {}): TestCollaborationRun {
   return {
     ...buildRunShape(),
     ...overrides,

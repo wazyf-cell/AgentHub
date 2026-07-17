@@ -276,6 +276,9 @@ function serializeCollaborationRun(run: CollaborationRunRecord, nodes: Collabora
     finishedAt: run.finishedAt,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
+    evidenceSummary: readEvidenceSummary(run.resultJson),
+    evidenceSourceCount: readEvidenceSourceCount(run.resultJson),
+    evidenceNodeCount: readEvidenceNodeCount(run.resultJson),
     nodes: nodes.map((node) => ({
       id: node.id,
       runId: node.runId,
@@ -328,4 +331,38 @@ function readPriority(value: unknown): CollaborationDispatchPriority | undefined
 
 function readObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readEvidenceSummary(resultJson: string | undefined): string | undefined {
+  const summary = readEvidence(resultJson).summary;
+  return typeof summary === "string" && summary.trim() ? summary.trim() : undefined;
+}
+
+function readEvidenceSourceCount(resultJson: string | undefined): number | undefined {
+  const evidence = readEvidence(resultJson);
+  if (typeof evidence.sourceCount === "number") {
+    return evidence.sourceCount;
+  }
+  return Array.isArray(evidence.sources) ? evidence.sources.length : undefined;
+}
+
+function readEvidenceNodeCount(resultJson: string | undefined): number | undefined {
+  const evidence = readEvidence(resultJson);
+  if (typeof evidence.nodeCount === "number") {
+    return evidence.nodeCount;
+  }
+  return Array.isArray(evidence.nodes) ? evidence.nodes.length : undefined;
+}
+
+function readEvidence(resultJson: string | undefined): Record<string, unknown> {
+  if (!resultJson) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(resultJson) as unknown;
+    const result = readObject(parsed);
+    return readObject(result.evidence);
+  } catch {
+    return {};
+  }
 }

@@ -1174,6 +1174,46 @@ describe("dashboard data", () => {
     expect(automationsPage.collaborationRuns).toHaveLength(20);
   });
 
+  it("includes run-level evidence summaries in automations collaboration data", () => {
+    createCollaborationRunSync({
+      id: "collab-run-evidence",
+      workspaceId: "default",
+      title: "Evidence rollup",
+      goal: "Complete one node and expose run-level evidence.",
+      status: "running",
+      nodes: [
+        {
+          id: "collab-node-evidence",
+          agentId: "Atlas",
+          title: "Evidence node",
+          instruction: "Produce evidence.",
+        },
+      ],
+    });
+    completeCollaborationTaskNodeSync({
+      workspaceId: "default",
+      nodeId: "collab-node-evidence",
+      result: {
+        output: "Run evidence complete.",
+        evidence: {
+          version: 1,
+          status: "completed",
+          summary: "Node evidence complete.",
+          sourceCount: 4,
+        },
+      },
+    });
+
+    const automationsPage = getAutomationsPageData();
+    const evidenceRun = automationsPage.collaborationRuns.find((run) => run.id === "collab-run-evidence");
+
+    expect(evidenceRun).toMatchObject({
+      evidenceSummary: "Run evidence complete.",
+      evidenceNodeCount: 1,
+      evidenceSourceCount: 4,
+    });
+  });
+
   it("hides channel documents when the current user lacks document access even if the channel is visible", () => {
     writeWorkspaceStateSync({
       ...readWorkspaceStateSync(),

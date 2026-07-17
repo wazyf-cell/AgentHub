@@ -130,7 +130,38 @@ test("creates a collaboration DAG and advances ready nodes after dependencies co
   });
 
   assert.equal(afterSummary.run.status, "completed");
-  assert.equal(readCollaborationRunSync(run.id, workspaceId)?.status, "completed");
+  const completedRun = readCollaborationRunSync(run.id, workspaceId);
+  assert.equal(completedRun?.status, "completed");
+  const completedRunResult = JSON.parse(completedRun!.resultJson ?? "{}") as Record<string, unknown>;
+  assert.equal(completedRunResult.output, "最终大阪行程完成。");
+  assert.deepEqual(readObject(completedRunResult.evidence), {
+    version: 1,
+    status: "completed",
+    summary: "最终大阪行程完成。",
+    nodeCount: 3,
+    sourceCount: 0,
+    nodes: [
+      {
+        nodeId: "node-research",
+        agentId: "Atlas",
+        title: "Research Osaka",
+        summary: "大阪城和道顿堀适合第一天。",
+        reviewStatus: "accepted",
+      },
+      {
+        nodeId: "node-review",
+        agentId: "Nova",
+        title: "Review Osaka",
+        summary: "草案可用，但需要补交通时间。",
+      },
+      {
+        nodeId: "node-summary",
+        agentId: "Atlas",
+        title: "Summarize Osaka",
+        summary: "最终大阪行程完成。",
+      },
+    ],
+  });
   assert.deepEqual(
     listCollaborationRunEventsSync(run.id, workspaceId).map((event) => event.type),
     ["run.created", "node.completed", "node.reviewed", "node.completed", "node.completed"],

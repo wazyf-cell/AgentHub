@@ -4250,6 +4250,17 @@ function readCollaborationEvidenceSourceCount(value: string | undefined): number
   return Array.isArray(evidence.sources) ? evidence.sources.length : undefined;
 }
 
+function readCollaborationEvidenceNodeCount(value: string | undefined): number | undefined {
+  const evidence = readCollaborationEvidence(value);
+  if (!evidence) {
+    return undefined;
+  }
+  if (typeof evidence.nodeCount === "number") {
+    return evidence.nodeCount;
+  }
+  return Array.isArray(evidence.nodes) ? evidence.nodes.length : undefined;
+}
+
 function readCollaborationEvidence(value: string | undefined): Record<string, unknown> | undefined {
   if (!value) {
     return undefined;
@@ -5395,6 +5406,9 @@ export interface CollaborationRunViewRecord {
   createdAt: string;
   updatedAt: string;
   finishedAt?: string;
+  evidenceSummary?: string;
+  evidenceSourceCount?: number;
+  evidenceNodeCount?: number;
   nodes: CollaborationTaskNodeViewRecord[];
 }
 
@@ -5496,6 +5510,9 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
       finishedAt: run.finishedAt,
+      evidenceSummary: readCollaborationEvidenceSummary(run.resultJson),
+      evidenceSourceCount: readCollaborationEvidenceSourceCount(run.resultJson),
+      evidenceNodeCount: readCollaborationEvidenceNodeCount(run.resultJson),
       nodes: listCollaborationTaskNodesCached(workspaceId, run.id).map((node) => ({
         id: node.id,
         agentId: node.agentId,
