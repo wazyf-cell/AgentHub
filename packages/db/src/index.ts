@@ -66,6 +66,11 @@ export type {
   RuntimeInstalledAppStatus,
   NativeTaskStatus,
   QueuedTaskRecord,
+  CollaborationRunEventRecord,
+  CollaborationRunRecord,
+  CollaborationRunStatus,
+  CollaborationTaskNodeRecord,
+  CollaborationTaskNodeStatus,
   TaskMessageRecord,
   TaskExecutionEventRecord,
   TaskExecutionEventType,
@@ -406,6 +411,24 @@ export {
   failQueuedTaskSync,
   cancelQueuedTaskSync,
 } from "./task-queue.ts";
+
+// Collaboration runs
+export {
+  createCollaborationRunSync,
+  listCollaborationRunsSync,
+  readCollaborationRunSync,
+  listCollaborationTaskNodesSync,
+  readCollaborationTaskNodeSync,
+  listReadyCollaborationTaskNodesSync,
+  queueCollaborationTaskNodeSync,
+  markCollaborationTaskNodeQueuedSync,
+  markCollaborationTaskNodeRunningSync,
+  completeCollaborationTaskNodeSync,
+  failCollaborationTaskNodeSync,
+  listCollaborationRunEventsSync,
+  type CreateCollaborationRunInput,
+  type CreateCollaborationTaskNodeInput,
+} from "./collaboration-runs.ts";
 
 // Task messages
 export { appendTaskMessageSync, listTaskMessagesForTaskSync } from "./task-messages.ts";

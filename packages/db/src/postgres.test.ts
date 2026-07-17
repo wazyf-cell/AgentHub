@@ -30,6 +30,18 @@ test("postgres schema includes the expected core and derived tables", () => {
     statements,
     /CREATE TABLE IF NOT EXISTS agent_task_attempt.*lease_token TEXT.*lease_expires_at TIMESTAMPTZ.*heartbeat_at TIMESTAMPTZ/s,
   );
+  assert.match(
+    statements,
+    /CREATE TABLE IF NOT EXISTS collaboration_run.*goal TEXT NOT NULL.*plan_json JSONB NOT NULL DEFAULT '\{\}'::jsonb/s,
+  );
+  assert.match(
+    statements,
+    /CREATE TABLE IF NOT EXISTS collaboration_task_node.*run_id TEXT NOT NULL REFERENCES collaboration_run\(id\).*depends_on_node_ids_json JSONB NOT NULL DEFAULT '\[\]'::jsonb.*task_queue_id TEXT REFERENCES agent_task_queue\(id\)/s,
+  );
+  assert.match(
+    statements,
+    /CREATE TABLE IF NOT EXISTS collaboration_run_event.*run_id TEXT NOT NULL REFERENCES collaboration_run\(id\).*data_json JSONB NOT NULL DEFAULT '\{\}'::jsonb/s,
+  );
   assert.match(statements, /ALTER TABLE employee_runtime_binding\s+ADD COLUMN IF NOT EXISTS binding_version INTEGER NOT NULL DEFAULT 1/);
   assert.match(statements, /ALTER TABLE employee_runtime_binding\s+ADD COLUMN IF NOT EXISTS model_id TEXT/);
   assert.match(
@@ -70,6 +82,9 @@ test("collectSqliteMigrationSnapshotSync extracts relational rows and derived at
       CREATE TABLE agent_task_attempt (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
       CREATE TABLE agent_router_event (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
       CREATE TABLE agent_router_context_snapshot (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE collaboration_run (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE collaboration_task_node (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+      CREATE TABLE collaboration_run_event (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
 
       CREATE TABLE workspace (
         id TEXT PRIMARY KEY,

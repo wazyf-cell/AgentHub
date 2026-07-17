@@ -1,4 +1,4 @@
-export const POSTGRES_SCHEMA_VERSION = "21";
+export const POSTGRES_SCHEMA_VERSION = "22";
 
 export const POSTGRES_TABLE_NAMES = [
   "app_metadata",
@@ -42,6 +42,9 @@ export const POSTGRES_TABLE_NAMES = [
   "knowledge_proposal",
   "agent_router_session",
   "agent_router_provider_session",
+  "collaboration_run",
+  "collaboration_task_node",
+  "collaboration_run_event",
   "agent_task_queue",
   "agent_task_attempt",
   "agent_router_event",
@@ -783,6 +786,56 @@ export function getPostgresSchemaStatements(): string[] {
       )
     `,
     `
+      CREATE TABLE IF NOT EXISTS collaboration_run (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        goal TEXT NOT NULL,
+        status TEXT NOT NULL,
+        plan_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        result_json JSONB,
+        created_by_user_id TEXT,
+        created_by_display_name TEXT,
+        approved_at TIMESTAMPTZ,
+        finished_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+      )
+    `,
+    `
+      CREATE TABLE IF NOT EXISTS collaboration_task_node (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL REFERENCES collaboration_run(id) ON DELETE CASCADE,
+        agent_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        instruction TEXT NOT NULL,
+        depends_on_node_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        status TEXT NOT NULL,
+        task_queue_id TEXT REFERENCES agent_task_queue(id) ON DELETE SET NULL,
+        result_json JSONB,
+        error_text TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        queued_at TIMESTAMPTZ,
+        started_at TIMESTAMPTZ,
+        finished_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+      )
+    `,
+    `
+      CREATE TABLE IF NOT EXISTS collaboration_run_event (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL REFERENCES collaboration_run(id) ON DELETE CASCADE,
+        node_id TEXT REFERENCES collaboration_task_node(id) ON DELETE SET NULL,
+        type TEXT NOT NULL,
+        summary TEXT,
+        data_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL
+      )
+    `,
+    `
       CREATE TABLE IF NOT EXISTS agent_router_event (
         id TEXT PRIMARY KEY,
         workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
@@ -1232,6 +1285,22 @@ export function getPostgresSchemaStatements(): string[] {
     `
       CREATE INDEX IF NOT EXISTS idx_agent_task_attempt_router_created
         ON agent_task_attempt(workspace_id, router_session_id, created_at DESC)
+    `,
+    `
+      CREATE INDEX IF NOT EXISTS idx_collaboration_run_workspace_status
+        ON collaboration_run(workspace_id, status, updated_at DESC)
+    `,
+    `
+      CREATE INDEX IF NOT EXISTS idx_collaboration_task_node_run_status
+        ON collaboration_task_node(workspace_id, run_id, status, sort_order ASC)
+    `,
+    `
+      CREATE INDEX IF NOT EXISTS idx_collaboration_task_node_task_queue
+        ON collaboration_task_node(task_queue_id)
+    `,
+    `
+      CREATE INDEX IF NOT EXISTS idx_collaboration_run_event_run_created
+        ON collaboration_run_event(workspace_id, run_id, created_at ASC, id ASC)
     `,
     `
       ALTER TABLE agent_task_queue

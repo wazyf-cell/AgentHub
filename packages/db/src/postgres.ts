@@ -18,7 +18,9 @@ type JsonColumnName =
   | "metadata_json"
   | "config_json"
   | "input_json"
+  | "plan_json"
   | "result_json"
+  | "depends_on_node_ids_json"
   | "registry_json"
   | "command_plan_json"
   | "options_json"
@@ -163,6 +165,9 @@ const TABLE_MIGRATION_PLANS: TableMigrationPlan[] = [
   { tableName: "agent_knowledge_page", conflictColumns: ["workspace_id", "employee_name", "knowledge_page_id"], orderBy: "created_at ASC, workspace_id ASC, employee_name ASC, knowledge_page_id ASC" },
   { tableName: "agent_router_session", conflictColumns: ["id"], orderBy: "created_at ASC, id ASC" },
   { tableName: "agent_router_provider_session", conflictColumns: ["id"], jsonColumns: ["metadata_json"], orderBy: "created_at ASC, id ASC" },
+  { tableName: "collaboration_run", conflictColumns: ["id"], jsonColumns: ["plan_json", "result_json"], orderBy: "created_at ASC, id ASC" },
+  { tableName: "collaboration_task_node", conflictColumns: ["id"], jsonColumns: ["depends_on_node_ids_json", "result_json"], orderBy: "created_at ASC, id ASC" },
+  { tableName: "collaboration_run_event", conflictColumns: ["id"], jsonColumns: ["data_json"], orderBy: "created_at ASC, id ASC" },
   { tableName: "agent_task_queue", conflictColumns: ["id"], jsonColumns: ["input_json", "result_json"], orderBy: "created_at ASC, id ASC" },
   { tableName: "agent_task_attempt", conflictColumns: ["id"], jsonColumns: ["metadata_json"], orderBy: "created_at ASC, id ASC" },
   { tableName: "agent_router_event", conflictColumns: ["id"], jsonColumns: ["data_json"], orderBy: "created_at ASC, id ASC" },

@@ -685,6 +685,64 @@ export interface ClaimedTaskRecord extends QueuedTaskRecord {
   heartbeatAt: string;
 }
 
+export type CollaborationRunStatus = "draft" | "approved" | "running" | "completed" | "failed" | "cancelled";
+export type CollaborationTaskNodeStatus =
+  | "pending"
+  | "ready"
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "blocked"
+  | "cancelled";
+
+export interface CollaborationRunRecord {
+  id: string;
+  workspaceId: string;
+  title: string;
+  goal: string;
+  status: CollaborationRunStatus;
+  planJson: string;
+  resultJson?: string;
+  createdByUserId?: string;
+  createdByDisplayName?: string;
+  approvedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollaborationTaskNodeRecord {
+  id: string;
+  workspaceId: string;
+  runId: string;
+  agentId: string;
+  title: string;
+  instruction: string;
+  dependsOnNodeIdsJson: string;
+  status: CollaborationTaskNodeStatus;
+  taskQueueId?: string;
+  resultJson?: string;
+  errorText?: string;
+  sortOrder: number;
+  queuedAt?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollaborationRunEventRecord {
+  id: string;
+  workspaceId: string;
+  runId: string;
+  nodeId?: string;
+  type: string;
+  summary?: string;
+  dataJson: string;
+  createdAt: string;
+}
+
 export interface TaskMessageRecord {
   id: string;
   taskId: string;
