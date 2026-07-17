@@ -1,9 +1,15 @@
-import type { CodeDevelopmentPatchFileChange, CodeDevelopmentPatchRecord, CodeDevelopmentSession } from "@agent-space/domain";
+import type {
+  CodeDevelopmentMergePreflight,
+  CodeDevelopmentPatchFileChange,
+  CodeDevelopmentPatchRecord,
+  CodeDevelopmentSession,
+} from "@agent-space/domain";
 import type { AgentSpaceState } from "@agent-space/domain/workspace";
 
 const SESSION_STATUSES = new Set(["planned", "running", "patch_ready", "reviewed", "merged", "blocked", "cancelled"]);
 const PATCH_REVIEW_STATUSES = new Set(["approved", "rejected", "needs_revision"]);
 const PATCH_FILE_CHANGE_TYPES = new Set(["added", "modified", "deleted", "renamed"]);
+const MERGE_PREFLIGHT_STATUSES = new Set(["clean", "warning", "blocked"]);
 const ACTOR_TYPES = new Set(["human", "agent", "system"]);
 
 export function normalizeCodeDevelopmentSessions(
@@ -56,6 +62,7 @@ function normalizeCodeDevelopmentSession(session: unknown): CodeDevelopmentSessi
     createdAt: typeof candidate.createdAt === "string" ? candidate.createdAt : new Date(0).toISOString(),
     updatedAt: typeof candidate.updatedAt === "string" ? candidate.updatedAt : new Date(0).toISOString(),
     patch: normalizeCodeDevelopmentPatch(candidate.patch),
+    mergePreflight: normalizeMergePreflight(candidate.mergePreflight),
     mergeNotes: typeof candidate.mergeNotes === "string" ? candidate.mergeNotes : undefined,
     blockedReason: typeof candidate.blockedReason === "string" ? candidate.blockedReason : undefined,
   };
@@ -146,6 +153,38 @@ function normalizePatchReview(review: unknown): CodeDevelopmentPatchRecord["revi
     reviewerId: candidate.reviewerId,
     comment: candidate.comment,
     reviewedAt: candidate.reviewedAt,
+  };
+}
+
+function normalizeMergePreflight(value: unknown): CodeDevelopmentMergePreflight | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const candidate = value as Partial<CodeDevelopmentMergePreflight>;
+  if (
+    !MERGE_PREFLIGHT_STATUSES.has(candidate.status ?? "") ||
+    typeof candidate.targetBranch !== "string" ||
+    typeof candidate.recommendation !== "string" ||
+    !isActorType(candidate.checkedByType) ||
+    typeof candidate.checkedById !== "string" ||
+    typeof candidate.checkedAt !== "string"
+  ) {
+    return undefined;
+  }
+
+  return {
+    status: candidate.status!,
+    targetBranch: candidate.targetBranch,
+    baseRef: typeof candidate.baseRef === "string" ? candidate.baseRef : undefined,
+    headRef: typeof candidate.headRef === "string" ? candidate.headRef : undefined,
+    checkedFiles: readStringArray(candidate.checkedFiles),
+    conflictFiles: readStringArray(candidate.conflictFiles),
+    warnings: readStringArray(candidate.warnings),
+    recommendation: candidate.recommendation,
+    checkedByType: candidate.checkedByType,
+    checkedById: candidate.checkedById,
+    checkedAt: candidate.checkedAt,
   };
 }
 

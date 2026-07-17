@@ -36,6 +36,7 @@ import {
   createWorkspaceSkillSync,
   grantRuntimeUseToUserForActorSync,
   readWorkspaceStateSync,
+  recordCodeDevelopmentMergePreflightSync,
   recordCodeDevelopmentPatchManifestSync,
   recordPanelDecisionSync,
   recordPanelOpinionSync,
@@ -1163,6 +1164,12 @@ describe("dashboard data", () => {
       reviewer: { type: "human", id: "Tianyu" },
       comment: "Add one more fencing test before merge.",
     });
+    recordCodeDevelopmentMergePreflightSync({
+      sessionId: session.id,
+      targetBranch: "main",
+      warnings: ["Review requested before merge."],
+      checkedBy: { type: "human", id: "Tianyu" },
+    });
 
     const automationsPage = getAutomationsPageData();
 
@@ -1186,6 +1193,11 @@ describe("dashboard data", () => {
       riskNotes: ["Needs daemon route regression."],
       reviewStatus: "needs_revision",
       reviewComment: "Add one more fencing test before merge.",
+      preflightStatus: "warning",
+      preflightTargetBranch: "main",
+      preflightConflictFiles: [],
+      preflightWarnings: ["Review requested before merge."],
+      preflightRecommendation: "Review warnings before running a clean preflight.",
     });
   });
 

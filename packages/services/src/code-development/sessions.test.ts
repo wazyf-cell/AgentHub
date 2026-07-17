@@ -10,6 +10,7 @@ import {
   createCodeDevelopmentSessionSync,
   listCodeDevelopmentSessionsSync,
   markCodeDevelopmentSessionMergedSync,
+  recordCodeDevelopmentMergePreflightSync,
   recordCodeDevelopmentPatchManifestSync,
   recordCodeDevelopmentPatchSync,
   resetWorkspaceStateSync,
@@ -102,6 +103,29 @@ test("code development sessions require isolated worktrees and approved patch re
   );
   assert.equal(reviewed.status, "reviewed");
   assert.equal(reviewed.patch?.review?.status, "approved");
+
+  assert.throws(
+    () =>
+      markCodeDevelopmentSessionMergedSync(
+        {
+          sessionId: session.id,
+          mergedBy: { type: "human", id: "Mina" },
+        },
+        WORKSPACE_ID,
+      ),
+    /clean merge preflight/,
+  );
+
+  const preflight = recordCodeDevelopmentMergePreflightSync(
+    {
+      sessionId: session.id,
+      targetBranch: "main",
+      checkedBy: { type: "human", id: "Mina" },
+    },
+    WORKSPACE_ID,
+  );
+  assert.equal(preflight.mergePreflight?.status, "clean");
+  assert.deepEqual(preflight.mergePreflight?.checkedFiles, ["packages/parser/src/index.ts", "ignored.ts"]);
 
   const merged = markCodeDevelopmentSessionMergedSync(
     {
@@ -250,6 +274,77 @@ test("code development allocation creates isolated worktree metadata and patch m
       previousPath: undefined,
     },
   ]);
+});
+
+test("code development merge preflight blocks overlapping active patch files", () => {
+  const first = allocateCodeDevelopmentSessionSync(
+    {
+      title: "Router safety pass",
+      goal: "Prepare router hardening in one isolated session.",
+      repositoryRoot: "F:/repo",
+      baseRef: "main",
+      assignedAgentIds: ["Atlas"],
+      createdBy: { type: "human", id: "Mina" },
+    },
+    WORKSPACE_ID,
+  );
+  recordCodeDevelopmentPatchManifestSync(
+    {
+      sessionId: first.id,
+      summary: "Router manifest.",
+      fileChanges: [{ path: "packages/daemon/src/router.ts", additions: 4 }],
+      createdBy: { type: "agent", id: "Atlas" },
+    },
+    WORKSPACE_ID,
+  );
+
+  const second = allocateCodeDevelopmentSessionSync(
+    {
+      title: "Router metrics pass",
+      goal: "Prepare another router patch in another isolated session.",
+      repositoryRoot: "F:/repo",
+      baseRef: "main",
+      assignedAgentIds: ["Nova"],
+      createdBy: { type: "human", id: "Mina" },
+    },
+    WORKSPACE_ID,
+  );
+  recordCodeDevelopmentPatchManifestSync(
+    {
+      sessionId: second.id,
+      summary: "Router metrics manifest.",
+      headRef: "agent-space/router-metrics",
+      fileChanges: [{ path: "packages/daemon/src/router.ts", additions: 2 }],
+      createdBy: { type: "agent", id: "Nova" },
+    },
+    WORKSPACE_ID,
+  );
+
+  const blocked = recordCodeDevelopmentMergePreflightSync(
+    {
+      sessionId: second.id,
+      targetBranch: "main",
+      checkedBy: { type: "human", id: "Mina" },
+    },
+    WORKSPACE_ID,
+  );
+
+  assert.equal(blocked.mergePreflight?.status, "blocked");
+  assert.deepEqual(blocked.mergePreflight?.conflictFiles, ["packages/daemon/src/router.ts"]);
+  assert.deepEqual(blocked.mergePreflight?.checkedFiles, ["packages/daemon/src/router.ts"]);
+  assert.equal(blocked.mergePreflight?.headRef, "agent-space/router-metrics");
+  assert.match(blocked.mergePreflight?.recommendation ?? "", /Resolve conflicts/);
+  assert.throws(
+    () =>
+      markCodeDevelopmentSessionMergedSync(
+        {
+          sessionId: second.id,
+          mergedBy: { type: "human", id: "Mina" },
+        },
+        WORKSPACE_ID,
+      ),
+    /approved patch review/,
+  );
 });
 
 function ensureWorkspaceRecord(workspaceId: string, name: string): void {

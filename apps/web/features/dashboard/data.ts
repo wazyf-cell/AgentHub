@@ -5483,6 +5483,11 @@ export interface CodeDevelopmentSessionViewRecord {
   riskNotes: string[];
   reviewStatus?: "approved" | "rejected" | "needs_revision";
   reviewComment?: string;
+  preflightStatus?: "clean" | "warning" | "blocked";
+  preflightTargetBranch?: string;
+  preflightConflictFiles: string[];
+  preflightWarnings: string[];
+  preflightRecommendation?: string;
   mergeNotes?: string;
   blockedReason?: string;
   createdAt: string;
@@ -5641,6 +5646,11 @@ export function getAutomationsPageData(workspaceId = DEFAULT_WORKSPACE_ID): Auto
     riskNotes: session.patch?.riskNotes ?? [],
     reviewStatus: session.patch?.review?.status,
     reviewComment: session.patch?.review?.comment,
+    preflightStatus: session.mergePreflight?.status,
+    preflightTargetBranch: session.mergePreflight?.targetBranch,
+    preflightConflictFiles: session.mergePreflight?.conflictFiles ?? [],
+    preflightWarnings: session.mergePreflight?.warnings ?? [],
+    preflightRecommendation: session.mergePreflight?.recommendation,
     mergeNotes: session.mergeNotes,
     blockedReason: session.blockedReason,
     createdAt: session.createdAt,

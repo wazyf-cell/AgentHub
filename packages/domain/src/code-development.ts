@@ -11,6 +11,7 @@ export type CodeDevelopmentSessionStatus =
 
 export type CodeDevelopmentPatchReviewStatus = "approved" | "rejected" | "needs_revision";
 export type CodeDevelopmentPatchFileChangeType = "added" | "modified" | "deleted" | "renamed";
+export type CodeDevelopmentMergePreflightStatus = "clean" | "warning" | "blocked";
 
 export interface CodeDevelopmentPatchReview {
   status: CodeDevelopmentPatchReviewStatus;
@@ -45,6 +46,20 @@ export interface CodeDevelopmentPatchRecord {
   review?: CodeDevelopmentPatchReview;
 }
 
+export interface CodeDevelopmentMergePreflight {
+  status: CodeDevelopmentMergePreflightStatus;
+  targetBranch: string;
+  baseRef?: string;
+  headRef?: string;
+  checkedFiles: string[];
+  conflictFiles: string[];
+  warnings: string[];
+  recommendation: string;
+  checkedByType: CollaborationActorType;
+  checkedById: string;
+  checkedAt: string;
+}
+
 export interface CodeDevelopmentSession {
   id: string;
   workspaceId: string;
@@ -61,6 +76,7 @@ export interface CodeDevelopmentSession {
   createdAt: string;
   updatedAt: string;
   patch?: CodeDevelopmentPatchRecord;
+  mergePreflight?: CodeDevelopmentMergePreflight;
   mergeNotes?: string;
   blockedReason?: string;
 }

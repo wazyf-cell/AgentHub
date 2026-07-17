@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { DEFAULT_WORKSPACE_ID } from "@agent-space/db";
 import type {
+  CodeDevelopmentMergePreflightStatus,
   CodeDevelopmentPatchFileChange,
   CodeDevelopmentPatchFileChangeType,
   CodeDevelopmentPatchReviewStatus,
@@ -66,6 +67,18 @@ export interface ReviewCodeDevelopmentPatchInput {
   status: CodeDevelopmentPatchReviewStatus;
   reviewer: CollaborationActorRef;
   comment?: string;
+}
+
+export interface RecordCodeDevelopmentMergePreflightInput {
+  sessionId: string;
+  targetBranch: string;
+  baseRef?: string;
+  headRef?: string;
+  checkedFiles?: string[];
+  conflictFiles?: string[];
+  warnings?: string[];
+  recommendation?: string;
+  checkedBy: CollaborationActorRef;
 }
 
 export interface MarkCodeDevelopmentSessionMergedInput {
@@ -276,6 +289,64 @@ export function reviewCodeDevelopmentPatchSync(
   return session;
 }
 
+export function recordCodeDevelopmentMergePreflightSync(
+  input: RecordCodeDevelopmentMergePreflightInput,
+  workspaceId = DEFAULT_WORKSPACE_ID,
+): CodeDevelopmentSession {
+  const state = ensureWorkspaceStateSync(workspaceId);
+  const session = requireSession(state.codeDevelopmentSessions, input.sessionId);
+  assertMutableSession(session);
+  if (!session.patch) {
+    throw new Error(`Code development session "${input.sessionId}" does not have a patch to preflight.`);
+  }
+
+  const targetBranch = normalizeBranchName(input.targetBranch);
+  const checkedById = requireTrimmed(input.checkedBy.id, "Code development preflight actor id is required.");
+  const checkedFiles = normalizePreflightFileList(input.checkedFiles ?? session.patch.changedFiles);
+  if (checkedFiles.length === 0) {
+    throw new Error("Code development merge preflight must include at least one checked file.");
+  }
+
+  const overlapFiles = findActiveOverlappingPatchFiles(state.codeDevelopmentSessions, session.id, checkedFiles);
+  const conflictFiles = uniqueStringValues([
+    ...normalizePreflightFileList(input.conflictFiles ?? []),
+    ...overlapFiles,
+  ]);
+  const warnings = uniqueStringValues([
+    ...(input.warnings ?? []),
+    ...(overlapFiles.length > 0 ? [`Potential active session overlap: ${overlapFiles.join(", ")}`] : []),
+  ]);
+  const status: CodeDevelopmentMergePreflightStatus = conflictFiles.length > 0
+    ? "blocked"
+    : warnings.length > 0
+      ? "warning"
+      : "clean";
+  const recommendation = input.recommendation?.trim()
+    || (status === "clean"
+      ? "Preflight is clean. Manual merge may proceed after approved review."
+      : status === "warning"
+        ? "Review warnings before running a clean preflight."
+        : "Resolve conflicts before merge.");
+  const now = new Date().toISOString();
+
+  session.mergePreflight = {
+    status,
+    targetBranch,
+    baseRef: input.baseRef?.trim() || session.patch.baseRef || session.baseRef,
+    headRef: input.headRef?.trim() || session.patch.headRef || session.branchName,
+    checkedFiles,
+    conflictFiles,
+    warnings,
+    recommendation,
+    checkedByType: input.checkedBy.type,
+    checkedById,
+    checkedAt: now,
+  };
+  session.updatedAt = now;
+  writeWorkspaceStateSync(state, workspaceId);
+  return session;
+}
+
 export function markCodeDevelopmentSessionMergedSync(
   input: MarkCodeDevelopmentSessionMergedInput,
   workspaceId = DEFAULT_WORKSPACE_ID,
@@ -286,6 +357,9 @@ export function markCodeDevelopmentSessionMergedSync(
   const mergedById = requireTrimmed(input.mergedBy.id, "Code development merge actor id is required.");
   if (session.patch?.review?.status !== "approved") {
     throw new Error(`Code development session "${input.sessionId}" requires an approved patch review before merge.`);
+  }
+  if (session.mergePreflight?.status !== "clean") {
+    throw new Error(`Code development session "${input.sessionId}" requires a clean merge preflight before merge.`);
   }
 
   session.status = "merged";
@@ -404,6 +478,34 @@ function normalizePatchFileChanges(
     seenPaths.add(path);
   }
   return result;
+}
+
+function normalizePreflightFileList(files: string[]): string[] {
+  if (!Array.isArray(files)) {
+    return [];
+  }
+  return uniqueStringValues(files.map((file) => normalizeRepositoryRelativeFilePath(file)));
+}
+
+function findActiveOverlappingPatchFiles(
+  sessions: CodeDevelopmentSession[],
+  currentSessionId: string,
+  checkedFiles: string[],
+): string[] {
+  const checked = new Set(checkedFiles);
+  const overlaps: string[] = [];
+  for (const session of sessions) {
+    if (session.id === currentSessionId || TERMINAL_STATUSES.has(session.status)) {
+      continue;
+    }
+    for (const file of session.patch?.changedFiles ?? []) {
+      const normalized = normalizeRepositoryRelativeFilePath(file);
+      if (checked.has(normalized)) {
+        overlaps.push(normalized);
+      }
+    }
+  }
+  return uniqueStringValues(overlaps);
 }
 
 function normalizeRepositoryRelativeFilePath(value: string): string {

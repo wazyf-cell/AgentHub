@@ -770,6 +770,15 @@ export function AutomationsPageClient({ data, onDataChanged }: { data: Automatio
                           {session.reviewComment ? ` · ${session.reviewComment}` : ""}
                         </small>
                       ) : null}
+                      {session.preflightStatus ? (
+                        <small>
+                          {tx("预检", "Preflight")}: {session.preflightStatus}
+                          {session.preflightTargetBranch ? ` · ${tx("Target", "Target")}: ${session.preflightTargetBranch}` : ""}
+                          {session.preflightConflictFiles.length > 0 ? ` · ${tx("冲突", "Conflicts")}: ${session.preflightConflictFiles.join(", ")}` : ""}
+                          {session.preflightWarnings.length > 0 ? ` · ${tx("警告", "Warnings")}: ${session.preflightWarnings.join(" · ")}` : ""}
+                          {session.preflightRecommendation ? ` · ${session.preflightRecommendation}` : ""}
+                        </small>
+                      ) : null}
                       {session.riskNotes.length > 0 ? (
                         <small>{tx("风险", "Risks")}: {session.riskNotes.join(" · ")}</small>
                       ) : null}
