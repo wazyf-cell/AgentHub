@@ -1,8 +1,9 @@
-import { appendTaskMessageSync, failQueuedTaskSync } from "@agent-space/db";
+import { appendTaskMessageSync } from "@agent-space/db";
 import { parseTaskPayload } from "agent-space-daemon";
 import type { FailTaskRequest } from "@agent-space/domain";
 import {
   continueAutoContinuationAfterTaskSync,
+  failQueuedTaskAndAdvanceCollaborationSync,
   failChannelDocumentRunStepSync,
   formatConversationFailureSummary,
   formatTaskFailureSummary,
@@ -49,7 +50,7 @@ export async function POST(
   const effectiveChannelName =
     payload.channelName
       ?? (payload.contactId ? resolveCompatibleDirectChannelRecord(workspaceState, payload.contactId)?.name : undefined);
-  failQueuedTaskSync({
+  failQueuedTaskAndAdvanceCollaborationSync({
     taskId: task.id,
     attemptId: lease.attemptId,
     leaseToken: lease.leaseToken,

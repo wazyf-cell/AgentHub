@@ -19,6 +19,8 @@ export default defineConfig({
       { find: /^@agent-space\/domain\/(.*)$/, replacement: `${path.resolve(__dirname, "../../packages/domain/src")}/$1.ts` },
       { find: /^@agent-space\/services$/, replacement: path.resolve(__dirname, "../../packages/services/src/index.ts") },
       { find: /^@agent-space\/services\/(.*)$/, replacement: `${path.resolve(__dirname, "../../packages/services/src")}/$1.ts` },
+      { find: /^@agent-space\/sandbox$/, replacement: path.resolve(__dirname, "../../packages/sandbox/src/index.ts") },
+      { find: /^@agent-space\/sandbox\/(.*)$/, replacement: `${path.resolve(__dirname, "../../packages/sandbox/src")}/$1.ts` },
       { find: /^@agent-space\/db$/, replacement: path.resolve(__dirname, "../../packages/db/src/index.ts") },
       { find: /^@agent-space\/db\/(.*)$/, replacement: `${path.resolve(__dirname, "../../packages/db/src")}/$1.ts` },
       { find: /^@agent-space\/db\/index$/, replacement: path.resolve(__dirname, "../../packages/db/src/index.ts") },

@@ -1,4 +1,4 @@
-import { appendTaskMessageSync, completeQueuedTaskSync, failQueuedTaskSync, readAgentRuntimeSync } from "@agent-space/db";
+import { appendTaskMessageSync, readAgentRuntimeSync } from "@agent-space/db";
 import {
   applyDocumentRuntimeOutputOperations,
   applyChannelDocumentOperations,
@@ -21,7 +21,9 @@ import {
   replacePendingChannelMessageSync,
   resolveCompatibleDirectChannelRecord,
   AgentDocumentPermissionError,
+  completeQueuedTaskAndAdvanceCollaborationSync,
   updateExternalChannelDocumentMetadataSync,
+  failQueuedTaskAndAdvanceCollaborationSync,
   writeConversationExecutionWorkspaceStateSync,
   upsertDirectConversationStateSync,
   updateTaskStatusSync,
@@ -333,7 +335,7 @@ export async function POST(
       workDir: body.workDir,
     });
 
-    completeQueuedTaskSync({
+    completeQueuedTaskAndAdvanceCollaborationSync({
       taskId: task.id,
       attemptId: lease.attemptId,
       leaseToken: lease.leaseToken,
@@ -383,7 +385,7 @@ export async function POST(
           rawProviderMessage: error.message,
         }
       : undefined;
-    failQueuedTaskSync({
+    failQueuedTaskAndAdvanceCollaborationSync({
       taskId: task.id,
       attemptId: lease.attemptId,
       leaseToken: lease.leaseToken,

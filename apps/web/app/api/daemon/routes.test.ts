@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { platform } from "node:process";
 import { join } from "node:path";
 import {
   createWorkspaceSync,
@@ -8,12 +9,14 @@ import {
   createUserSync,
   createWorkspaceMembershipSync,
   enqueueNativeTaskSync,
+  listCollaborationTaskNodesSync,
   listRuntimeGrantsSync,
   listDaemonSnapshotsSync,
   listQueuedTasksSync,
   listRuntimeInstalledAppsSync,
   listTaskExecutionEventsSync,
   readWorkspaceSync,
+  readCollaborationRunSync,
   registerDaemonRuntimesSync,
   createRuntimeAppOperationSync,
   completeRuntimeAppOperationSync,
@@ -25,6 +28,7 @@ import { getDatabase } from "@agent-space/db/database";
 import {
   bindEmployeeRuntimeSync,
   addChannelEmployeesSync,
+  createAndDispatchCollaborationRunSync,
   createEmployeeSync,
   createExternalGoogleSheetChannelDocumentSync,
   createWorkspaceSkillSync,
@@ -84,7 +88,7 @@ beforeAll(() => {
   mkdirSync(join(tempRoot, "data"), { recursive: true });
   const packagesLink = join(tempRoot, "packages");
   if (!existsSync(packagesLink)) {
-    symlinkSync(join(repositoryRoot, "packages"), packagesLink, "dir");
+    symlinkSync(join(repositoryRoot, "packages"), packagesLink, platform === "win32" ? "junction" : "dir");
   }
   process.chdir(tempRoot);
 });
@@ -106,6 +110,9 @@ beforeEach(() => {
   db.exec("DELETE FROM agent_router_context_snapshot");
   db.exec("DELETE FROM agent_task_attempt");
   db.exec("DELETE FROM agent_router_provider_session");
+  db.exec("DELETE FROM collaboration_run_event");
+  db.exec("DELETE FROM collaboration_task_node");
+  db.exec("DELETE FROM collaboration_run");
   db.exec("DELETE FROM agent_task_queue");
   db.exec("DELETE FROM agent_router_session");
   db.exec("DELETE FROM runtime_app_skill_binding");
@@ -139,10 +146,52 @@ beforeEach(() => {
   });
 });
 
-function daemonHeaders(token: string): HeadersInit {
+function daemonHeaders(token: string): Record<string, string> {
   return {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
+  };
+}
+
+function taskLeaseHeaders(
+  token: string,
+  task: { activeAttemptId?: string; leaseToken?: string },
+): Record<string, string> {
+  return {
+    ...daemonHeaders(token),
+    "x-agent-space-attempt-id": task.activeAttemptId ?? "",
+    "x-agent-space-lease-token": task.leaseToken ?? "",
+  };
+}
+
+async function claimNextTaskForRuntime(runtimeId: string, token: string): Promise<{
+  id: string;
+  activeAttemptId: string;
+  leaseToken: string;
+}> {
+  const claimResponse = await claimPOST(
+    new Request(`http://localhost/api/daemon/runtimes/${runtimeId}/tasks/claim`, {
+      method: "POST",
+      headers: daemonHeaders(token),
+    }),
+    { params: Promise.resolve({ runtimeId }) },
+  );
+  const claimPayload = await claimResponse.json() as {
+    task?: {
+      id?: string;
+      activeAttemptId?: string;
+      leaseToken?: string;
+    } | null;
+  };
+
+  expect(claimResponse.status).toBe(200);
+  expect(claimPayload.task?.id).toBeTruthy();
+  expect(claimPayload.task?.activeAttemptId).toBeTruthy();
+  expect(claimPayload.task?.leaseToken).toBeTruthy();
+  return {
+    id: claimPayload.task!.id!,
+    activeAttemptId: claimPayload.task!.activeAttemptId!,
+    leaseToken: claimPayload.task!.leaseToken!,
   };
 }
 
@@ -1133,6 +1182,168 @@ describe("daemon API routes", () => {
     const timelineTypes = listTaskExecutionEventsSync({ taskId: queued!.id }).map((event) => event.type);
     expect(timelineTypes).toContain("artifact_collected");
     expect(timelineTypes).toContain("completed");
+  });
+
+  it("advances a collaboration DAG when a linked daemon task completes", async () => {
+    const daemonToken = createDaemonApiTokenSync({
+      label: "remote-daemon",
+      createdBy: "Tianyu",
+    });
+
+    const registerResponse = await registerPOST(
+      new Request("http://localhost/api/daemon/register", {
+        method: "POST",
+        headers: daemonHeaders(daemonToken.token),
+        body: JSON.stringify({
+          daemonKey: "build-box-collaboration-complete",
+          deviceName: "Build Box Collaboration Complete",
+          runtimes: [
+            {
+              provider: "codex",
+              name: "Remote Codex",
+              version: "test",
+            },
+          ],
+        }),
+      }),
+    );
+    const registerPayload = await registerResponse.json();
+    const runtimeId = registerPayload.runtimes[0].id as string;
+
+    createEmployeeSync({ name: "Atlas", role: "Planner" });
+    createEmployeeSync({ name: "Nova", role: "Reviewer" });
+    bindEmployeeRuntimeSync("Atlas", runtimeId);
+    bindEmployeeRuntimeSync("Nova", runtimeId);
+
+    const run = createAndDispatchCollaborationRunSync({
+      title: "Daemon collaboration complete",
+      goal: "daemon complete route 应推进 collaboration DAG。",
+      nodes: [
+        {
+          id: "node-root",
+          agentId: "Atlas",
+          title: "Root",
+          instruction: "完成 root。",
+        },
+        {
+          id: "node-next",
+          agentId: "Nova",
+          title: "Next",
+          instruction: "等待 root 后继续。",
+          dependsOnNodeIds: ["node-root"],
+        },
+      ],
+    });
+    expect(run.dispatched.map((item) => item.node.id)).toEqual(["node-root"]);
+
+    const claimed = await claimNextTaskForRuntime(runtimeId, daemonToken.token);
+    expect(claimed.id).toBe(run.dispatched[0].taskQueueId);
+
+    const completeResponse = await completePOST(
+      new Request(`http://localhost/api/daemon/tasks/${claimed.id}/complete`, {
+        method: "POST",
+        headers: taskLeaseHeaders(daemonToken.token, claimed),
+        body: JSON.stringify({
+          outputText: "root completed via daemon route",
+          sessionId: "provider-session-root",
+          workDir: "runtime-root",
+        }),
+      }),
+      { params: Promise.resolve({ taskId: claimed.id }) },
+    );
+    const completePayload = await completeResponse.json();
+
+    expect(completeResponse.status).toBe(200);
+    expect(completePayload.task.status).toBe("completed");
+    expect(completePayload.collaboration).toBeUndefined();
+    const nodes = listCollaborationTaskNodesSync(run.run.id);
+    const rootNode = nodes.find((node) => node.id === "node-root");
+    const nextNode = nodes.find((node) => node.id === "node-next");
+    expect(rootNode?.status).toBe("completed");
+    expect(JSON.parse(rootNode!.resultJson!).output).toBe("root completed via daemon route");
+    expect(JSON.parse(rootNode!.resultJson!).sessionId).toBe("provider-session-root");
+    expect(nextNode?.status).toBe("queued");
+    expect(nextNode?.taskQueueId).toBeTruthy();
+  });
+
+  it("fails a collaboration DAG when a linked daemon task fails", async () => {
+    const daemonToken = createDaemonApiTokenSync({
+      label: "remote-daemon",
+      createdBy: "Tianyu",
+    });
+
+    const registerResponse = await registerPOST(
+      new Request("http://localhost/api/daemon/register", {
+        method: "POST",
+        headers: daemonHeaders(daemonToken.token),
+        body: JSON.stringify({
+          daemonKey: "build-box-collaboration-fail",
+          deviceName: "Build Box Collaboration Fail",
+          runtimes: [
+            {
+              provider: "codex",
+              name: "Remote Codex",
+              version: "test",
+            },
+          ],
+        }),
+      }),
+    );
+    const registerPayload = await registerResponse.json();
+    const runtimeId = registerPayload.runtimes[0].id as string;
+
+    createEmployeeSync({ name: "Atlas", role: "Planner" });
+    createEmployeeSync({ name: "Nova", role: "Reviewer" });
+    bindEmployeeRuntimeSync("Atlas", runtimeId);
+    bindEmployeeRuntimeSync("Nova", runtimeId);
+
+    const run = createAndDispatchCollaborationRunSync({
+      title: "Daemon collaboration fail",
+      goal: "daemon fail route 应阻断 collaboration DAG。",
+      nodes: [
+        {
+          id: "node-root",
+          agentId: "Atlas",
+          title: "Root",
+          instruction: "失败 root。",
+        },
+        {
+          id: "node-next",
+          agentId: "Nova",
+          title: "Next",
+          instruction: "依赖 root。",
+          dependsOnNodeIds: ["node-root"],
+        },
+      ],
+    });
+    expect(run.dispatched.map((item) => item.node.id)).toEqual(["node-root"]);
+
+    const claimed = await claimNextTaskForRuntime(runtimeId, daemonToken.token);
+    expect(claimed.id).toBe(run.dispatched[0].taskQueueId);
+
+    const failResponse = await failPOST(
+      new Request(`http://localhost/api/daemon/tasks/${claimed.id}/fail`, {
+        method: "POST",
+        headers: taskLeaseHeaders(daemonToken.token, claimed),
+        body: JSON.stringify({
+          errorText: "root failed via daemon route",
+          errorCode: "runtime.failed",
+        }),
+      }),
+      { params: Promise.resolve({ taskId: claimed.id }) },
+    );
+    const failPayload = await failResponse.json();
+
+    expect(failResponse.status).toBe(200);
+    expect(failPayload.task.status).toBe("failed");
+    expect(failPayload.collaboration).toBeUndefined();
+    expect(readCollaborationRunSync(run.run.id)?.status).toBe("failed");
+    expect(
+      listCollaborationTaskNodesSync(run.run.id).map((node) => [node.id, node.status]),
+    ).toEqual([
+      ["node-root", "failed"],
+      ["node-next", "blocked"],
+    ]);
   });
 
   it("processes external sheet result manifests into operation runs", async () => {
