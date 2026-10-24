@@ -563,6 +563,106 @@
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
     }
+
+    /* ---------- workbench: view tabs, board, task detail ---------- */
+    [hidden] { display: none !important; }
+    .view-tabs {
+      display: flex; align-items: center; gap: 6px; padding: 0 14px;
+      min-height: 38px; border-bottom: 1px solid var(--line); background: var(--panel);
+    }
+    .view-tabs button { min-height: 26px; padding: 3px 12px; background: transparent; border-color: transparent; color: var(--muted); }
+    .view-tabs button:hover { color: var(--text); background: var(--panel-3); }
+    .view-tabs button.active { color: var(--amber-strong); background: var(--amber-soft); border-color: rgba(227, 163, 85, .28); }
+    .view-tabs .spacer { flex: 1; }
+    .view-tabs .count { color: var(--dim); font: 10.5px var(--font-mono); margin-left: 4px; }
+    .board { flex: 1; overflow: auto; padding: 14px 16px 22px; }
+    .board-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .board-head h2 { font: 600 15px var(--font-display); margin: 0; }
+    .board-head .hint { flex: 1; }
+    .board-errors { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .board-columns { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 10px; align-items: start; min-width: 840px; }
+    .board-col { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px; min-height: 120px; transition: border-color .12s ease, background .12s ease; }
+    .board-col.drop-target { border-color: var(--amber); background: var(--amber-soft); }
+    .col-head { display: flex; align-items: center; gap: 6px; padding: 2px 4px 8px; font-size: 12px; color: var(--muted); }
+    .col-head strong { color: var(--text); font-weight: 600; }
+    .col-head .count { margin-left: auto; font: 10.5px var(--font-mono); color: var(--dim); }
+    .task-card { border: 1px solid var(--line); background: var(--panel-2); border-radius: 7px; padding: 8px; margin-bottom: 7px; cursor: pointer; }
+    .task-card:hover { border-color: var(--line-2); background: var(--panel-3); }
+    .task-card.dragging { opacity: .45; }
+    .task-card.running { border-color: rgba(227, 163, 85, .35); }
+    .task-title { font-weight: 600; font-size: 12.5px; line-height: 1.4; margin-bottom: 4px; word-break: break-word; }
+    .task-meta { display: flex; flex-wrap: wrap; gap: 5px; font: 10.5px var(--font-mono); color: var(--dim); }
+    .task-badge { border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; font-size: 10px; color: #b8bdc3; }
+    .task-badge.warn { color: #e2b58a; border-color: rgba(227, 163, 85, .35); }
+    .task-badge.danger { color: #f2b9b2; border-color: rgba(221, 107, 95, .4); }
+    .board-empty { color: var(--dim); font-size: 11.5px; padding: 10px 4px; }
+    .task-detail { flex: 1; overflow: auto; padding: 14px 18px 22px; }
+    .td-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+    .td-head h2 { font: 600 17px/1.35 var(--font-display); margin: 0; flex: 1; }
+    .td-sub { color: var(--dim); font: 11px/1.5 var(--font-mono); margin-bottom: 12px; word-break: break-all; }
+    .td-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+    .td-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .85fr); gap: 14px; align-items: start; }
+    .td-section { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 12px; }
+    .td-section h3 { margin: 0 0 8px; font: 600 12.5px var(--font-display); color: var(--amber-strong); }
+    .td-section + .td-section { margin-top: 10px; }
+    .td-prose { white-space: pre-wrap; word-break: break-word; color: #c9cdd2; font-size: 12.5px; }
+    .td-kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 10px; font-size: 12px; }
+    .td-kv .k { color: var(--dim); }
+    .td-kv .v { color: #c9cdd2; word-break: break-word; }
+    .thread-event { border-bottom: 1px solid var(--line); padding: 6px 0; font-size: 12px; }
+    .thread-event:last-child { border-bottom: 0; }
+    .thread-event .who { font: 600 11px var(--font-mono); color: var(--amber); margin-right: 6px; }
+    .thread-event .when { color: var(--dim); font: 10px var(--font-mono); }
+    .thread-event .body { color: #c3c7cc; white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
+    .diff-pre, .preview-pre { font: 11.5px/1.5 var(--font-mono); white-space: pre-wrap; word-break: break-word; background: #0a0c0f; border: 1px solid var(--line); border-radius: 7px; padding: 9px; max-height: 55vh; overflow: auto; margin: 0; }
+    .td-empty { color: var(--dim); font-size: 12px; }
+
+    /* ---------- inspector ---------- */
+    .inspector { width: 500px; }
+    .inspector-tabs { display: flex; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+    .inspector-tabs button { min-height: 26px; padding: 2px 10px; background: transparent; border-color: transparent; color: var(--muted); }
+    .inspector-tabs button.active { color: var(--amber-strong); background: var(--amber-soft); border-color: rgba(227, 163, 85, .25); }
+    .inspector-body { flex: 1; overflow: auto; padding: 12px 14px 18px; }
+    .inspector-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+    .inspector-row input { flex: 1; }
+    .tree-entry { display: flex; align-items: center; gap: 6px; width: 100%; padding: 3px 6px; border: 0; background: transparent; border-radius: 5px; text-align: left; font: 11.5px/1.4 var(--font-mono); color: #b9bec4; min-height: 24px; }
+    .tree-entry:hover { background: var(--panel-3); }
+    .tree-entry.dir { color: var(--amber); }
+    .tree-entry .size { margin-left: auto; color: var(--dim); font-size: 10px; }
+    .search-hit { width: 100%; text-align: left; border: 0; background: transparent; border-bottom: 1px solid var(--line); border-radius: 0; padding: 6px 4px; min-height: 0; }
+    .search-hit:hover { background: var(--panel-2); }
+    .search-hit .path { font: 10.5px var(--font-mono); color: var(--amber); }
+    .search-hit .line { font: 11.5px var(--font-mono); color: #c3c7cc; white-space: pre-wrap; word-break: break-word; }
+    .graph-result { font: 11px/1.5 var(--font-mono); white-space: pre-wrap; word-break: break-word; color: #b9bec4; }
+
+    /* ---------- btw & draft & message actions ---------- */
+    .msg-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; opacity: .35; transition: opacity .12s ease; }
+    .msg:hover .msg-actions { opacity: 1; }
+    .msg-actions button { min-height: 22px; padding: 1px 8px; font-size: 10.5px; color: var(--muted); }
+    .draft-card { border: 1px solid rgba(227, 163, 85, .3); background: var(--panel); border-radius: 9px; padding: 10px 12px; margin: 2px 0; }
+    .draft-card .draft-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .draft-card .draft-head strong { color: var(--amber-strong); font-size: 12.5px; }
+    .draft-card .draft-meta { color: var(--dim); font: 10.5px var(--font-mono); word-break: break-all; }
+    .draft-card.done { opacity: .55; border-color: var(--line); }
+    .draft-badge { border: 1px solid rgba(227, 163, 85, .4); background: var(--amber-soft); color: var(--amber-strong); border-radius: 999px; padding: 1px 8px; font: 10.5px var(--font-mono); }
+    .msg.flash { animation: msg-flash 1.2s ease; }
+    @keyframes msg-flash { 0%, 100% { background: transparent; } 30% { background: var(--amber-soft); } }
+    .draft-files { display: grid; gap: 3px; margin: 7px 0; font: 11px var(--font-mono); color: #c3c7cc; max-height: 220px; overflow: auto; }
+    .draft-files label { display: flex; align-items: center; gap: 6px; }
+    .draft-files input { width: auto; min-height: 0; }
+    .draft-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .btw-answer { white-space: pre-wrap; word-break: break-word; background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 10px; min-height: 60px; font-size: 12.5px; color: #c9cdd2; }
+    .btw-history { display: grid; gap: 6px; max-height: 200px; overflow: auto; margin-top: 10px; }
+    .btw-history .item { border-bottom: 1px solid var(--line); padding-bottom: 5px; font-size: 11.5px; }
+    .btw-history .q { color: var(--amber); }
+    .btw-history .a { color: #b9bec4; white-space: pre-wrap; }
+    .platform-edit-row { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line); padding: 5px 0; }
+    .platform-edit-row .grow { flex: 1; min-width: 0; }
+    .scope-row { padding: 0 14px 8px; }
+    .scope-row input { font: 11.5px var(--font-mono); min-height: 28px; }
+    .task-depends { display: grid; gap: 4px; max-height: 150px; overflow: auto; border: 1px solid var(--line); border-radius: 7px; padding: 7px; }
+    .task-depends label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+    .task-depends input { width: auto; min-height: 0; }
   </style>
 </head>
 <body>
@@ -635,7 +735,16 @@
     </aside>
 
     <main id="center">
+      <div class="view-tabs" id="viewTabs">
+        <button type="button" data-view="chat" class="active">对话</button>
+        <button type="button" data-view="board" id="boardTab">任务板<span class="count" id="taskCount"></span></button>
+        <span class="spacer"></span>
+        <button type="button" id="openInspector" title="文件 / Git / 查找 / 图谱">检查器</button>
+        <button type="button" id="openBtw" title="只读侧问，不打断主对话">BTW</button>
+      </div>
       <div class="chat" id="chat" aria-live="polite"></div>
+      <div class="board" id="board" hidden></div>
+      <div class="task-detail" id="taskDetail" hidden></div>
       <div class="log" id="log"></div>
       <div class="composer">
         <div class="composer-top">
@@ -643,7 +752,11 @@
             <span class="dot"></span>
             <span id="ruleChip">未选择房间</span>
           </button>
-          <span class="composer-hint">@成员 定向 · Ctrl+Enter 运行</span>
+          <span class="composer-hint" id="draftHint">@成员 定向 · Ctrl+Enter 运行</span>
+          <span class="draft-badge" id="draftBadge" hidden>草稿</span>
+        </div>
+        <div class="scope-row" id="scopeRow" hidden>
+          <input id="draftScope" placeholder="草稿工作范围：可选文件/文件夹，逗号分隔；留空只允许新建文件" />
         </div>
         <textarea id="prompt" placeholder="输入任务。用 @成员名 定向；成员写 @成员名 会自动交接。" aria-label="任务输入"></textarea>
         <div class="composer-actions">
@@ -721,6 +834,16 @@
           <button type="button" id="rsOpenWorkspace">打开</button>
         </div>
       </div>
+      <div class="field">
+        <label for="rsDraftMode">聊天写入</label>
+        <select id="rsDraftMode">
+          <option value="read-only">只读 · agent 不写文件</option>
+          <option value="drafts">允许沙盒草稿 · 手动应用</option>
+        </select>
+        <div class="hint" id="rsDraftHint">草稿只写应用数据目录，不会自动落到工作区。</div>
+      </div>
+      <label class="check"><input type="checkbox" id="rsAllowTaskWrites" /><span>允许任务在独立 worktree 写入</span></label>
+      <label class="check"><input type="checkbox" id="rsAllowAutoMerge" /><span>允许任务自动合并（每个任务还需单独勾选）</span></label>
       <div class="hint">完成标记用于判断 agent 是否收尾；改完保存后，本房间下一次运行生效。</div>
     </div>
     <div class="modal-foot">
@@ -847,6 +970,168 @@
     </div>
   </div>
 
+  <aside class="drawer inspector" id="inspectorDrawer" role="dialog" aria-modal="true" aria-label="检查器">
+    <div class="drawer-head">
+      <div>
+        <div class="drawer-title">检查器（只读）</div>
+        <div class="drawer-sub" id="inspectorPath">—</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closeInspector" title="关闭" aria-label="关闭检查器">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="inspector-tabs" id="inspectorTabs">
+      <button type="button" data-itab="files" class="active">文件</button>
+      <button type="button" data-itab="git">Git</button>
+      <button type="button" data-itab="search">查找</button>
+      <button type="button" data-itab="graph">图谱</button>
+    </div>
+    <div class="inspector-body" id="inspectorBody"></div>
+  </aside>
+
+  <div class="modal" id="taskSheet" role="dialog" aria-modal="true" aria-labelledby="taskSheetTitle" style="width:660px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="taskSheetTitle">新建任务</div>
+        <div class="modal-sub" id="taskSheetSub">任务写入隔离的 git worktree，主线不会被 agent 直接修改</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closeTaskSheet" title="关闭" aria-label="关闭任务表单">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="taskTitle">标题</label>
+        <input id="taskTitle" placeholder="例如：修复登录页的空状态" />
+      </div>
+      <div class="field">
+        <label for="taskDescription">描述</label>
+        <textarea id="taskDescription" placeholder="要实现或修复什么？"></textarea>
+      </div>
+      <div class="field">
+        <label for="taskAcceptance">验收标准</label>
+        <textarea id="taskAcceptance" placeholder="怎样算完成？尽量可检查。"></textarea>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label for="taskOwner">Owner</label>
+          <select id="taskOwner"></select>
+        </div>
+        <div class="field">
+          <label for="taskReviewer">审查者（可选）</label>
+          <select id="taskReviewer"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>依赖任务</label>
+        <div class="task-depends" id="taskDepends"></div>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label for="taskVerification">验证命令（可选）</label>
+          <input id="taskVerification" placeholder="例如：npm test" />
+        </div>
+        <div class="field">
+          <label for="taskBudget">预算（元，默认 2）</label>
+          <input id="taskBudget" type="number" min="0" step="0.5" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="taskAllowedPaths">允许修改的路径（逗号或换行分隔）</label>
+        <textarea id="taskAllowedPaths" placeholder="留空 = 整个 worktree；例如 src/, tests/"></textarea>
+      </div>
+      <label class="check"><input type="checkbox" id="taskAutoMerge" /><span>自动合并（验证与审查通过、目标干净时 --ff-only）</span></label>
+      <div class="form-hint" id="taskPinsHint"></div>
+      <div class="form-hint" id="taskSourceHint"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="cancelTaskSheet" type="button">取消</button>
+      <button class="primary" id="saveTask" type="button">保存任务</button>
+    </div>
+  </div>
+
+  <div class="modal" id="btwModal" role="dialog" aria-modal="true" aria-labelledby="btwTitle" style="width:580px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="btwTitle">BTW 侧问</div>
+        <div class="modal-sub">只读、不打断主对话；回答会单独计费，可提升为普通消息</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closeBtw" title="关闭" aria-label="关闭 BTW">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="btwMember">使用成员</label>
+        <select id="btwMember"></select>
+      </div>
+      <div class="field">
+        <label for="btwQuestion">问题</label>
+        <textarea id="btwQuestion" placeholder="例如：这个改动会影响哪些模块？"></textarea>
+      </div>
+      <div class="field">
+        <label>回答</label>
+        <div class="btw-answer" id="btwAnswer">还没有提问。</div>
+      </div>
+      <div class="btw-history" id="btwHistory"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="btwPromote" type="button" disabled>提升为消息</button>
+      <span class="spacer"></span>
+      <button id="closeBtwFoot" type="button">关闭</button>
+      <button class="primary" id="btwAsk" type="button">提问</button>
+    </div>
+  </div>
+
+  <div class="modal" id="platformSheet" role="dialog" aria-modal="true" aria-labelledby="platformSheetTitle" style="width:560px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="platformSheetTitle">新增平台</div>
+        <div class="modal-sub">密钥用环境变量名，不写入配置文件</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closePlatformSheet" title="关闭" aria-label="关闭平台表单">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="two">
+        <div class="field"><label for="pfId">id</label><input id="pfId" placeholder="my-cli" /></div>
+        <div class="field"><label for="pfName">名称</label><input id="pfName" placeholder="我的 CLI" /></div>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label for="pfKind">类型</label>
+          <select id="pfKind">
+            <option value="cli">cli</option>
+            <option value="openai-compatible">openai-compatible</option>
+            <option value="fake">fake</option>
+          </select>
+        </div>
+        <div class="field"><label for="pfHarness">harness</label><input id="pfHarness" placeholder="codex / claude" /></div>
+      </div>
+      <div class="two">
+        <div class="field"><label for="pfBaseUrl">baseUrl</label><input id="pfBaseUrl" placeholder="http://127.0.0.1:17864/v1" /></div>
+        <div class="field"><label for="pfApiKeyEnv">apiKeyEnv</label><input id="pfApiKeyEnv" placeholder="AIWORK_API_KEY" /></div>
+      </div>
+      <div class="two">
+        <div class="field"><label for="pfSandbox">sandboxMode</label><input id="pfSandbox" placeholder="read-only / workspace-write" /></div>
+        <div class="field"><label for="pfPermission">permissionMode</label><input id="pfPermission" placeholder="plan / acceptEdits" /></div>
+      </div>
+      <div class="two">
+        <div class="field"><label for="pfTimeout">超时（毫秒）</label><input id="pfTimeout" type="number" min="1000" step="1000" /></div>
+        <label class="check" style="align-self:end;"><input type="checkbox" id="pfEnabled" checked /><span>启用</span></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button id="cancelPlatformSheet" type="button">取消</button>
+      <button class="primary" id="savePlatform" type="button">保存平台</button>
+    </div>
+  </div>
+
   <div id="palette" role="dialog" aria-modal="true" aria-label="命令面板">
     <div class="palette-panel">
       <div class="palette-input-row">
@@ -882,11 +1167,37 @@
       overlays: [],
       pathPopoverTarget: "",
       renamingWorkspaceId: "",
+      view: "chat",
+      tasks: [],
+      taskDetailId: "",
+      taskDetail: null,
+      taskDraftSource: null,
+      runningTaskId: "",
+      recoveredRooms: new Set(),
+      workspaceIsGit: false,
+      inspectorTab: "files",
+      inspectorWorkspace: "",
+      inspectorFile: "",
+      inspectorTreePath: "",
+      btwLastId: "",
+      draftDetails: {},
+      openDrafts: new Set(),
+      editingTaskId: "",
+      taskDraftPins: [],
+      inspectorOffset: 0,
+      draftNoticeShown: false,
+      editingPlatformId: "",
     };
     const $ = (id) => document.getElementById(id);
     const AUTONOMY_LABELS = { low: "低自治", medium: "中自治", high: "高自治" };
-    const OVERLAY_IDS = ["memberDrawer", "roomSheet", "settingsModal", "workspaceSheet", "createRoomSheet", "palette"];
-    const DISPLAY_EVENT_TYPES = new Set(["user_message", "agent_message", "handoff", "binding_used", "summary_updated", "room_stopped", "error"]);
+    const TASK_STATUS_LABELS = {
+      backlog: "待排期", ready: "就绪", running: "运行中", review: "审查中", merge_ready: "待合并",
+      done: "已完成", failed: "失败", blocked: "阻塞", cancelled: "已取消", conflict: "冲突",
+      budget_paused: "预算暂停", interrupted: "已中断",
+    };
+    const ABNORMAL_STATUSES = ["failed", "blocked", "cancelled", "conflict", "budget_paused", "interrupted"];
+    const OVERLAY_IDS = ["memberDrawer", "roomSheet", "settingsModal", "workspaceSheet", "createRoomSheet", "palette", "taskSheet", "btwModal", "inspectorDrawer", "platformSheet"];
+    const DISPLAY_EVENT_TYPES = new Set(["user_message", "agent_message", "handoff", "binding_used", "summary_updated", "room_stopped", "error", "draft_created"]);
 
     function setStatus(text, kind = "") {
       const node = $("status");
@@ -968,6 +1279,1088 @@
       return state.room?.members.find((member) => member.id === memberId);
     }
 
+    function memberLabel(memberId) {
+      const baseId = String(memberId || "").split("__")[0];
+      return memberById(baseId)?.name || memberId || "—";
+    }
+
+    function taskStatusBadge(status) {
+      const kind = ["failed", "conflict", "cancelled"].includes(status)
+        ? "danger"
+        : ["budget_paused", "interrupted", "blocked", "merge_ready", "running"].includes(status) ? "warn" : "";
+      return el("span", `task-badge${kind ? ` ${kind}` : ""}`, TASK_STATUS_LABELS[status] || status);
+    }
+
+    function parseScopeInput(value) {
+      return String(value || "").split(/[,，;；\n]+/).map((item) => item.trim()).filter(Boolean);
+    }
+
+    function draftEnabled() {
+      return Boolean(state.room?.workspace) && state.room.rules?.draftMode !== "read-only";
+    }
+
+    function syncDraftControls() {
+      const enabled = draftEnabled();
+      $("scopeRow").hidden = !enabled;
+      if (state.room) {
+        $("draftScope").value = localStorage.getItem(`agenthub.draftScope.${state.room.id}`) || "";
+      }
+      $("draftHint").textContent = enabled
+        ? "草稿模式：agent 只写草稿目录，运行后手动应用"
+        : "@成员 定向 · Ctrl+Enter 运行";
+    }
+
+    function setView(view) {
+      if (view !== "chat" && !state.room) {
+        setStatus("先创建或选择一个房间", "error");
+        return;
+      }
+      if (view !== "chat" && !state.room.workspace) {
+        setStatus("纯聊天房间没有工作区，任务板不可用", "error");
+        return;
+      }
+      state.view = view;
+      $("chat").hidden = view !== "chat";
+      $("log").hidden = view !== "chat";
+      document.querySelector(".composer").hidden = view !== "chat";
+      $("board").hidden = view !== "board";
+      $("taskDetail").hidden = view !== "task";
+      $("viewTabs").querySelectorAll("[data-view]").forEach((node) => {
+        node.classList.toggle("active", node.dataset.view === view);
+      });
+      if (view === "board") renderBoard();
+      if (view === "task") renderTaskDetail();
+    }
+
+    function renderTaskCount() {
+      const active = state.tasks.filter((task) => !["done", "cancelled"].includes(task.status)).length;
+      $("taskCount").textContent = state.tasks.length > 0 ? String(active) : "";
+    }
+
+    async function refreshTasks() {
+      if (!state.room) return;
+      const result = await api.listTasks(state.room.id);
+      if (result.status === "success") state.tasks = result.data || [];
+      renderTaskCount();
+      if (state.view === "board") renderBoard();
+      if (state.view === "task" && state.taskDetailId) {
+        const current = state.tasks.find((task) => task.id === state.taskDetailId);
+        if (!current) {
+          state.view = "board";
+          setView("board");
+        }
+      }
+    }
+
+    function renderBoard() {
+      const board = $("board");
+      clearNode(board);
+      if (!state.room) return;
+      const head = el("div", "board-head");
+      head.appendChild(el("h2", "", "任务板"));
+      const hint = el("span", "hint",
+        state.workspaceIsGit
+          ? "任务写入独立 worktree；只有 backlog / ready 可拖动。"
+          : "这个工作区不是 git 仓库根目录；任务不可用，聊天仍可继续。");
+      head.appendChild(hint);
+      const create = el("button", "primary", "+ 新建任务");
+      create.type = "button";
+      create.disabled = !state.workspaceIsGit;
+      create.addEventListener("click", () => openTaskSheet());
+      head.appendChild(create);
+      board.appendChild(head);
+
+      const abnormal = state.tasks.filter((task) => ABNORMAL_STATUSES.includes(task.status));
+      if (abnormal.length > 0) {
+        const strip = el("div", "board-errors");
+        for (const task of abnormal) strip.appendChild(taskCard(task));
+        board.appendChild(strip);
+      }
+
+      const columns = el("div", "board-columns");
+      const groups = [
+        ["backlog", "待排期"],
+        ["ready", "就绪"],
+        ["running", "运行中"],
+        ["review", "审查 / 待合并"],
+        ["done", "已完成"],
+      ];
+      for (const [status, label] of groups) {
+        const column = el("div", "board-col");
+        column.dataset.status = status;
+        const header = el("div", "col-head");
+        header.appendChild(el("strong", "", label));
+        const tasks = state.tasks.filter((task) => status === "review"
+          ? ["review", "merge_ready"].includes(task.status)
+          : task.status === status);
+        header.appendChild(el("span", "count", String(tasks.length)));
+        column.appendChild(header);
+        if (tasks.length === 0) {
+          column.appendChild(el("div", "board-empty", "—"));
+        }
+        for (const task of tasks) column.appendChild(taskCard(task));
+        if (status === "backlog" || status === "ready") {
+          column.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            column.classList.add("drop-target");
+          });
+          column.addEventListener("dragleave", () => column.classList.remove("drop-target"));
+          column.addEventListener("drop", async (event) => {
+            event.preventDefault();
+            column.classList.remove("drop-target");
+            const taskId = event.dataTransfer.getData("text/task");
+            const task = state.tasks.find((item) => item.id === taskId);
+            if (!task || task.status === status) return;
+            if (!["backlog", "ready"].includes(task.status)) {
+              setStatus("只有 backlog / ready 的任务可以拖动", "error");
+              return;
+            }
+            const result = await api.moveTask({ roomId: state.room.id, taskId, status });
+            if (result.status !== "success") {
+              setStatus(result.summary || "移动失败", "error");
+              return;
+            }
+            await refreshTasks();
+            setStatus("任务已移动", "ok");
+          });
+        }
+        columns.appendChild(column);
+      }
+      board.appendChild(columns);
+    }
+
+    function taskCard(task) {
+      const card = el("div", `task-card${task.status === "running" ? " running" : ""}`);
+      card.draggable = ["backlog", "ready"].includes(task.status);
+      card.addEventListener("dragstart", (event) => {
+        event.dataTransfer.setData("text/task", task.id);
+        card.classList.add("dragging");
+      });
+      card.addEventListener("dragend", () => card.classList.remove("dragging"));
+      card.addEventListener("click", () => openTaskDetail(task.id));
+      card.appendChild(el("div", "task-title", task.title));
+      const meta = el("div", "task-meta");
+      meta.appendChild(el("span", "", memberLabel(task.ownerMemberId)));
+      if (task.status === "merge_ready") meta.appendChild(taskStatusBadge("merge_ready"));
+      if (task.attempt > 0) meta.appendChild(el("span", "task-badge", `#${task.attempt}`));
+      if (task.dependsOn.length > 0) meta.appendChild(el("span", "task-badge", `依赖 ${task.dependsOn.length}`));
+      if (task.autoMerge) meta.appendChild(el("span", "task-badge warn", "自动合并"));
+      if (task.budgetYuan !== undefined) meta.appendChild(el("span", "task-badge", `¥${task.budgetYuan}`));
+      if (task.status === "running" && state.runningTaskId === task.id) meta.appendChild(el("span", "task-badge warn", "运行中"));
+      card.appendChild(meta);
+      if (task.status === "running") {
+        const stop = el("button", "danger", "停止");
+        stop.type = "button";
+        stop.style.marginTop = "6px";
+        stop.addEventListener("click", (event) => {
+          event.stopPropagation();
+          stopTaskFlow(task.id);
+        });
+        card.appendChild(stop);
+      }
+      return card;
+    }
+
+    async function openTaskDetail(taskId) {
+      if (!state.room) return;
+      state.taskDetailId = taskId;
+      state.view = "task";
+      const result = await api.showTask({ roomId: state.room.id, taskId });
+      if (result.status !== "success") {
+        setStatus(result.summary || "加载任务失败", "error");
+        state.view = "board";
+        setView("board");
+        return;
+      }
+      state.taskDetail = result.data;
+      setView("task");
+    }
+
+    function taskAction(label, handler, kind = "") {
+      const button = el("button", kind, label);
+      button.type = "button";
+      button.addEventListener("click", handler);
+      return button;
+    }
+
+    function renderTaskDetail() {
+      const container = $("taskDetail");
+      clearNode(container);
+      if (!state.taskDetail?.task) {
+        container.appendChild(el("div", "td-empty", "选择任务查看详情。"));
+        return;
+      }
+      const { task, report, events } = state.taskDetail;
+      const head = el("div", "td-head");
+      const back = el("button", "", "← 任务板");
+      back.type = "button";
+      back.addEventListener("click", () => setView("board"));
+      head.appendChild(back);
+      head.appendChild(el("h2", "", task.title));
+      head.appendChild(taskStatusBadge(task.status));
+      container.appendChild(head);
+      container.appendChild(el("div", "td-sub",
+        `${task.id} · owner ${memberLabel(task.ownerMemberId)} · 尝试 ${task.attempt}`
+        + `${task.branch ? ` · ${task.branch}` : ""}${task.worktreePath ? ` · ${task.worktreePath}` : ""}`));
+
+      const actions = el("div", "td-actions");
+      if (task.status === "backlog") {
+        actions.appendChild(taskAction("移到就绪", () => taskMoveFlow(task.id, "ready"), "primary"));
+      }
+      if (task.status === "ready") {
+        actions.appendChild(taskAction(state.runningTaskId === task.id ? "运行中…" : "运行任务", () => runTaskFlow(task.id), "primary"));
+      }
+      if (task.status === "running") {
+        actions.appendChild(taskAction("停止", () => stopTaskFlow(task.id), "danger"));
+      }
+      if (["failed", "blocked", "conflict", "budget_paused", "interrupted"].includes(task.status)) {
+        actions.appendChild(taskAction("重试", () => taskRetryFlow(task.id), "primary"));
+      }
+      if (task.status === "merge_ready") {
+        actions.appendChild(taskAction("合并到主工作区", () => taskMergeFlow(task.id), "primary"));
+      }
+      if (!["running", "done", "cancelled"].includes(task.status)) {
+        actions.appendChild(taskAction("编辑", () => openTaskSheet(task)));
+        actions.appendChild(taskAction("丢弃", () => taskDiscardFlow(task.id), "danger"));
+      }
+      if (task.worktreePath) {
+        actions.appendChild(taskAction("打开 worktree", () => api.openPath(task.worktreePath)));
+        actions.appendChild(taskAction("检查器", () => openInspector(task.worktreePath)));
+      }
+      if (task.sourceMessageId) {
+        actions.appendChild(taskAction("回到来源消息", () => locateMessage(task.sourceMessageId)));
+      }
+      container.appendChild(actions);
+
+      const grid = el("div", "td-grid");
+      const left = el("div", "");
+      const description = el("section", "td-section");
+      description.appendChild(el("h3", "", "描述"));
+      description.appendChild(el("div", "td-prose", task.description));
+      left.appendChild(description);
+      const acceptance = el("section", "td-section");
+      acceptance.appendChild(el("h3", "", "验收标准"));
+      acceptance.appendChild(el("div", "td-prose", task.acceptance));
+      left.appendChild(acceptance);
+      const meta = el("section", "td-section");
+      meta.appendChild(el("h3", "", "执行约束"));
+      const kv = el("div", "td-kv");
+      const rows = [
+        ["依赖", task.dependsOn.length ? task.dependsOn.map(memberLabelTask).join("、") : "无"],
+        ["验证命令", task.verificationCommand || "未配置"],
+        ["允许路径", task.allowedPaths?.length ? task.allowedPaths.join("、") : "整个 worktree"],
+        ["预算", task.budgetYuan !== undefined ? `¥${task.budgetYuan}` : "默认 ¥2"],
+        ["自动合并", task.autoMerge ? "是" : "否"],
+        ["来源消息", task.sourceMessageId || "—"],
+      ];
+      if (task.lastError) rows.push(["最近错误", task.lastError]);
+      for (const [key, value] of rows) {
+        kv.appendChild(el("span", "k", key));
+        kv.appendChild(el("span", "v", value));
+      }
+      meta.appendChild(kv);
+      left.appendChild(meta);
+
+      if (task.pinnedMessages?.length) {
+        const pinned = el("section", "td-section");
+        pinned.appendChild(el("h3", "", `已钉消息（${task.pinnedMessages.length}）`));
+        for (const message of task.pinnedMessages) {
+          pinned.appendChild(el("div", "td-prose", message));
+        }
+        left.appendChild(pinned);
+      }
+
+      if (report) {
+        const reportSection = el("section", "td-section");
+        reportSection.appendChild(el("h3", "", "报告"));
+        const reportKv = el("div", "td-kv");
+        const reportRows = [
+          ["摘要", report.summary || "—"],
+          ["提交", report.commit || "—"],
+          ["变更", report.files?.length ? report.files.join("、") : "—"],
+          ["Diffstat", report.diffstat || "—"],
+          ["验证", report.verification ? (report.verification.passed ? "通过" : `失败（exit ${report.verification.exitCode ?? "?"}）`) : "未配置"],
+          ["审查", report.review ? `${report.review.verdict}${report.review.reviewerMemberId ? ` · ${memberLabel(report.review.reviewerMemberId)}` : ""}` : "—"],
+          ["费用", report.costYuan !== undefined ? `¥${Number(report.costYuan).toFixed(2)}` : "—"],
+        ];
+        if (report.risks?.length) reportRows.push(["风险", report.risks.join("；")]);
+        if (report.nextSteps?.length) reportRows.push(["下一步", report.nextSteps.join("；")]);
+        for (const [key, value] of reportRows) {
+          reportKv.appendChild(el("span", "k", key));
+          reportKv.appendChild(el("span", "v", value));
+        }
+        reportSection.appendChild(reportKv);
+        if (report.verification?.output) {
+          reportSection.appendChild(el("h3", "", "验证输出"));
+          reportSection.appendChild(el("pre", "diff-pre", report.verification.output));
+        }
+        left.appendChild(reportSection);
+      }
+      grid.appendChild(left);
+
+      const thread = el("section", "td-section");
+      thread.appendChild(el("h3", "", "任务线程"));
+      if (!events || events.length === 0) {
+        thread.appendChild(el("div", "td-empty", "还没有执行记录。"));
+      } else {
+        for (const event of events.slice(-80)) {
+          thread.appendChild(taskThreadEvent(event));
+        }
+      }
+      grid.appendChild(thread);
+      container.appendChild(grid);
+    }
+
+    function memberLabelTask(taskId) {
+      const task = state.tasks.find((item) => item.id === taskId);
+      return task ? `${task.title}（${task.id}）` : taskId;
+    }
+
+    async function locateMessage(messageId) {
+      setView("chat");
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const node = [...document.querySelectorAll("[data-message-id]")]
+        .find((item) => item.dataset.messageId === messageId);
+      if (!node) {
+        setStatus("来源消息不在当前回放里（可能已被摘要省略）", "error");
+        return;
+      }
+      node.scrollIntoView({ block: "center" });
+      node.classList.add("flash");
+      setTimeout(() => node.classList.remove("flash"), 1400);
+    }
+
+    function taskThreadEvent(event) {
+      const row = el("div", "thread-event");
+      const who = el("span", "who", event.type || "event");
+      row.appendChild(who);
+      if (event.ts) row.appendChild(el("span", "when", formatTime(event.ts)));
+      let text = "";
+      if (event.type === "task_turn_started") text = `${memberLabel(event.memberId)} 开始执行（第 ${event.attempt} 次）`;
+      else if (event.type === "task_turn_finished") text = `${memberLabel(event.memberId)} ${event.status}${event.error ? ` · ${event.error}` : ""}${event.text ? `\n${event.text}` : ""}`;
+      else if (event.type === "task_status") text = `${event.from} → ${event.to}${event.detail ? ` · ${event.detail}` : ""}`;
+      else if (event.type === "task_verification") text = `验证 ${event.passed ? "通过" : "失败"}（exit ${event.exitCode ?? "?"}）${event.timedOut ? " · 超时" : ""}\n${event.output || ""}`;
+      else if (event.type === "task_review") text = `审查 ${event.verdict}${event.notes ? ` · ${event.notes}` : ""}`;
+      else if (event.type === "task_report") text = `报告已写入 ${event.path}`;
+      else if (event.type === "task_created") text = `任务创建 · ${TASK_STATUS_LABELS[event.status] || event.status}`;
+      else if (event.type === "task_updated") text = `字段更新 · ${(event.fields || []).join("、")}`;
+      else text = JSON.stringify(event);
+      row.appendChild(el("div", "body", text));
+      return row;
+    }
+
+    async function taskMoveFlow(taskId, status) {
+      const result = await api.moveTask({ roomId: state.room.id, taskId, status });
+      if (result.status !== "success") {
+        setStatus(result.summary || "移动失败", "error");
+        return;
+      }
+      await refreshTasks();
+      await openTaskDetail(taskId);
+    }
+
+    async function runTaskFlow(taskId) {
+      if (state.runningTaskId) {
+        setStatus("已有任务在运行", "error");
+        return;
+      }
+      state.runningTaskId = taskId;
+      setStatus("任务运行中…（worktree 隔离）", "busy");
+      renderBoard();
+      if (state.taskDetailId === taskId) renderTaskDetail();
+      const result = await api.runTask({ roomId: state.room.id, taskId });
+      state.runningTaskId = "";
+      await refreshTasks();
+      if (state.taskDetailId === taskId) await openTaskDetail(taskId);
+      if (result.status === "success") setStatus("任务执行结束，等待合并", "ok");
+      else setStatus(result.summary || "任务执行失败", "error");
+    }
+
+    async function stopTaskFlow(taskId) {
+      const result = await api.stopTask({ roomId: state.room.id, taskId });
+      if (result.status !== "success") {
+        setStatus(result.summary || "停止失败", "error");
+        return;
+      }
+      state.runningTaskId = "";
+      await refreshTasks();
+      if (state.taskDetailId === taskId) await openTaskDetail(taskId);
+      setStatus("任务已停止，worktree 保留", "ok");
+    }
+
+    async function taskMergeFlow(taskId) {
+      if (!window.confirm("合并到主工作区？会先 rebase，再用 --ff-only 合并。")) return;
+      setStatus("正在合并…", "busy");
+      const result = await api.mergeTask({ roomId: state.room.id, taskId });
+      await refreshTasks();
+      await openTaskDetail(taskId);
+      if (result.status === "success") setStatus("已合并", "ok");
+      else setStatus(result.summary || "合并未完成，worktree 已保留", "error");
+    }
+
+    async function taskRetryFlow(taskId) {
+      const result = await api.retryTask({ roomId: state.room.id, taskId });
+      if (result.status !== "success") {
+        setStatus(result.summary || "重试失败", "error");
+        return;
+      }
+      await refreshTasks();
+      await openTaskDetail(taskId);
+      setStatus("任务已回到就绪", "ok");
+    }
+
+    async function taskDiscardFlow(taskId) {
+      if (!window.confirm("丢弃任务并移除 worktree？分支会保留；未提交改动会丢失。")) return;
+      const result = await api.discardTask({ roomId: state.room.id, taskId, force: true });
+      if (result.status !== "success") {
+        setStatus(result.summary || "丢弃失败", "error");
+        return;
+      }
+      state.taskDetailId = "";
+      state.taskDetail = null;
+      await refreshTasks();
+      setView("board");
+      setStatus("任务已丢弃", "ok");
+    }
+
+    function openTaskSheet(task = null, presets = {}) {
+      if (!state.room) {
+        setStatus("先选择房间", "error");
+        return;
+      }
+      if (!state.room.workspace) {
+        setStatus("纯聊天房间不能创建任务", "error");
+        return;
+      }
+      state.editingTaskId = task?.id || "";
+      state.taskDraftSource = presets;
+      $("taskSheetTitle").textContent = task ? "编辑任务" : "新建任务";
+      $("taskSheetSub").textContent = state.workspaceIsGit
+        ? "任务写入隔离的 git worktree，主线不会被 agent 直接修改"
+        : "这个工作区不是 git 仓库根目录；保存可以，但运行会失败";
+      const owner = $("taskOwner");
+      clearNode(owner);
+      for (const member of state.room.members) {
+        const option = document.createElement("option");
+        option.value = member.id;
+        option.textContent = `${member.name} · ${member.role}`;
+        owner.appendChild(option);
+      }
+      const reviewer = $("taskReviewer");
+      clearNode(reviewer);
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "无（不审查）";
+      reviewer.appendChild(none);
+      for (const member of state.room.members) {
+        const option = document.createElement("option");
+        option.value = member.id;
+        option.textContent = member.name;
+        reviewer.appendChild(option);
+      }
+      const depends = $("taskDepends");
+      clearNode(depends);
+      const candidates = state.tasks.filter((item) => item.id !== task?.id && item.status !== "cancelled");
+      if (candidates.length === 0) depends.appendChild(el("span", "hint", "还没有其他任务可依赖。"));
+      for (const item of candidates) {
+        const label = el("label", "check");
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.value = item.id;
+        box.dataset.dep = item.id;
+        label.appendChild(box);
+        label.appendChild(el("span", "", `${item.title}（${TASK_STATUS_LABELS[item.status] || item.status}）`));
+        depends.appendChild(label);
+      }
+      const source = presets.sourceMessageId || task?.sourceMessageId;
+      $("taskSourceHint").textContent = source ? `来源消息：${source}` : "";
+      state.taskDraftPins = task?.pinnedMessages ? [...task.pinnedMessages] : (presets.pinnedMessages ? [...presets.pinnedMessages] : []);
+      $("taskPinsHint").textContent = state.taskDraftPins.length
+        ? `已钉 ${state.taskDraftPins.length} 条消息，会进入任务上下文：${state.taskDraftPins.map((item) => item.slice(0, 40)).join(" / ")}`
+        : "没有钉入消息；可从对话消息的“钉到任务”添加。";
+      $("taskTitle").value = task?.title ?? presets.title ?? "";
+      $("taskDescription").value = task?.description ?? presets.description ?? "";
+      $("taskAcceptance").value = task?.acceptance ?? presets.acceptance ?? "";
+      $("taskVerification").value = task?.verificationCommand ?? "";
+      $("taskAllowedPaths").value = task?.allowedPaths?.join("\n") ?? "";
+      $("taskBudget").value = task?.budgetYuan ?? "";
+      $("taskAutoMerge").checked = task?.autoMerge === true;
+      owner.value = task?.ownerMemberId || state.room.members[0]?.id || "";
+      reviewer.value = task?.reviewerMemberId || "";
+      if (task) {
+        for (const box of depends.querySelectorAll("[data-dep]")) {
+          box.checked = task.dependsOn.includes(box.dataset.dep);
+        }
+      }
+      openOverlay("taskSheet");
+      requestAnimationFrame(() => $("taskTitle").focus());
+    }
+
+    async function saveTaskFlow() {
+      if (!state.room) return;
+      const title = $("taskTitle").value.trim();
+      const description = $("taskDescription").value.trim();
+      const acceptance = $("taskAcceptance").value.trim();
+      const ownerMemberId = $("taskOwner").value;
+      if (!title || !description || !acceptance || !ownerMemberId) {
+        setStatus("标题、描述、验收标准和 owner 不能为空", "error");
+        return;
+      }
+      const dependsOn = [...$("taskDepends").querySelectorAll("[data-dep]:checked")].map((box) => box.dataset.dep);
+      const allowedPaths = $("taskAllowedPaths").value.split(/[\n,，]+/).map((item) => item.trim()).filter(Boolean);
+      const budgetValue = $("taskBudget").value.trim();
+      const payload = {
+        roomId: state.room.id,
+        title,
+        description,
+        acceptance,
+        ownerMemberId,
+        dependsOn,
+        verificationCommand: $("taskVerification").value.trim(),
+        allowedPaths,
+        budgetYuan: budgetValue === "" ? undefined : Number(budgetValue),
+        autoMerge: $("taskAutoMerge").checked,
+        reviewerMemberId: $("taskReviewer").value || undefined,
+        pinnedMessages: state.taskDraftPins,
+        sourceMessageId: state.taskDraftSource?.sourceMessageId,
+      };
+      const result = state.editingTaskId
+        ? await api.updateTask({ ...payload, taskId: state.editingTaskId })
+        : await api.createTask(payload);
+      if (result.status !== "success") {
+        setStatus(result.summary || "保存任务失败", "error");
+        return;
+      }
+      const task = result.data;
+      closeOverlays();
+      await refreshTasks();
+      if (task?.id) await openTaskDetail(task.id);
+      setStatus(state.editingTaskId ? "任务已更新" : "任务已创建", "ok");
+      state.editingTaskId = "";
+      state.taskDraftSource = null;
+    }
+
+    function refreshRoomEvents() {
+      if (!state.room) return Promise.resolve();
+      return api.events(state.room.id).then((result) => {
+        if (result.status === "success") {
+          state.events = result.data || [];
+          state.costYuan = sumCost(state.events);
+          state.totalTokens = sumTokens(state.events);
+          renderChat();
+          renderCost();
+        }
+      });
+    }
+
+    function draftCard(event) {
+      const card = el("div", "draft-card");
+      card.dataset.draftId = event.draftId;
+      const isOpen = state.openDrafts.has(event.draftId);
+      if (!isOpen) card.classList.add("done");
+      const head = el("div", "draft-head");
+      head.appendChild(el("strong", "", "沙盒草稿"));
+      const detail = state.draftDetails[event.draftId];
+      const shownChanges = detail?.changes || event.changes || [];
+      const counts = shownChanges.reduce((acc, change) => {
+        acc[change.kind] = (acc[change.kind] || 0) + 1;
+        return acc;
+      }, {});
+      head.appendChild(el("span", "draft-meta",
+        `${counts.added || 0} 新增 · ${counts.modified || 0} 修改 · ${counts.deleted || 0} 删除`));
+      if (!isOpen) head.appendChild(el("span", "draft-meta", "已处理或已过期"));
+      card.appendChild(head);
+      const meta = el("div", "draft-meta", event.draftDir || "");
+      meta.title = event.draftDir || "";
+      card.appendChild(meta);
+      if (event.drift?.length) {
+        card.appendChild(el("div", "draft-meta", `警告：原目录范围文件在运行期间变化：${event.drift.join("、")}`));
+      }
+      if (!isOpen) return card;
+      if (detail) {
+        const files = el("div", "draft-files");
+        for (const change of detail.changes || []) {
+          const label = el("label", "");
+          const box = document.createElement("input");
+          box.type = "checkbox";
+          box.dataset.draftFile = change.path;
+          box.checked = change.kind !== "deleted";
+          label.appendChild(box);
+          label.appendChild(el("span", "", `${change.kind === "added" ? "+" : change.kind === "modified" ? "~" : "-"} ${change.path}`));
+          files.appendChild(label);
+        }
+        if (!detail.changes?.length) files.appendChild(el("span", "hint", "没有文件变化。"));
+        card.appendChild(files);
+      }
+      const actions = el("div", "draft-actions");
+      if (!detail) {
+        actions.appendChild(taskAction("查看明细", () => loadDraftDetail(event.draftId)));
+      } else {
+        actions.appendChild(taskAction("应用所选", () => applyDraftFlow(event.draftId), "primary"));
+      }
+      actions.appendChild(taskAction("打开草稿目录", () => api.openPath(event.draftDir)));
+      actions.appendChild(taskAction("丢弃", () => discardDraftFlow(event.draftId), "danger"));
+      if (state.workspaceIsGit) {
+        actions.appendChild(taskAction("提升为任务", () => promoteDraftToTask(event, detail)));
+      }
+      card.appendChild(actions);
+      return card;
+    }
+
+    async function loadDraftDetail(draftId) {
+      const result = await api.draftShow({ runId: draftId });
+      if (result.status !== "success") {
+        state.openDrafts.delete(draftId);
+        setStatus(result.summary || "草稿已不可用", "error");
+        renderChat();
+        return;
+      }
+      state.draftDetails[draftId] = result.data;
+      renderChat();
+    }
+
+    async function applyDraftFlow(draftId) {
+      const detail = state.draftDetails[draftId];
+      const card = document.querySelector(`.draft-card[data-draft-id="${draftId}"]`);
+      const selected = detail
+        ? [...(card?.querySelectorAll("[data-draft-file]") || [])].filter((box) => box.checked).map((box) => box.dataset.draftFile)
+        : undefined;
+      const result = await api.draftApply({ runId: draftId, files: selected });
+      if (result.status !== "success" && !result.data) {
+        setStatus(result.summary || "应用草稿失败", "error");
+        return;
+      }
+      const data = result.data || {};
+      if (data.conflicts?.length) {
+        setStatus(`已应用 ${data.applied?.length || 0} 个文件，${data.conflicts.length} 个冲突已跳过`, "error");
+      } else {
+        setStatus(`草稿已应用：${data.applied?.length || 0} 个文件`, "ok");
+        delete state.draftDetails[draftId];
+        state.openDrafts.delete(draftId);
+      }
+      await refreshRoomEvents();
+      await refreshTasks();
+    }
+
+    async function discardDraftFlow(draftId) {
+      if (!window.confirm("丢弃这个草稿？草稿目录会被删除，原工作区不变。")) return;
+      const result = await api.draftDiscard({ runId: draftId });
+      if (result.status !== "success") {
+        setStatus(result.summary || "丢弃草稿失败", "error");
+        return;
+      }
+      delete state.draftDetails[draftId];
+      state.openDrafts.delete(draftId);
+      await refreshRoomEvents();
+      setStatus("草稿已丢弃", "ok");
+    }
+
+    function promoteDraftToTask(event, detail) {
+      const changes = (detail?.changes || event.changes || []).map((change) => `${change.kind}\t${change.path}`).join("\n");
+      openTaskSheet(null, {
+        title: `应用草稿 ${event.draftId}`,
+        description: `草稿目录：${event.draftDir}\n\n待应用变更：\n${changes}\n\n请把草稿里的改动应用到当前 worktree，并保持相同内容。`,
+        acceptance: "草稿中的变更已应用到 worktree，验证通过。",
+      });
+    }
+
+    function openBtw(memberId) {
+      if (!state.room) {
+        setStatus("先选择房间", "error");
+        return;
+      }
+      const select = $("btwMember");
+      clearNode(select);
+      for (const member of state.room.members) {
+        const option = document.createElement("option");
+        option.value = member.id;
+        option.textContent = `${member.name} · ${member.role}`;
+        select.appendChild(option);
+      }
+      select.value = memberId || state.selectedMemberId || state.room.members[0]?.id || "";
+      $("btwQuestion").value = "";
+      $("btwAnswer").textContent = "还没有提问。";
+      state.btwLastId = "";
+      $("btwPromote").disabled = true;
+      loadBtwHistory();
+      openOverlay("btwModal");
+      requestAnimationFrame(() => $("btwQuestion").focus());
+    }
+
+    async function loadBtwHistory() {
+      if (!state.room) return;
+      const result = await api.btwList(state.room.id);
+      const box = $("btwHistory");
+      clearNode(box);
+      if (result.status !== "success") return;
+      const records = (result.data || []).slice(-8).reverse();
+      if (records.length === 0) {
+        box.appendChild(el("div", "hint", "还没有 btw 记录。"));
+        return;
+      }
+      for (const record of records) {
+        const item = el("div", "item");
+        item.appendChild(el("div", "q", `Q：${record.question}`));
+        item.appendChild(el("div", "a", record.answer || record.error || ""));
+        box.appendChild(item);
+      }
+    }
+
+    async function askBtwFlow() {
+      const question = $("btwQuestion").value.trim();
+      if (!question) {
+        setStatus("请输入 btw 问题", "error");
+        return;
+      }
+      $("btwAsk").disabled = true;
+      $("btwAnswer").textContent = "正在思考…";
+      const result = await api.btwAsk({
+        roomId: state.room.id,
+        question,
+        memberId: $("btwMember").value || undefined,
+      });
+      $("btwAsk").disabled = false;
+      if (result.status !== "success") {
+        $("btwAnswer").textContent = result.summary || "btw 失败";
+        setStatus(result.summary || "btw 失败", "error");
+        return;
+      }
+      const record = result.data;
+      state.btwLastId = record?.id || "";
+      $("btwAnswer").textContent = record?.answer || "（空回答）";
+      $("btwPromote").disabled = !state.btwLastId;
+      await loadBtwHistory();
+    }
+
+    async function promoteBtwFlow() {
+      if (!state.btwLastId) return;
+      const result = await api.btwPromote({ roomId: state.room.id, btwId: state.btwLastId });
+      if (result.status !== "success") {
+        setStatus(result.summary || "提升失败", "error");
+        return;
+      }
+      closeOverlays();
+      await refreshRoomEvents();
+      setStatus("btw 已提升为消息", "ok");
+    }
+
+    function openInspector(targetPath) {
+      if (!state.room) {
+        setStatus("先选择房间", "error");
+        return;
+      }
+      const workspace = targetPath
+        || (state.view === "task" && state.taskDetail?.task?.worktreePath)
+        || state.room.workspace;
+      if (!workspace) {
+        setStatus("这个房间没有工作区", "error");
+        return;
+      }
+      state.inspectorWorkspace = workspace;
+      state.inspectorFile = "";
+      state.inspectorTreePath = "";
+      $("inspectorPath").textContent = workspace;
+      $("inspectorPath").title = workspace;
+      renderInspector();
+      openOverlay("inspectorDrawer");
+    }
+
+    function inspectorTabButton(tab, label) {
+      const button = el("button", state.inspectorTab === tab ? "active" : "", label);
+      button.type = "button";
+      button.dataset.itab = tab;
+      button.addEventListener("click", () => {
+        state.inspectorTab = tab;
+        renderInspector();
+      });
+      return button;
+    }
+
+    function renderInspector() {
+      const tabs = $("inspectorTabs");
+      clearNode(tabs);
+      for (const [tab, label] of [["files", "文件"], ["git", "Git"], ["search", "查找"], ["graph", "图谱"]]) {
+        tabs.appendChild(inspectorTabButton(tab, label));
+      }
+      const body = $("inspectorBody");
+      clearNode(body);
+      if (state.inspectorTab === "files") renderInspectorFiles(body);
+      else if (state.inspectorTab === "git") renderInspectorGit(body);
+      else if (state.inspectorTab === "search") renderInspectorSearch(body);
+      else renderInspectorGraph(body);
+    }
+
+    async function renderInspectorFiles(body) {
+      const row = el("div", "inspector-row");
+      const up = taskAction("上级目录", () => {
+        const parts = state.inspectorTreePath.split("/").filter(Boolean);
+        parts.pop();
+        state.inspectorTreePath = parts.join("/");
+        renderInspector();
+      });
+      up.disabled = !state.inspectorTreePath;
+      row.appendChild(up);
+      row.appendChild(taskAction("刷新", () => renderInspector()));
+      row.appendChild(taskAction("打开文件夹", () => api.openPath(state.inspectorWorkspace)));
+      body.appendChild(row);
+      body.appendChild(el("div", "hint", state.inspectorTreePath || "工作区根目录"));
+      const tree = el("div", "");
+      const result = await api.inspect({
+        roomId: state.room.id,
+        workspace: state.inspectorWorkspace,
+        sub: "tree",
+        path: state.inspectorTreePath,
+        depth: 2,
+      });
+      if (result.status !== "success") {
+        tree.appendChild(el("div", "hint", result.summary || "无法读取文件树"));
+      } else {
+        const baseDepth = state.inspectorTreePath.split("/").filter(Boolean).length;
+        for (const entry of result.data || []) {
+          const depth = entry.path.split("/").filter(Boolean).length - baseDepth - 1;
+          const button = el("button", `tree-entry${entry.type === "dir" ? " dir" : ""}`);
+          button.type = "button";
+          button.style.paddingLeft = `${6 + Math.max(0, depth) * 12}px`;
+          button.textContent = `${entry.type === "dir" ? "▸" : "·"} ${entry.name}`;
+          if (entry.size !== undefined) button.appendChild(el("span", "size", `${Math.ceil(entry.size / 1024)} KB`));
+          button.addEventListener("click", () => {
+            if (entry.type === "dir") {
+              state.inspectorTreePath = entry.path;
+              renderInspector();
+            } else {
+              state.inspectorFile = entry.path;
+              state.inspectorOffset = 0;
+              renderInspector();
+            }
+          });
+          tree.appendChild(button);
+        }
+        if (!result.data?.length) tree.appendChild(el("div", "hint", "空目录。"));
+      }
+      body.appendChild(tree);
+      if (state.inspectorFile) {
+        const preview = await api.inspect({
+          roomId: state.room.id,
+          workspace: state.inspectorWorkspace,
+          sub: "read",
+          file: state.inspectorFile,
+          offset: state.inspectorOffset,
+        });
+        body.appendChild(el("div", "hint", state.inspectorFile));
+        if (preview.status !== "success") {
+          body.appendChild(el("div", "hint", preview.summary || "读取失败"));
+        } else if (preview.data?.kind === "image") {
+          const image = document.createElement("img");
+          image.src = preview.data.dataUrl;
+          image.style.maxWidth = "100%";
+          image.alt = state.inspectorFile;
+          body.appendChild(image);
+        } else if (preview.data?.kind === "text") {
+          body.appendChild(el("pre", "preview-pre", preview.data.content || ""));
+          if (preview.data.truncated) {
+            const pager = el("div", "inspector-row");
+            pager.appendChild(el("span", "hint", `第 ${Math.floor(preview.data.offset / (2 * 1024 * 1024)) + 1} 页 · 总 ${preview.data.size} bytes`));
+            if (state.inspectorOffset > 0) {
+              pager.appendChild(taskAction("第一页", () => {
+                state.inspectorOffset = 0;
+                renderInspector();
+              }));
+            }
+            if (preview.data.nextOffset !== undefined) {
+              pager.appendChild(taskAction("下一页", () => {
+                state.inspectorOffset = preview.data.nextOffset;
+                renderInspector();
+              }, "primary"));
+            }
+            body.appendChild(pager);
+          }
+        } else {
+          body.appendChild(el("div", "hint", `二进制文件 · ${preview.data?.mime || "unknown"} · ${preview.data?.size || 0} bytes`));
+        }
+      }
+    }
+
+    async function renderInspectorGit(body) {
+      const row = el("div", "inspector-row");
+      row.appendChild(taskAction("刷新", () => renderInspector()));
+      const staged = el("label", "check");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.id = "gitStagedOnly";
+      staged.appendChild(box);
+      staged.appendChild(el("span", "", "只看已暂存"));
+      row.appendChild(staged);
+      body.appendChild(row);
+      const statusResult = await api.inspect({ roomId: state.room.id, workspace: state.inspectorWorkspace, sub: "git-status" });
+      if (statusResult.status !== "success") {
+        body.appendChild(el("div", "hint", statusResult.summary || "这个工作区不是 git 仓库。"));
+        return;
+      }
+      body.appendChild(el("div", "hint", `分支 ${statusResult.data?.branch || "?"} · ${statusResult.data?.clean ? "干净" : `${statusResult.data?.files?.length || 0} 个变化`}`));
+      const list = el("div", "");
+      for (const file of statusResult.data?.files || []) {
+        list.appendChild(el("div", "tree-entry", `${file.status}\t${file.path}`));
+      }
+      body.appendChild(list);
+      const diffResult = await api.inspect({
+        roomId: state.room.id,
+        workspace: state.inspectorWorkspace,
+        sub: "git-diff",
+        staged: box.checked,
+      });
+      body.appendChild(el("h3", "", "Diff"));
+      body.appendChild(el("pre", "diff-pre", diffResult.status === "success" ? (diffResult.data?.diff || "（没有差异）") : (diffResult.summary || "读取失败")));
+      box.addEventListener("change", () => renderInspector());
+    }
+
+    function renderInspectorSearch(body) {
+      const row = el("div", "inspector-row");
+      const input = document.createElement("input");
+      input.id = "inspectorSearch";
+      input.placeholder = "搜索文件名与内容（ripgrep，最多 200 条）";
+      input.value = state.inspectorSearch || "";
+      row.appendChild(input);
+      const results = el("div", "");
+      const run = async () => {
+        state.inspectorSearch = input.value.trim();
+        clearNode(results);
+        if (!state.inspectorSearch) return;
+        const result = await api.inspect({
+          roomId: state.room.id,
+          workspace: state.inspectorWorkspace,
+          sub: "search",
+          query: state.inspectorSearch,
+          limit: 200,
+        });
+        if (result.status !== "success") {
+          results.appendChild(el("div", "hint", result.summary || "查找失败"));
+          return;
+        }
+        results.appendChild(el("div", "hint", `${result.data?.engine || "search"} · ${result.data?.hits?.length || 0} 条`));
+        for (const hit of result.data?.hits || []) {
+          const button = el("button", "search-hit");
+          button.type = "button";
+          button.appendChild(el("div", "path", `${hit.path}:${hit.line}:${hit.column}`));
+          button.appendChild(el("div", "line", hit.text));
+          button.addEventListener("click", () => {
+            state.inspectorTab = "files";
+            state.inspectorFile = hit.path;
+            const parts = hit.path.split("/");
+            parts.pop();
+            state.inspectorTreePath = parts.join("/");
+            renderInspector();
+          });
+          results.appendChild(button);
+        }
+      };
+      const submit = taskAction("查找", run, "primary");
+      row.appendChild(submit);
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") run();
+      });
+      body.appendChild(row);
+      body.appendChild(results);
+    }
+
+    async function renderInspectorGraph(body) {
+      const statusResult = await api.graph({ roomId: state.room.id, workspace: state.inspectorWorkspace, sub: "status" });
+      const row = el("div", "inspector-row");
+      const status = statusResult.status === "success" ? statusResult.data : { available: false, detail: statusResult.summary };
+      row.appendChild(el("span", "hint", status?.available ? `codegraph 可用${status.stale ? " · 索引可能过期" : ""}` : "codegraph 未检测到，图谱功能降级"));
+      row.appendChild(taskAction("同步索引", async () => {
+        setStatus("正在同步 codegraph 索引…", "busy");
+        const result = await api.graph({ roomId: state.room.id, workspace: state.inspectorWorkspace, sub: "sync" });
+        setStatus(result.status === "success" ? "索引已同步" : (result.summary || "同步失败"), result.status === "success" ? "ok" : "error");
+        renderInspector();
+      }));
+      body.appendChild(row);
+      if (!status?.available) {
+        body.appendChild(el("div", "hint", "安装 codegraph 后可查询符号与影响范围；不影响聊天与任务。"));
+        return;
+      }
+      const queryRow = el("div", "inspector-row");
+      const input = document.createElement("input");
+      input.placeholder = "查询符号，例如 AgentRunner";
+      queryRow.appendChild(input);
+      const resultBox = el("div", "graph-result", "");
+      queryRow.appendChild(taskAction("查询", async () => {
+        if (!input.value.trim()) return;
+        resultBox.textContent = "查询中…";
+        const result = await api.graph({ roomId: state.room.id, workspace: state.inspectorWorkspace, sub: "query", query: input.value.trim() });
+        resultBox.textContent = result.status === "success" ? JSON.stringify(result.data, null, 2) : (result.summary || "查询失败");
+      }, "primary"));
+      queryRow.appendChild(taskAction("影响", async () => {
+        if (!input.value.trim()) return;
+        resultBox.textContent = "分析中…";
+        const result = await api.graph({ roomId: state.room.id, workspace: state.inspectorWorkspace, sub: "impact", target: input.value.trim() });
+        resultBox.textContent = result.status === "success" ? JSON.stringify(result.data, null, 2) : (result.summary || "分析失败");
+      }));
+      body.appendChild(queryRow);
+      body.appendChild(resultBox);
+    }
+
+    function openPlatformSheet(platform = null) {
+      state.editingPlatformId = platform?.id || "";
+      $("platformSheetTitle").textContent = platform ? "编辑平台" : "新增平台";
+      $("pfId").value = platform?.id || "";
+      $("pfId").disabled = Boolean(platform);
+      $("pfName").value = platform?.name || "";
+      $("pfKind").value = platform?.kind || "cli";
+      $("pfHarness").value = platform?.config?.harness || "";
+      $("pfBaseUrl").value = platform?.config?.baseUrl || "";
+      $("pfApiKeyEnv").value = platform?.config?.apiKeyEnv || "";
+      $("pfSandbox").value = platform?.config?.sandboxMode || "";
+      $("pfPermission").value = platform?.config?.permissionMode || "";
+      $("pfTimeout").value = platform?.config?.timeoutMs || "";
+      $("pfEnabled").checked = platform ? platform.enabled !== false : true;
+      openOverlay("platformSheet");
+    }
+
+    async function savePlatformFlow() {
+      const payload = {
+        id: $("pfId").value.trim(),
+        name: $("pfName").value.trim(),
+        kind: $("pfKind").value,
+        harness: $("pfHarness").value.trim(),
+        baseUrl: $("pfBaseUrl").value.trim(),
+        apiKeyEnv: $("pfApiKeyEnv").value.trim(),
+        sandboxMode: $("pfSandbox").value.trim(),
+        permissionMode: $("pfPermission").value.trim(),
+        timeoutMs: $("pfTimeout").value.trim(),
+        enabled: $("pfEnabled").checked,
+      };
+      if (!payload.name || (!state.editingPlatformId && !payload.id)) {
+        setStatus("平台 id 和名称不能为空", "error");
+        return;
+      }
+      const result = state.editingPlatformId
+        ? await api.updatePlatform(payload)
+        : await api.addPlatform(payload);
+      if (result.status !== "success") {
+        setStatus(result.summary || "保存平台失败", "error");
+        return;
+      }
+      closeOverlays();
+      const platforms = await api.platforms();
+      if (platforms.status === "success") state.platforms = platforms.data || [];
+      renderSettings();
+      openSettings();
+      setStatus("平台已保存", "ok");
+    }
+
+    async function removePlatformFlow(platform) {
+      if (!window.confirm(`移除平台「${platform.name}」？仍被房间引用时会被拒绝。`)) return;
+      const result = await api.removePlatform(platform.id);
+      if (result.status !== "success") {
+        setStatus(result.summary || "移除平台失败", "error");
+        return;
+      }
+      const platforms = await api.platforms();
+      if (platforms.status === "success") state.platforms = platforms.data || [];
+      renderSettings();
+      setStatus("平台已移除", "ok");
+    }
+
     async function boot() {
       state.settings = await api.settings();
       const workspacesResult = await api.workspaces();
@@ -1013,6 +2406,17 @@
           setStatus(payload.exitCode === 0 ? "运行结束" : `运行结束（exit ${payload.exitCode}）`, payload.exitCode === 0 ? "ok" : "error");
         }
         if (payload.stderr) appendLog(payload.stderr.trim());
+        if (draftEnabled() && localStorage.getItem("agenthub.draftExplained") !== "1") {
+          localStorage.setItem("agenthub.draftExplained", "1");
+          appendLog("草稿模式：本次改动只写入草稿目录；在对话里的草稿卡片上确认后才会应用到工作区。");
+        }
+      });
+      api.onTaskLog((payload) => {
+        if (payload?.line) appendLog(`[task ${payload.taskId}] ${payload.line}`);
+      });
+      api.onTaskFinished((payload) => {
+        refreshTasks();
+        if (state.taskDetailId === payload?.taskId) openTaskDetail(payload.taskId);
       });
       if (localStorage.getItem("agenthub.leftCollapsed") === "1") {
         $("shell").classList.add("left-collapsed");
@@ -1100,6 +2504,33 @@
       $("saveRoomSheet").addEventListener("click", saveRoomSettings);
       $("rsOpenWorkspace").addEventListener("click", () => {
         if (state.room) api.openPath(state.room.workspace);
+      });
+      $("viewTabs").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-view]");
+        if (button) setView(button.dataset.view);
+      });
+      $("openInspector").addEventListener("click", () => openInspector());
+      $("openBtw").addEventListener("click", () => openBtw());
+      $("closeInspector").addEventListener("click", closeOverlays);
+      $("closeBtw").addEventListener("click", closeOverlays);
+      $("closeBtwFoot").addEventListener("click", closeOverlays);
+      $("closeTaskSheet").addEventListener("click", closeOverlays);
+      $("cancelTaskSheet").addEventListener("click", closeOverlays);
+      $("saveTask").addEventListener("click", saveTaskFlow);
+      $("btwAsk").addEventListener("click", askBtwFlow);
+      $("btwPromote").addEventListener("click", promoteBtwFlow);
+      $("closePlatformSheet").addEventListener("click", closeOverlays);
+      $("cancelPlatformSheet").addEventListener("click", closeOverlays);
+      $("savePlatform").addEventListener("click", savePlatformFlow);
+      $("draftScope").addEventListener("input", () => {
+        if (state.room) localStorage.setItem(`agenthub.draftScope.${state.room.id}`, $("draftScope").value);
+      });
+      $("inspectorTabs").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-itab]");
+        if (button) {
+          state.inspectorTab = button.dataset.itab;
+          renderInspector();
+        }
       });
       $("paletteInput").addEventListener("input", () => {
         state.paletteFilter = $("paletteInput").value;
@@ -1363,10 +2794,52 @@
         const detail = el("span", "platform-detail", platform.enabled === false ? "已禁用" : (health.detail || "未检查"));
         detail.title = detail.textContent;
         row.appendChild(detail);
+        const edit = el("button", "", "编辑");
+        edit.type = "button";
+        edit.addEventListener("click", () => openPlatformSheet(platform));
+        row.appendChild(edit);
+        const remove = el("button", "danger", "移除");
+        remove.type = "button";
+        remove.addEventListener("click", () => removePlatformFlow(platform));
+        row.appendChild(remove);
         platformsSection.appendChild(row);
       }
       if (state.platforms.length === 0) platformsSection.appendChild(el("div", "hint", "没有平台配置"));
+      const addPlatform = el("button", "", "新增平台");
+      addPlatform.type = "button";
+      addPlatform.style.marginTop = "8px";
+      addPlatform.addEventListener("click", () => openPlatformSheet());
+      platformsSection.appendChild(addPlatform);
       body.appendChild(platformsSection);
+
+      const toolsSection = el("section", "settings-group");
+      toolsSection.appendChild(el("h4", "", "本机工具"));
+      const doctorRow = el("div", "stat-row");
+      doctorRow.appendChild(el("span", "", "git / ripgrep / codegraph / Everything"));
+      doctorRow.appendChild(el("span", "spacer", ""));
+      const doctor = el("button", "", "检测");
+      doctor.type = "button";
+      doctor.addEventListener("click", async () => {
+        const result = await api.doctor(state.room?.id);
+        if (result.status === "success") {
+          state.tools = result.data || [];
+          renderSettings();
+        } else {
+          setStatus(result.summary || "检测失败", "error");
+        }
+      });
+      doctorRow.appendChild(doctor);
+      toolsSection.appendChild(doctorRow);
+      if (state.tools) {
+        for (const tool of state.tools) {
+          const row = el("div", "platform-edit-row");
+          row.appendChild(el("span", `platform-dot ${tool.available ? "ok" : "error"}`, ""));
+          row.appendChild(el("span", "grow", tool.label));
+          row.appendChild(el("span", "platform-detail", tool.available ? (tool.version || "可用") : "未检测到"));
+          toolsSection.appendChild(row);
+        }
+      }
+      body.appendChild(toolsSection);
 
       const modelsSection = el("section", "settings-group");
       modelsSection.appendChild(el("h4", "", "模型目录"));
@@ -2051,7 +3524,39 @@
       state.totalTokens = sumTokens(state.events);
       state.liveText = "";
       state.liveMemberId = null;
+      state.taskDetail = null;
+      state.taskDetailId = "";
+      if (!state.recoveredRooms.has(roomId)) {
+        state.recoveredRooms.add(roomId);
+        await api.recoverTasks(roomId);
+      }
+      const tasksResult = await api.listTasks(roomId);
+      state.tasks = tasksResult.status === "success" ? tasksResult.data || [] : [];
+      state.workspaceIsGit = false;
+      if (state.room.workspace) {
+        const gitResult = await api.inspect({ roomId, sub: "git-status" });
+        state.workspaceIsGit = gitResult.status === "success";
+      }
+      state.openDrafts = new Set();
+      if (state.room.workspaceId) {
+        const drafts = await api.draftList({ workspaceId: state.room.workspaceId });
+        if (drafts.status === "success") {
+          for (const draft of drafts.data || []) {
+            if (draft.status === "open") state.openDrafts.add(draft.runId);
+          }
+        }
+      }
+      if (state.view !== "chat" && !state.room.workspace) {
+        state.view = "chat";
+      }
+      if (state.view === "task") state.view = "board";
+      syncDraftControls();
+      if (draftEnabled() && localStorage.getItem("agenthub.draftExplained") !== "1" && !state.draftNoticeShown) {
+        state.draftNoticeShown = true;
+        appendLog("这个房间处于草稿模式：agent 的写入会落在应用数据目录的草稿里，不会直接改工作区；运行后请在草稿卡片上确认应用。");
+      }
       renderAll();
+      setView(state.view);
     }
 
     function renderAll() {
@@ -2063,6 +3568,9 @@
       renderCost();
       renderEditor();
       renderRoomMeta();
+      renderTaskCount();
+      if (state.view === "board") renderBoard();
+      if (state.view === "task") renderTaskDetail();
     }
 
     function renderRoomMeta() {
@@ -2144,6 +3652,8 @@
           chat.appendChild(systemLine(`停止：${event.reason}${event.detail ? ` · ${event.detail}` : ""}`, event.reason === "done" ? "" : "warn"));
         } else if (event.type === "error") {
           chat.appendChild(systemLine(`错误：${event.message}`, "error"));
+        } else if (event.type === "draft_created") {
+          chat.appendChild(draftCard(event));
         }
       }
       chat.scrollTop = chat.scrollHeight;
@@ -2159,14 +3669,77 @@
       });
     }
 
+    function messageActions(event) {
+      const actions = el("div", "msg-actions");
+      const toTask = el("button", "", "从消息建任务");
+      toTask.type = "button";
+      toTask.disabled = !state.workspaceIsGit;
+      toTask.addEventListener("click", () => {
+        const firstLine = String(event.text || "").split(/\r?\n/)[0].trim().slice(0, 48);
+        openTaskSheet(null, {
+          title: firstLine || "来自对话的任务",
+          description: event.text || "",
+          sourceMessageId: event.messageId || event.id,
+        });
+      });
+      actions.appendChild(toTask);
+      const btw = el("button", "", "BTW");
+      btw.type = "button";
+      btw.addEventListener("click", () => openBtw(event.memberId));
+      actions.appendChild(btw);
+      const quote = el("button", "", "引用到输入框");
+      quote.type = "button";
+      quote.addEventListener("click", () => {
+        const prompt = $("prompt");
+        const quoted = String(event.memberName || (event.type === "user_message" ? "你" : "成员"));
+        const excerpt = String(event.text || "").split(/\r?\n/).slice(0, 3).join("\n> ");
+        prompt.value = `${prompt.value}${prompt.value.trim() ? "\n\n" : ""}> [${quoted}] ${excerpt}\n\n`;
+        prompt.focus();
+      });
+      actions.appendChild(quote);
+      const pin = el("button", "", state.view === "task" && state.taskDetail ? "钉到当前任务" : "钉到任务");
+      pin.type = "button";
+      pin.disabled = !state.workspaceIsGit;
+      pin.addEventListener("click", async () => {
+        const sender = String(event.memberName || (event.type === "user_message" ? "你" : "成员"));
+        const pinned = `[${sender}] ${String(event.text || "").slice(0, 800)}`;
+        if (state.view === "task" && state.taskDetail?.task) {
+          const task = state.taskDetail.task;
+          const result = await api.updateTask({
+            roomId: state.room.id,
+            taskId: task.id,
+            pinnedMessages: [...(task.pinnedMessages || []), pinned],
+          });
+          if (result.status !== "success") {
+            setStatus(result.summary || "钉入任务失败", "error");
+            return;
+          }
+          await openTaskDetail(task.id);
+          setStatus("消息已钉入任务上下文", "ok");
+          return;
+        }
+        const firstLine = String(event.text || "").split(/\r?\n/)[0].trim().slice(0, 48);
+        openTaskSheet(null, {
+          title: firstLine || "来自对话的任务",
+          description: event.text || "",
+          sourceMessageId: event.messageId || event.id,
+          pinnedMessages: [pinned],
+        });
+      });
+      actions.appendChild(pin);
+      return actions;
+    }
+
     function userMessage(event) {
       const row = el("div", "msg user");
+      row.dataset.messageId = event.messageId || event.id || "";
       const body = el("div", "msg-body");
       const head = el("div", "msg-head");
       head.appendChild(el("strong", "", "你"));
       head.appendChild(el("span", "time", formatTime(event.ts)));
       body.appendChild(head);
       body.appendChild(el("div", "msg-text", event.text));
+      body.appendChild(messageActions(event));
       row.appendChild(body);
       return row;
     }
@@ -2175,6 +3748,7 @@
       const index = state.room?.members.findIndex((member) => member.id === event.memberId) ?? 0;
       const member = memberById(event.memberId);
       const row = el("div", "msg agent");
+      row.dataset.messageId = event.id || "";
       const avatar = el("div", "avatar", initialOf(event.memberName || member?.name));
       avatar.style.color = memberColor(Math.max(index, 0));
       row.appendChild(avatar);
@@ -2187,6 +3761,7 @@
       head.appendChild(el("span", "time", formatTime(event.ts)));
       body.appendChild(head);
       body.appendChild(el("div", "msg-text", event.text));
+      body.appendChild(messageActions(event));
       row.appendChild(body);
       return row;
     }
@@ -2682,6 +4257,16 @@
       $("rsAutonomy").value = rules.autonomy || "medium";
       $("rsMaxHandoffs").value = rules.maxHandoffs || 6;
       $("rsStopToken").value = rules.stopToken || "DONE";
+      const draftMode = $("rsDraftMode");
+      draftMode.value = state.room.workspace && rules.draftMode !== "read-only" ? "drafts" : "read-only";
+      draftMode.disabled = !state.room.workspace;
+      $("rsDraftHint").textContent = state.room.workspace
+        ? "草稿只写应用数据目录，不会自动落到工作区；应用前按 hash 检查冲突。"
+        : "纯聊天房间永久只读。";
+      $("rsAllowTaskWrites").checked = state.room.workspace ? rules.allowTaskWrites !== false : false;
+      $("rsAllowTaskWrites").disabled = !state.room.workspace;
+      $("rsAllowAutoMerge").checked = rules.allowAutoMerge !== false;
+      $("rsAllowAutoMerge").disabled = !state.room.workspace;
       $("rsWorkspace").textContent = state.room.workspace || "—";
       $("rsWorkspace").title = state.room.workspace || "";
       $("roomSheetSub").textContent = `${state.room.name || state.room.id} · 影响下一回合`;
@@ -2698,6 +4283,9 @@
         autonomy,
         maxHandoffs,
         stopToken,
+        draftMode: state.room.workspace ? $("rsDraftMode").value : "read-only",
+        allowTaskWrites: state.room.workspace ? $("rsAllowTaskWrites").checked : false,
+        allowAutoMerge: $("rsAllowAutoMerge").checked,
       };
       state.room.updatedAt = new Date().toISOString();
       const result = await api.updateRoom(state.room.id, state.room);
@@ -2797,6 +4385,7 @@
       state.events = [];
       renderChat();
       renderCost();
+      $("draftBadge").hidden = !draftEnabled();
       $("run").disabled = true;
       $("stop").disabled = false;
       setStatus("运行中…", "busy");
@@ -2805,7 +4394,10 @@
         prompt,
         autonomy: rules.autonomy || "medium",
         maxHandoffs: Number(rules.maxHandoffs) || 6,
+        draft: draftEnabled(),
+        scope: draftEnabled() ? parseScopeInput($("draftScope").value) : [],
       });
+      $("draftBadge").hidden = true;
       state.running = false;
       $("run").disabled = false;
       $("stop").disabled = true;

@@ -15,6 +15,7 @@ let mainWindow = null;
 let activeRun = null;
 let activeRoomRun = null;
 let roomStopRequested = false;
+const activeTaskRuns = new Map();
 
 function log(message) {
   try {
@@ -451,6 +452,318 @@ ipcMain.handle("room:create", (_event, input) => {
   return runRoomJson("create", args);
 });
 
+function roomArgs(roomId) {
+  const args = ["--room", String(roomId || "")];
+  return args;
+}
+
+ipcMain.handle("room:draft-show", (_event, input) => {
+  const runId = String(input?.runId || "").trim();
+  if (!runId) return { status: "error", summary: "草稿 id 不能为空。" };
+  return runRoomJson("draft", ["show", "--run-id", runId, "--json"]);
+});
+
+ipcMain.handle("room:draft-apply", (_event, input) => {
+  const runId = String(input?.runId || "").trim();
+  if (!runId) return { status: "error", summary: "草稿 id 不能为空。" };
+  const args = ["apply", "--run-id", runId, "--json"];
+  for (const file of Array.isArray(input?.files) ? input.files : []) {
+    args.push("--file", String(file));
+  }
+  return runRoomJson("draft", args);
+});
+
+ipcMain.handle("room:draft-discard", (_event, input) => {
+  const runId = String(input?.runId || "").trim();
+  if (!runId) return { status: "error", summary: "草稿 id 不能为空。" };
+  return runRoomJson("draft", ["discard", "--run-id", runId]);
+});
+
+ipcMain.handle("room:draft-list", (_event, input) => {
+  const args = ["list", "--json"];
+  if (input?.workspaceId) args.push("--workspace-id", String(input.workspaceId));
+  return runRoomJson("draft", args);
+});
+
+ipcMain.handle("room:task-list", (_event, roomId) => runRoomJson("task", ["list", "--json", ...roomArgs(roomId)]));
+
+ipcMain.handle("room:task-show", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const taskId = String(input?.taskId || "").trim();
+  if (!roomId || !taskId) return { status: "error", summary: "房间和任务 id 不能为空。" };
+  return runRoomJson("task", ["show", "--task", taskId, "--json", "--room", roomId]);
+});
+
+ipcMain.handle("room:task-create", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const title = String(input?.title || "").trim();
+  if (!roomId || !title) return { status: "error", summary: "房间和任务标题不能为空。" };
+  const args = [
+    "create",
+    "--title", title,
+    "--description", String(input?.description || ""),
+    "--owner", String(input?.ownerMemberId || ""),
+    "--acceptance", String(input?.acceptance || ""),
+    "--json",
+    "--room", roomId,
+  ];
+  for (const dep of input?.dependsOn || []) args.push("--depends-on", String(dep));
+  if (input?.verificationCommand) args.push("--verification", String(input.verificationCommand));
+  for (const path of input?.allowedPaths || []) args.push("--allowed-path", String(path));
+  for (const pin of input?.pinnedMessages || []) args.push("--pin", String(pin));
+  if (input?.budgetYuan !== undefined && input.budgetYuan !== null && input.budgetYuan !== "") {
+    args.push("--budget", String(input.budgetYuan));
+  }
+  if (input?.autoMerge === true) args.push("--auto-merge");
+  if (input?.reviewerMemberId) args.push("--reviewer", String(input.reviewerMemberId));
+  if (input?.sourceMessageId) args.push("--source-message", String(input.sourceMessageId));
+  return runRoomJson("task", args);
+});
+
+ipcMain.handle("room:task-update", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const taskId = String(input?.taskId || "").trim();
+  if (!roomId || !taskId) return { status: "error", summary: "房间和任务 id 不能为空。" };
+  const args = ["update", "--task", taskId, "--json", "--room", roomId];
+  for (const [key, flag] of [
+    ["title", "--title"],
+    ["description", "--description"],
+    ["ownerMemberId", "--owner"],
+    ["acceptance", "--acceptance"],
+    ["verificationCommand", "--verification"],
+  ]) {
+    if (input?.[key] !== undefined) args.push(flag, String(input[key]));
+  }
+  if (Array.isArray(input?.dependsOn)) {
+    if (input.dependsOn.length === 0) args.push("--depends-on", "");
+    for (const dep of input.dependsOn) args.push("--depends-on", String(dep));
+  }
+  if (Array.isArray(input?.allowedPaths)) {
+    if (input.allowedPaths.length === 0) args.push("--allowed-path", "");
+    for (const path of input.allowedPaths) args.push("--allowed-path", String(path));
+  }
+  if (Array.isArray(input?.pinnedMessages)) {
+    if (input.pinnedMessages.length === 0) args.push("--pin", "");
+    for (const pin of input.pinnedMessages) args.push("--pin", String(pin));
+  }
+  if (input?.budgetYuan !== undefined) args.push("--budget", input.budgetYuan === null ? "" : String(input.budgetYuan));
+  if (input?.autoMerge === true) args.push("--auto-merge");
+  if (input?.reviewerMemberId !== undefined) args.push("--reviewer", String(input.reviewerMemberId || ""));
+  return runRoomJson("task", args);
+});
+
+ipcMain.handle("room:task-move", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const taskId = String(input?.taskId || "").trim();
+  const status = String(input?.status || "").trim();
+  if (!roomId || !taskId || !status) return { status: "error", summary: "房间、任务和状态不能为空。" };
+  return runRoomJson("task", ["move", "--task", taskId, "--status", status, "--json", "--room", roomId]);
+});
+
+ipcMain.handle("room:task-merge", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const taskId = String(input?.taskId || "").trim();
+  if (!roomId || !taskId) return { status: "error", summary: "房间和任务 id 不能为空。" };
+  return runRoomJson("task", ["merge", "--task", taskId, "--json", "--room", roomId]);
+});
+
+ipcMain.handle("room:task-discard", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const taskId = String(input?.taskId || "").trim();
+  if (!roomId || !taskId) return { status: "error", summary: "房间和任务 id 不能为空。" };
+  const args = ["discard", "--task", taskId, "--json", "--room", roomId];
+  if (input?.force === true) args.push("--force");
+  return runRoomJson("task", args);
+});
+
+ipcMain.handle("room:task-retry", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const taskId = String(input?.taskId || "").trim();
+  if (!roomId || !taskId) return { status: "error", summary: "房间和任务 id 不能为空。" };
+  return runRoomJson("task", ["retry", "--task", taskId, "--json", "--room", roomId]);
+});
+
+ipcMain.handle("room:task-recover", (_event, roomId) => {
+  const id = String(roomId || "").trim();
+  if (!id) return { status: "error", summary: "房间 id 不能为空。" };
+  return runRoomJson("task", ["recover", "--json", "--room", id]);
+});
+
+ipcMain.handle("room:task-events", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const taskId = String(input?.taskId || "").trim();
+  if (!roomId || !taskId) return { status: "error", summary: "房间和任务 id 不能为空。" };
+  return runRoomJson("task", ["events", "--task", taskId, "--json", "--room", roomId]);
+});
+
+ipcMain.handle("room:task-run", async (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const taskId = String(input?.taskId || "").trim();
+  if (!roomId || !taskId) return { status: "error", summary: "房间和任务 id 不能为空。" };
+  if (activeTaskRuns.has(taskId)) {
+    return { status: "error", summary: "该任务已在运行。" };
+  }
+  let stdout = "";
+  let stderr = "";
+  const result = await spawnRoomCli("task", [
+    "run", "--task", taskId, "--json",
+    "--room", roomId,
+    "--data-dir", ROOM_DATA_DIR,
+  ], {
+    onChild: (child) => activeTaskRuns.set(taskId, child),
+    onStdout: (text) => { stdout += text; },
+    onStderr: (text) => {
+      stderr += text;
+      for (const line of text.split(/\r?\n/).filter(Boolean)) {
+        mainWindow?.webContents.send("room:task-log", { taskId, line });
+      }
+    },
+  });
+  activeTaskRuns.delete(taskId);
+  let data;
+  try {
+    data = JSON.parse(stdout);
+  } catch {
+    data = undefined;
+  }
+  mainWindow?.webContents.send("room:task-finished", {
+    taskId,
+    exitCode: result.exitCode,
+    data,
+    stderr: stderr.trim(),
+  });
+  return {
+    status: result.exitCode === 0 ? "success" : "error",
+    summary: data?.error || (stderr.trim().split(/\r?\n/).pop() || ""),
+    data,
+    stderr: stderr.trim(),
+  };
+});
+
+ipcMain.handle("room:task-stop", async (_event, input) => {
+  const taskId = String(input?.taskId || "").trim();
+  const roomId = String(input?.roomId || "").trim();
+  const child = activeTaskRuns.get(taskId);
+  if (!child) return { status: "warning", summary: "该任务没有在运行。" };
+  if (process.platform === "win32" && child.pid) {
+    spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+  } else {
+    child.kill("SIGTERM");
+  }
+  activeTaskRuns.delete(taskId);
+  if (roomId) {
+    fs.rmSync(path.join(ROOM_DATA_DIR, roomId, "locks", `${taskId}.lock`), { force: true });
+    await spawnRoomCli("task", [
+      "move", "--task", taskId, "--status", "interrupted",
+      "--room", roomId, "--data-dir", ROOM_DATA_DIR, "--json",
+    ]);
+  }
+  return { status: "success", summary: "已停止任务；worktree 保留。" };
+});
+
+ipcMain.handle("room:inspect", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const sub = String(input?.sub || "tree");
+  if (!roomId) return { status: "error", summary: "房间 id 不能为空。" };
+  const args = [sub, "--json", "--room", roomId];
+  if (input?.workspace) args.push("--workspace", String(input.workspace));
+  if (input?.path) args.push("--path", String(input.path));
+  if (input?.depth !== undefined) args.push("--depth", String(input.depth));
+  if (Array.isArray(input?.files) && input.files[0]) args.push("--file", String(input.files[0]));
+  if (input?.file) args.push("--file", String(input.file));
+  if (input?.offset !== undefined) args.push("--offset", String(input.offset));
+  if (input?.query !== undefined) args.push("--query", String(input.query));
+  if (input?.limit !== undefined) args.push("--limit", String(input.limit));
+  if (input?.staged === true) args.push("--staged");
+  return runRoomJson("inspect", args);
+});
+
+ipcMain.handle("room:graph", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const sub = String(input?.sub || "status");
+  if (!roomId) return { status: "error", summary: "房间 id 不能为空。" };
+  const args = [sub, "--json", "--room", roomId];
+  if (input?.workspace) args.push("--workspace", String(input.workspace));
+  if (input?.query) args.push("--query", String(input.query));
+  if (input?.target) args.push("--target", String(input.target));
+  return runRoomJson("graph", args);
+});
+
+ipcMain.handle("room:btw-ask", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const question = String(input?.question || "").trim();
+  if (!roomId || !question) return { status: "error", summary: "房间和问题不能为空。" };
+  const args = ["ask", "--question", question, "--json", "--room", roomId];
+  if (input?.memberId) args.push("--member", String(input.memberId));
+  return runRoomJson("btw", args);
+});
+
+ipcMain.handle("room:btw-list", (_event, roomId) => {
+  const id = String(roomId || "").trim();
+  if (!id) return { status: "error", summary: "房间 id 不能为空。" };
+  return runRoomJson("btw", ["list", "--json", "--room", id]);
+});
+
+ipcMain.handle("room:btw-promote", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const btwId = String(input?.btwId || "").trim();
+  if (!roomId || !btwId) return { status: "error", summary: "房间和 btw id 不能为空。" };
+  return runRoomJson("btw", ["promote", "--btw", btwId, "--json", "--room", roomId]);
+});
+
+ipcMain.handle("room:platform-add", (_event, input) => {
+  const args = ["add", "--json"];
+  for (const [key, flag] of [
+    ["id", "--id"],
+    ["name", "--name"],
+    ["kind", "--kind"],
+    ["harness", "--harness"],
+    ["baseUrl", "--base-url"],
+    ["apiKeyEnv", "--api-key-env"],
+    ["sandboxMode", "--sandbox-mode"],
+    ["permissionMode", "--permission-mode"],
+    ["timeoutMs", "--timeout"],
+  ]) {
+    if (input?.[key] !== undefined && input[key] !== "") args.push(flag, String(input[key]));
+  }
+  if (input?.enabled === false) args.push("--disabled");
+  return runRoomJson("platform", args);
+});
+
+ipcMain.handle("room:platform-update", (_event, input) => {
+  const id = String(input?.id || "").trim();
+  if (!id) return { status: "error", summary: "平台 id 不能为空。" };
+  const args = ["update", "--id", id, "--json"];
+  for (const [key, flag] of [
+    ["name", "--name"],
+    ["kind", "--kind"],
+    ["harness", "--harness"],
+    ["baseUrl", "--base-url"],
+    ["apiKeyEnv", "--api-key-env"],
+    ["sandboxMode", "--sandbox-mode"],
+    ["permissionMode", "--permission-mode"],
+    ["timeoutMs", "--timeout"],
+  ]) {
+    if (input?.[key] !== undefined && input[key] !== "") args.push(flag, String(input[key]));
+  }
+  if (input?.enabled === true) args.push("--enabled");
+  if (input?.enabled === false) args.push("--disabled");
+  return runRoomJson("platform", args);
+});
+
+ipcMain.handle("room:platform-remove", (_event, id) => {
+  const value = String(id || "").trim();
+  if (!value) return { status: "error", summary: "平台 id 不能为空。" };
+  return runRoomJson("platform", ["remove", "--id", value, "--json"]);
+});
+
+ipcMain.handle("room:doctor", (_event, roomId) => {
+  const id = String(roomId || "").trim();
+  const args = ["doctor", "--json"];
+  if (id) args.push("--room", id);
+  return runRoomJson("inspect", args);
+});
+
 ipcMain.handle("room:models-sync", async () => {
   const result = await spawnRoomCli("models", ["sync", "--data-dir", ROOM_DATA_DIR]);
   return {
@@ -514,6 +827,13 @@ ipcMain.handle("room:run", async (_event, input) => {
   }
   if (input?.fake === true) {
     args.push("--fake");
+  }
+  if (input?.draft === true) {
+    args.push("--draft");
+    if (input?.runId) args.push("--run-id", String(input.runId));
+    for (const scope of Array.isArray(input?.scope) ? input.scope : []) {
+      args.push("--scope", String(scope));
+    }
   }
 
   let stdoutBuffer = "";

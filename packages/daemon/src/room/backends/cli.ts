@@ -110,10 +110,12 @@ export class CliBackend implements AgentBackend {
         version: 1,
         harness,
         prompt: request.prompt,
-        cwd: request.room.workspace,
+        cwd: request.cwd ?? request.room.workspace,
         model: model.modelId,
-        mode: readPlatformString(platform.config, "sandboxMode"),
-        permissionMode: readPlatformString(platform.config, "permissionMode"),
+        mode: request.writeMode ? "workspace-write" : readPlatformString(platform.config, "sandboxMode"),
+        permissionMode: request.writeMode
+          ? readPlatformString(platform.config, "permissionMode") ?? "acceptEdits"
+          : readPlatformString(platform.config, "permissionMode"),
         reasoningEffort: this.options.thinking ?? model.defaultThinking,
         sessionId,
         env: readPlatformEnv(platform.config?.env),

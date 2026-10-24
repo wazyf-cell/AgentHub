@@ -63,6 +63,9 @@ export interface RoomRules {
   budgetYuan?: number;
   stopToken?: string;
   planOrder?: string[];
+  draftMode?: "read-only" | "drafts";
+  allowTaskWrites?: boolean;
+  allowAutoMerge?: boolean;
 }
 
 export interface RoomConfig {
@@ -187,6 +190,46 @@ export type RoomEvent =
       type: "error";
       message: string;
       turnId?: string;
+    })
+  | (RoomEventBase & {
+      type: "task_created";
+      taskId: string;
+      title: string;
+      status: string;
+      ownerMemberId: string;
+      sourceMessageId?: string;
+    })
+  | (RoomEventBase & {
+      type: "task_updated";
+      taskId: string;
+      fields: string[];
+    })
+  | (RoomEventBase & {
+      type: "task_status";
+      taskId: string;
+      from: string;
+      to: string;
+      detail?: string;
+    })
+  | (RoomEventBase & {
+      type: "task_report";
+      taskId: string;
+      path: string;
+      status: string;
+    })
+  | (RoomEventBase & {
+      type: "draft_created";
+      draftId: string;
+      workspaceId: string;
+      changes: Array<{ path: string; kind: string }>;
+      drift: string[];
+      draftDir: string;
+    })
+  | (RoomEventBase & {
+      type: "pin_added";
+      pinId: string;
+      messageId: string;
+      taskId?: string;
     });
 
 type DraftOf<T> = T extends RoomEventBase ? Omit<T, "v" | "id" | "ts" | "roomId"> : never;
@@ -201,6 +244,8 @@ export interface AgentTurnRequest {
   images?: string[];
   signal?: AbortSignal;
   onDelta?: (text: string) => void;
+  cwd?: string;
+  writeMode?: boolean;
 }
 
 export interface AgentTurnResult {

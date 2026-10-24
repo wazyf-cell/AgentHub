@@ -9,6 +9,7 @@ export interface ComposeTurnPromptInput {
   summary?: string;
   recentLimit?: number;
   maxInputTokens?: number;
+  draftMode?: boolean;
 }
 
 const DEFAULT_RECENT_LIMIT = 15;
@@ -63,8 +64,9 @@ export function composeTurnPrompt(input: ComposeTurnPromptInput): string {
         message.type === "user_message" ? `[你] ${formatUserText(message)}` : `[${message.memberName}] ${message.text}`,
       )
       .join("\n\n");
-    const permissionNote =
-      input.member.permissions?.write === true
+    const permissionNote = input.draftMode
+      ? "当前在沙盒草稿目录中工作：可以新建和修改这里复制的文件，但这些改动不会自动写入原工作区；用户会逐项确认后再应用。"
+      : input.member.permissions?.write === true
         ? "当前成员允许在房间工作区内写入；仍须遵守简报里的路径约束。"
         : "当前房间只读：不要修改任何文件，只输出分析、方案或补丁建议。";
     return [

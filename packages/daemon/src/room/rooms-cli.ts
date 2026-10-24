@@ -1,22 +1,48 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
+import { askBtw, listBtw, promoteBtw } from "./btw.ts";
 import { createDemoFakeBackend } from "./backends/fake.ts";
 import { RoomBackendRouter } from "./backends/router.ts";
 import { scanCapabilities } from "./capabilities.ts";
 import { describeImage } from "./vision.ts";
 import { findModel, loadModels, syncModelsFromAiWorkGate } from "./catalog.ts";
+import { graphImpact, graphQuery, graphStatus, graphSync } from "./codegraph.ts";
 import { createRoomFromInput } from "./create-room.ts";
 import { createDemoRoom } from "./demo.ts";
+import {
+  applyDraft,
+  cleanupDrafts,
+  createDraft,
+  discardDraft,
+  findDraft,
+  listDrafts,
+  refreshDraft,
+  workDirOf,
+} from "./drafts.ts";
 import { runRoom } from "./engine.ts";
 import { HealthChecker } from "./health.ts";
-import { loadPlatforms } from "./platforms.ts";
+import { detectTools, gitDiff, gitStatus, listTree, readWorkspaceFile, searchWorkspace } from "./inspector.ts";
+import { loadPlatforms, savePlatforms, readPlatformNumber, readPlatformString } from "./platforms.ts";
 import { createRealRoom } from "./real-room.ts";
 import { SessionStore } from "./sessions.ts";
 import { RoomStore, resolveRoomDataDir } from "./store.ts";
 import { createRoomSummarizer } from "./summary.ts";
-import { addWorkspace, listWorkspaceSummaries, removeWorkspace, renameWorkspace } from "./workspaces.ts";
+import {
+  createTask,
+  findTask,
+  loadTasks,
+  readTaskEvents,
+  readTaskReport,
+  recoverRunningTasks,
+  setTaskStatus,
+  updateTask,
+  type CreateTaskInput,
+  type TaskStatus,
+} from "./tasks.ts";
+import { discardTask, mergeTask, retryTask, runTask } from "./task-runner.ts";
+import { addWorkspace, findWorkspaceByPath, listWorkspaceSummaries, removeWorkspace, renameWorkspace } from "./workspaces.ts";
 import type { RoomConfig, RoomEvent, RoomMember, RoomRules, StopReason } from "./types.ts";
 
 const HELP = `AgentHub room CLI
@@ -29,6 +55,34 @@ const HELP = `AgentHub room CLI
   room workspace rename --id <id> --name <名称> [--json]
   room workspace remove --id <id> [--json]
   room run --prompt "..." [--room real] [--data-dir <dir>] [--autonomy low|medium|high] [--max-handoffs 8] [--image <path> ...] [--fake] [--json-events]
+  room run --draft --prompt "..." [--scope <相对路径> ...] [--run-id <id>]
+  room draft begin --workspace <path> --workspace-id <id> [--scope <相对路径> ...] [--run-id <id>] [--json]
+  room draft list [--workspace-id <id>] [--json]
+  room draft show --run-id <id> [--json]
+  room draft apply --run-id <id> [--file <相对路径> ...] [--json]
+  room draft discard --run-id <id>
+  room draft cleanup [--days 7]
+  room task create --title <标题> --description <描述> --owner <memberId> --acceptance <验收> [--depends-on <taskId> ...] [--verification <命令>] [--allowed-path <相对路径> ...] [--pin <消息文本> ...] [--budget 2] [--auto-merge] [--reviewer <memberId>] [--json]
+  room task list|show [--task <id>] [--json]
+  room task update --task <id> [--title ...] [--description ...] [--owner ...] [--acceptance ...] [--depends-on ...] [--verification ...] [--allowed-path ...] [--budget ...] [--auto-merge]
+  room task move --task <id> --status ready
+  room task run --task <id>
+  room task merge|discard|retry|events --task <id> [--force]
+  room task recover [--json]
+  room inspect tree [--path <相对路径>] [--depth 2] [--json]
+  room inspect read --file <相对路径> [--offset 0] [--json]
+  room inspect git-status|git-diff [--file <相对路径>] [--staged] [--json]
+  room inspect search --query <关键字> [--limit 200] [--json]
+  room inspect doctor [--json]
+  room graph status|sync [--json]
+  room graph query --query <关键字> [--json]
+  room graph impact --target <符号或文件> [--json]
+  room btw ask --question <问题> [--member <id>] [--json]
+  room btw list [--json]
+  room btw promote --btw <id>
+  room platform add --id <id> --name <名称> --kind cli|openai-compatible|fake [--harness codex] [--base-url ...] [--api-key-env ...] [--sandbox-mode ...] [--timeout 600000] [--disabled]
+  room platform update --id <id> [--name ...] [--kind ...] [--harness ...] [--base-url ...] [--api-key-env ...] [--sandbox-mode ...] [--timeout ...] [--enabled|--disabled]
+  room platform remove --id <id>
   room list [--json]
   room show [--json] [--room <id>]
   room update --json-file <room.json> [--room <id>]
@@ -44,6 +98,12 @@ const HELP = `AgentHub room CLI
   init         创建假后端演示房间；加 --real 创建三个真实模型的房间。
   create       新建命名房间；工作区可复用已有登记，也可用 --workspace 直接登记该文件夹。
   workspace    管理工作区登记：list / add / rename / remove；remove 不会删除磁盘文件夹。
+  draft        沙盒草稿：按工作范围复制原文件，agent 只写草稿目录；应用/丢弃后才落地。
+  task         任务：worktree 隔离执行、验证、审查、合并；主工作区不会被 agent 直接写。
+  inspect      只读检查器：文件树、文本/图片预览、git 状态/diff、ripgrep 查找、外部工具检测。
+  graph        可选 codegraph：status / query / impact / sync；不可用时降级。
+  btw          只读侧问：不打断主对话，可提升为普通用户消息。
+  platform     平台新增/更新/移除；密钥仍走环境变量名，不写明文。
   run          默认自动选择后端：成员全是 fake 时用假后端，否则走平台路由。
   run --image  附带图片；只有声明支持图片的模型会收到图片，其他成员只收到附件说明。
   models sync  从 AIWorkGate 的本地目录导入模型能力（需要 Node 24 的 node:sqlite）。
@@ -80,6 +140,45 @@ async function main(): Promise<number> {
       platform: { type: "string" },
       health: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
+      task: { type: "string" },
+      title: { type: "string" },
+      description: { type: "string" },
+      owner: { type: "string" },
+      acceptance: { type: "string" },
+      "depends-on": { type: "string", multiple: true },
+      verification: { type: "string" },
+      "allowed-path": { type: "string", multiple: true },
+      pin: { type: "string", multiple: true },
+      budget: { type: "string" },
+      "auto-merge": { type: "boolean", default: false },
+      reviewer: { type: "string" },
+      "source-message": { type: "string" },
+      status: { type: "string" },
+      scope: { type: "string", multiple: true },
+      "run-id": { type: "string" },
+      draft: { type: "boolean", default: false },
+      file: { type: "string", multiple: true },
+      offset: { type: "string" },
+      "run-id-flag": { type: "boolean", default: false },
+      days: { type: "string" },
+      path: { type: "string" },
+      depth: { type: "string" },
+      query: { type: "string" },
+      target: { type: "string" },
+      staged: { type: "boolean", default: false },
+      limit: { type: "string" },
+      btw: { type: "string" },
+      question: { type: "string" },
+      member: { type: "string" },
+      kind: { type: "string" },
+      "base-url": { type: "string" },
+      "api-key-env": { type: "string" },
+      harness: { type: "string" },
+      "sandbox-mode": { type: "string" },
+      "permission-mode": { type: "string" },
+      enabled: { type: "boolean", default: false },
+      disabled: { type: "boolean", default: false },
+      force: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -184,6 +283,18 @@ async function main(): Promise<number> {
       return runCommand(store, roomId, {
         ...parsed.values,
       });
+    case "draft":
+      return draftCommand(store, roomId, parsed.values, parsed.positionals[1] ?? "list");
+    case "task":
+      return await taskCommand(store, roomId, parsed.values, parsed.positionals[1] ?? "list");
+    case "inspect":
+      return inspectCommand(store, roomId, parsed.values, parsed.positionals[1] ?? "tree");
+    case "graph":
+      return graphCommand(store, roomId, parsed.values, parsed.positionals[1] ?? "status");
+    case "btw":
+      return await btwCommand(store, roomId, parsed.values, parsed.positionals[1] ?? "list");
+    case "platform":
+      return platformCommand(store, parsed.values, parsed.positionals[1] ?? "list");
     case "list": {
       const rooms = store.listRooms();
       if (parsed.values.json) {
@@ -362,19 +473,524 @@ async function main(): Promise<number> {
   }
 }
 
+interface CliValues {
+  json?: boolean;
+  prompt?: string;
+  image?: string[];
+  "json-events"?: boolean;
+  autonomy?: string;
+  "max-handoffs"?: string;
+  fake?: boolean;
+  real?: boolean;
+  workspace?: string;
+  "workspace-id"?: string;
+  room?: string;
+  task?: string;
+  title?: string;
+  description?: string;
+  owner?: string;
+  acceptance?: string;
+  "depends-on"?: string[];
+  verification?: string;
+  "allowed-path"?: string[];
+  pin?: string[];
+  budget?: string;
+  "auto-merge"?: boolean;
+  reviewer?: string;
+  "source-message"?: string;
+  status?: string;
+  scope?: string[];
+  "run-id"?: string;
+  draft?: boolean;
+  file?: string[];
+  offset?: string;
+  days?: string;
+  path?: string;
+  depth?: string;
+  query?: string;
+  target?: string;
+  staged?: boolean;
+  limit?: string;
+  btw?: string;
+  question?: string;
+  member?: string;
+  kind?: string;
+  name?: string;
+  id?: string;
+  "base-url"?: string;
+  "api-key-env"?: string;
+  harness?: string;
+  "sandbox-mode"?: string;
+  "permission-mode"?: string;
+  timeout?: string;
+  enabled?: boolean;
+  disabled?: boolean;
+  force?: boolean;
+  [key: string]: unknown;
+}
+
+function writeJson(value: unknown): void {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function resolveWorkspaceId(store: RoomStore, room: RoomConfig): string {
+  if (!room.workspace) throw new Error("房间没有绑定工作区。");
+  const summaries = listWorkspaceSummaries(store);
+  if (room.workspaceId) {
+    const existing = summaries.find((workspace) => workspace.id === room.workspaceId);
+    if (existing) return existing.id;
+  }
+  const byPath = findWorkspaceByPath(summaries, room.workspace);
+  if (byPath) {
+    if (room.workspaceId !== byPath.id) {
+      room.workspaceId = byPath.id;
+      store.writeRoom(room);
+    }
+    return byPath.id;
+  }
+  const workspace = addWorkspace(store, { name: basename(room.workspace) || room.id, path: room.workspace });
+  room.workspaceId = workspace.id;
+  store.writeRoom(room);
+  return workspace.id;
+}
+
+function buildRoomBackend(store: RoomStore, room: RoomConfig): ReturnType<typeof createDemoFakeBackend> | RoomBackendRouter {
+  const allFake = room.members.every((member) => member.binding.platformId === "fake");
+  if (allFake) return createDemoFakeBackend();
+  const platforms = loadPlatforms(store);
+  const models = loadModels(store);
+  return new RoomBackendRouter({
+    store,
+    roomId: room.id,
+    platforms,
+    models,
+    sessions: new SessionStore(store, room.id),
+    health: new HealthChecker(),
+    fakeBackend: createDemoFakeBackend(),
+  });
+}
+
+function draftCommand(store: RoomStore, roomId: string, values: CliValues, sub: string): number {
+  try {
+    if (sub === "begin") {
+      const room = store.readRoom(roomId);
+      const workspacePath = values.workspace || room.workspace;
+      if (!workspacePath) throw new Error("缺少工作区；纯聊天房间不能创建草稿。");
+      const workspaceId = values["workspace-id"] || resolveWorkspaceId(store, { ...room, workspace: workspacePath });
+      const draft = createDraft({
+        store,
+        workspaceId,
+        workspacePath,
+        roomId,
+        runId: values["run-id"],
+        scope: values.scope,
+      });
+      if (values.json) writeJson(draft);
+      else process.stdout.write(`草稿已创建: ${draft.runId}\t${draft.draftDir}\n`);
+      return 0;
+    }
+    if (sub === "list") {
+      const drafts = listDrafts(store, values["workspace-id"]);
+      if (values.json) writeJson(drafts);
+      else if (drafts.length === 0) process.stdout.write("没有草稿。\n");
+      else for (const draft of drafts) process.stdout.write(`${draft.runId}\t${draft.status}\t${draft.changes.length} 个变化\t${draft.workspacePath}\n`);
+      return 0;
+    }
+    if (sub === "show") {
+      if (!values["run-id"]) throw new Error("缺少 --run-id。");
+      const draft = refreshDraft(store, values["run-id"]);
+      if (values.json) writeJson(draft);
+      else {
+        process.stdout.write(`草稿 ${draft.runId}（${draft.status}）\n${draft.draftDir}\n`);
+        for (const change of draft.changes) process.stdout.write(`  ${change.kind}\t${change.path}\n`);
+        if (draft.drift.length) process.stdout.write(`警告：原目录范围文件已变化：${draft.drift.join("、")}\n`);
+      }
+      return 0;
+    }
+    if (sub === "apply") {
+      if (!values["run-id"]) throw new Error("缺少 --run-id。");
+      const result = applyDraft(store, values["run-id"], values.file);
+      if (values.json) writeJson(result);
+      else {
+        process.stdout.write(`已应用 ${result.applied.length} 个文件。\n`);
+        for (const path of result.applied) process.stdout.write(`  ${path}\n`);
+        if (result.conflicts.length) {
+          process.stdout.write("以下冲突已跳过：\n");
+          for (const conflict of result.conflicts) process.stdout.write(`  ${conflict.path}：${conflict.reason}\n`);
+        }
+      }
+      return result.conflicts.length > 0 ? 1 : 0;
+    }
+    if (sub === "discard") {
+      if (!values["run-id"]) throw new Error("缺少 --run-id。");
+      const draft = discardDraft(store, values["run-id"]);
+      process.stdout.write(`草稿已丢弃: ${draft.runId}\n`);
+      return 0;
+    }
+    if (sub === "cleanup") {
+      const days = values.days ? Number(values.days) : 7;
+      const removed = cleanupDrafts(store, Number.isFinite(days) ? days : 7);
+      process.stdout.write(`已清理 ${removed} 个过期草稿。\n`);
+      return 0;
+    }
+    process.stderr.write("draft 子命令必须是 begin、list、show、apply、discard 或 cleanup。\n");
+    return 2;
+  } catch (error) {
+    process.stderr.write(`${describeError(error)}\n`);
+    return 1;
+  }
+}
+
+async function taskCommand(store: RoomStore, roomId: string, values: CliValues, sub: string): Promise<number> {
+  try {
+    if (sub === "create") {
+      const input: CreateTaskInput = {
+        title: values.title ?? "",
+        description: values.description ?? "",
+        ownerMemberId: values.owner ?? "",
+        acceptance: values.acceptance ?? "",
+        dependsOn: values["depends-on"],
+        sourceMessageId: values["source-message"],
+        verificationCommand: values.verification,
+        allowedPaths: values["allowed-path"],
+        pinnedMessages: values.pin,
+        budgetYuan: values.budget ? Number(values.budget) : undefined,
+        autoMerge: values["auto-merge"] === true,
+        reviewerMemberId: values.reviewer,
+        id: values.id,
+      };
+      const task = createTask(store, roomId, input);
+      if (values.json) writeJson(task);
+      else process.stdout.write(`任务已创建: ${task.id}\t${task.title}\t${task.status}\n`);
+      return 0;
+    }
+    if (sub === "list") {
+      const tasks = loadTasks(store, roomId);
+      if (values.json) writeJson(tasks);
+      else if (tasks.length === 0) process.stdout.write("没有任务。\n");
+      else for (const task of tasks) process.stdout.write(`${task.id}\t${task.status}\t${task.title}\t${task.ownerMemberId}\n`);
+      return 0;
+    }
+    if (sub === "show") {
+      if (!values.task) throw new Error("缺少 --task。");
+      const tasks = loadTasks(store, roomId);
+      const task = tasks.find((item) => item.id === values.task);
+      if (!task) throw new Error(`任务 ${values.task} 不存在。`);
+      const payload = {
+        task,
+        report: readTaskReport(store, roomId, task.id),
+        events: readTaskEvents(store, roomId, task.id),
+      };
+      if (values.json) writeJson(payload);
+      else {
+        process.stdout.write(`${task.id}\t${task.status}\t${task.title}\n`);
+        if (payload.report) process.stdout.write(`报告: ${payload.report.summary}\n`);
+      }
+      return 0;
+    }
+    if (sub === "update") {
+      if (!values.task) throw new Error("缺少 --task。");
+      const patch: Record<string, unknown> = {};
+      for (const key of ["title", "description", "owner", "acceptance"]) {
+        if (values[key] !== undefined) patch[key === "owner" ? "ownerMemberId" : key] = values[key];
+      }
+      if (values["depends-on"] !== undefined) patch.dependsOn = values["depends-on"];
+      if (values.verification !== undefined) patch.verificationCommand = values.verification;
+      if (values["allowed-path"] !== undefined) patch.allowedPaths = values["allowed-path"];
+      if (values.pin !== undefined) patch.pinnedMessages = values.pin;
+      if (values.budget !== undefined) patch.budgetYuan = values.budget === "" ? null : Number(values.budget);
+      if (values["auto-merge"] === true) patch.autoMerge = true;
+      if (values.reviewer !== undefined) patch.reviewerMemberId = values.reviewer || null;
+      const task = updateTask(store, roomId, values.task, patch);
+      if (values.json) writeJson(task);
+      else process.stdout.write(`任务已更新: ${task.id}\n`);
+      return 0;
+    }
+    if (sub === "move") {
+      if (!values.task || !values.status) throw new Error("缺少 --task 或 --status。");
+      const task = setTaskStatus(store, roomId, values.task, values.status as TaskStatus);
+      if (values.json) writeJson(task);
+      else process.stdout.write(`任务状态: ${task.status}\n`);
+      return 0;
+    }
+    if (sub === "run") {
+      if (!values.task) throw new Error("缺少 --task。");
+      const room = store.readRoom(roomId);
+      if (!room.workspace) throw new Error("纯聊天房间不能运行任务。");
+      const backend = buildRoomBackend(store, room);
+      const controller = new AbortController();
+      const onSigint = (): void => controller.abort();
+      process.once("SIGINT", onSigint);
+      try {
+        const result = await runTask({
+          store,
+          roomId,
+          taskId: values.task,
+          backend,
+          signal: controller.signal,
+          onProgress: (message) => process.stderr.write(`${message}\n`),
+        });
+        if (values.json) writeJson(result);
+        else process.stdout.write(`任务 ${result.task.id}: ${result.task.status}${result.error ? `（${result.error}）` : ""}\n`);
+        return result.task.status === "failed" || result.error ? 1 : 0;
+      } finally {
+        process.removeListener("SIGINT", onSigint);
+      }
+    }
+    if (sub === "merge") {
+      if (!values.task) throw new Error("缺少 --task。");
+      const result = mergeTask(store, roomId, values.task);
+      if (values.json) writeJson(result);
+      else process.stdout.write(`合并: ${result.status}${result.detail ? `\n${result.detail}` : ""}\n`);
+      return result.status === "merged" ? 0 : 1;
+    }
+    if (sub === "discard") {
+      if (!values.task) throw new Error("缺少 --task。");
+      const task = discardTask(store, roomId, values.task, values.force === true);
+      if (values.json) writeJson(task);
+      else process.stdout.write(`任务已丢弃: ${task.id}\n`);
+      return 0;
+    }
+    if (sub === "retry") {
+      if (!values.task) throw new Error("缺少 --task。");
+      const task = retryTask(store, roomId, values.task);
+      if (values.json) writeJson(task);
+      else process.stdout.write(`任务已回到 ready: ${task.id}\n`);
+      return 0;
+    }
+    if (sub === "events") {
+      if (!values.task) throw new Error("缺少 --task。");
+      const events = readTaskEvents(store, roomId, values.task);
+      if (values.json) writeJson(events);
+      else for (const event of events) process.stdout.write(`${JSON.stringify(event)}\n`);
+      return 0;
+    }
+    if (sub === "recover") {
+      const recovered = recoverRunningTasks(store, roomId);
+      if (values.json) writeJson({ recovered });
+      else process.stdout.write(`已恢复 ${recovered} 个中断任务。\n`);
+      return 0;
+    }
+    process.stderr.write("task 子命令必须是 create、list、show、update、move、run、merge、discard、retry、events 或 recover。\n");
+    return 2;
+  } catch (error) {
+    process.stderr.write(`${describeError(error)}\n`);
+    return 1;
+  }
+}
+
+function inspectCommand(store: RoomStore, roomId: string, values: CliValues, sub: string): number {
+  try {
+    if (sub === "doctor") {
+      const tools = detectTools();
+      if (values.json) writeJson(tools);
+      else for (const tool of tools) process.stdout.write(`${tool.available ? "ok" : "missing"}\t${tool.label}${tool.version ? `\t${tool.version}` : ""}\n`);
+      return 0;
+    }
+    const room = store.readRoom(roomId);
+    const workspace = values.workspace || room.workspace;
+    if (!workspace) throw new Error("房间没有工作区。");
+    if (sub === "tree") {
+      const depth = values.depth ? Number(values.depth) : 2;
+      const entries = listTree(workspace, values.path ?? "", Number.isFinite(depth) ? depth : 2);
+      if (values.json) writeJson(entries);
+      else for (const entry of entries) process.stdout.write(`${entry.type === "dir" ? "d" : "f"}\t${entry.path}${entry.size !== undefined ? `\t${entry.size}` : ""}\n`);
+      return 0;
+    }
+    if (sub === "read") {
+      const file = values.file?.[0];
+      if (!file) throw new Error("缺少 --file。");
+      const offset = values.offset ? Number(values.offset) : 0;
+      const result = readWorkspaceFile(workspace, file, Number.isFinite(offset) ? offset : 0);
+      if (values.json) writeJson(result);
+      else if (result.kind === "text") process.stdout.write(result.content ?? "");
+      else process.stdout.write(`${result.kind}\t${result.mime ?? ""}\t${result.size} bytes\n`);
+      return 0;
+    }
+    if (sub === "git-status") {
+      const result = gitStatus(workspace);
+      if (values.json) writeJson(result);
+      else process.stdout.write(`${result.branch}${result.clean ? "（干净）" : ""}\n${result.files.map((file) => `${file.status}\t${file.path}`).join("\n")}\n`);
+      return 0;
+    }
+    if (sub === "git-diff") {
+      const diff = gitDiff(workspace, { staged: values.staged === true, file: values.file?.[0] });
+      if (values.json) writeJson({ diff });
+      else process.stdout.write(diff);
+      return 0;
+    }
+    if (sub === "search") {
+      if (!values.query) throw new Error("缺少 --query。");
+      const limit = values.limit ? Number(values.limit) : 200;
+      const result = searchWorkspace(workspace, values.query, Number.isFinite(limit) ? limit : 200);
+      if (values.json) writeJson(result);
+      else for (const hit of result.hits) process.stdout.write(`${hit.path}:${hit.line}:${hit.column}\t${hit.text}\n`);
+      return 0;
+    }
+    process.stderr.write("inspect 子命令必须是 tree、read、git-status、git-diff、search 或 doctor。\n");
+    return 2;
+  } catch (error) {
+    process.stderr.write(`${describeError(error)}\n`);
+    return 1;
+  }
+}
+
+function graphCommand(store: RoomStore, roomId: string, values: CliValues, sub: string): number {
+  try {
+    const room = store.readRoom(roomId);
+    const workspace = values.workspace || room.workspace;
+    if (!workspace) throw new Error("房间没有工作区。");
+    if (sub === "status") {
+      const result = graphStatus(workspace);
+      if (values.json) writeJson(result);
+      else process.stdout.write(`${result.available ? "available" : "missing"}\t${result.detail ?? ""}${result.stale ? "\t索引可能过期" : ""}\n`);
+      return 0;
+    }
+    if (sub === "query") {
+      if (!values.query) throw new Error("缺少 --query。");
+      const result = graphQuery(workspace, values.query);
+      if (values.json) writeJson(result);
+      else process.stdout.write(`${JSON.stringify(result.data, null, 2)}\n`);
+      return result.ok ? 0 : 1;
+    }
+    if (sub === "impact") {
+      if (!values.target) throw new Error("缺少 --target。");
+      const result = graphImpact(workspace, values.target);
+      if (values.json) writeJson(result);
+      else process.stdout.write(`${JSON.stringify(result.data, null, 2)}\n`);
+      return result.ok ? 0 : 1;
+    }
+    if (sub === "sync") {
+      const result = graphSync(workspace);
+      if (values.json) writeJson(result);
+      else process.stdout.write(`${result.ok ? "ok" : "failed"}${result.timedOut ? "（超时）" : ""}\t${result.detail}\n`);
+      return result.ok ? 0 : 1;
+    }
+    process.stderr.write("graph 子命令必须是 status、query、impact 或 sync。\n");
+    return 2;
+  } catch (error) {
+    process.stderr.write(`${describeError(error)}\n`);
+    return 1;
+  }
+}
+
+async function btwCommand(store: RoomStore, roomId: string, values: CliValues, sub: string): Promise<number> {
+  try {
+    if (sub === "list") {
+      const records = listBtw(store, roomId);
+      if (values.json) writeJson(records);
+      else for (const record of records) process.stdout.write(`${record.id}\t${record.status}\t${record.memberName}\t${record.question}\n`);
+      return 0;
+    }
+    if (sub === "promote") {
+      if (!values.btw) throw new Error("缺少 --btw。");
+      const result = promoteBtw(store, roomId, values.btw);
+      if (values.json) writeJson(result);
+      else process.stdout.write(`已提升为消息: ${result.messageId}\n`);
+      return 0;
+    }
+    if (sub === "ask") {
+      if (!values.question) throw new Error("缺少 --question。");
+      const room = store.readRoom(roomId);
+      const member = values.member ? room.members.find((item) => item.id === values.member) : undefined;
+      if (values.member && !member) throw new Error(`成员 ${values.member} 不在房间里。`);
+      const record = await askBtw({
+        store,
+        room,
+        backend: buildRoomBackend(store, room),
+        question: values.question,
+        member,
+        contextEvents: store.readEvents(roomId),
+      });
+      if (values.json) writeJson(record);
+      else process.stdout.write(`${record.memberName}: ${record.answer}\n`);
+      return 0;
+    }
+    process.stderr.write("btw 子命令必须是 ask、list 或 promote。\n");
+    return 2;
+  } catch (error) {
+    process.stderr.write(`${describeError(error)}\n`);
+    return 1;
+  }
+}
+
+function platformCommand(store: RoomStore, values: CliValues, sub: string): number {
+  try {
+    const platforms = loadPlatforms(store);
+    if (sub === "list") {
+      if (values.json) writeJson(platforms);
+      else for (const platform of platforms) process.stdout.write(`${platform.id}\t${platform.name}\t${platform.kind}\t${platform.enabled === false ? "disabled" : "enabled"}\n`);
+      return 0;
+    }
+    if (sub === "add") {
+      const id = String(values.id || "").trim();
+      const name = String(values.name || "").trim();
+      const kind = String(values.kind || "cli").trim();
+      if (!id || !name) throw new Error("--id 和 --name 不能为空。");
+      if (!/^[a-zA-Z0-9._-]+$/.test(id)) throw new Error("平台 id 只能包含字母、数字、点、下划线或短横线。");
+      if (platforms.some((platform) => platform.id === id)) throw new Error(`平台 ${id} 已存在。`);
+      if (!["cli", "openai-compatible", "fake", "plugin-bridge"].includes(kind)) throw new Error("平台 kind 无效。");
+      const config: Record<string, unknown> = {};
+      if (values.harness) config.harness = values.harness;
+      if (values["base-url"]) config.baseUrl = values["base-url"];
+      if (values["api-key-env"]) config.apiKeyEnv = values["api-key-env"];
+      if (values["sandbox-mode"]) config.sandboxMode = values["sandbox-mode"];
+      if (values["permission-mode"]) config.permissionMode = values["permission-mode"];
+      if (values.timeout) config.timeoutMs = Number(values.timeout);
+      platforms.push({ id, name, kind: kind as never, enabled: values.disabled !== true, config });
+      savePlatforms(store, platforms);
+      if (values.json) writeJson({ id });
+      else process.stdout.write(`平台已添加: ${id}\n`);
+      return 0;
+    }
+    if (sub === "update") {
+      const id = String(values.id || "").trim();
+      const platform = platforms.find((item) => item.id === id);
+      if (!platform) throw new Error(`平台 ${id} 不存在。`);
+      if (values.name) platform.name = String(values.name);
+      if (values.kind) platform.kind = String(values.kind) as never;
+      platform.config = { ...(platform.config || {}) };
+      if (values.harness) platform.config.harness = values.harness;
+      if (values["base-url"]) platform.config.baseUrl = values["base-url"];
+      if (values["api-key-env"]) platform.config.apiKeyEnv = values["api-key-env"];
+      if (values["sandbox-mode"]) platform.config.sandboxMode = values["sandbox-mode"];
+      if (values["permission-mode"]) platform.config.permissionMode = values["permission-mode"];
+      if (values.timeout) platform.config.timeoutMs = Number(values.timeout);
+      if (values.enabled === true) platform.enabled = true;
+      if (values.disabled === true) platform.enabled = false;
+      savePlatforms(store, platforms);
+      if (values.json) writeJson(platform);
+      else process.stdout.write(`平台已更新: ${platform.id}\n`);
+      return 0;
+    }
+    if (sub === "remove") {
+      const id = String(values.id || "").trim();
+      if (!platforms.some((platform) => platform.id === id)) throw new Error(`平台 ${id} 不存在。`);
+      const referenced = store.listRooms().filter((room) => room.members.some((member) => member.binding.platformId === id));
+      if (referenced.length > 0) {
+        throw new Error(`平台仍被房间引用：${referenced.map((room) => room.name || room.id).join("、")}`);
+      }
+      savePlatforms(store, platforms.filter((platform) => platform.id !== id));
+      if (values.json) writeJson({ removed: id });
+      else process.stdout.write(`平台已移除: ${id}\n`);
+      return 0;
+    }
+    process.stderr.write("platform 子命令必须是 list、add、update 或 remove。\n");
+    return 2;
+  } catch (error) {
+    process.stderr.write(`${describeError(error)}\n`);
+    return 1;
+  }
+}
+
 async function runCommand(
   store: RoomStore,
   roomId: string,
-  values: {
-    prompt?: string;
-    workspace?: string;
-    real?: boolean;
-    fake?: boolean;
-    "json-events"?: boolean;
-    autonomy?: string;
-    "max-handoffs"?: string;
-    image?: string[];
-  },
+  values: CliValues,
 ): Promise<number> {
   if (!values.prompt?.trim()) {
     process.stderr.write("缺少 --prompt \"...\"。\n");
@@ -424,6 +1040,24 @@ async function runCommand(
   const summaryMember = useFake ? undefined : buildSummaryMember(models);
   const summarizer = summaryMember ? createRoomSummarizer(router, summaryMember) : undefined;
 
+  let draftInfo: ReturnType<typeof createDraft> | undefined;
+  if (values.draft === true) {
+    if (!room.workspace) {
+      process.stderr.write("纯聊天房间没有工作区，不能创建草稿。\n");
+      return 2;
+    }
+    const workspaceId = resolveWorkspaceId(store, room);
+    draftInfo = createDraft({
+      store,
+      workspaceId,
+      workspacePath: room.workspace,
+      roomId,
+      runId: values["run-id"],
+      scope: values.scope,
+    });
+    process.stderr.write(`草稿目录: ${draftInfo.draftDir}\n`);
+  }
+
   const controller = new AbortController();
   const onSigint = (): void => {
     process.stderr.write("\n收到 Ctrl+C，正在停止房间...\n");
@@ -442,6 +1076,9 @@ async function runCommand(
       rulesOverride,
       signal: controller.signal,
       summarizer,
+      cwdOverride: draftInfo ? workDirOf(draftInfo.draftDir) : undefined,
+      writeMode: Boolean(draftInfo),
+      draftMode: Boolean(draftInfo),
       onEvent: (event) => {
         if (jsonEvents) {
           process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -450,6 +1087,30 @@ async function runCommand(
         }
       },
     });
+    if (draftInfo) {
+      const refreshed = refreshDraft(store, draftInfo.runId);
+      const draftEvent = store.appendEvent(roomId, {
+        type: "draft_created",
+        draftId: refreshed.runId,
+        workspaceId: refreshed.workspaceId,
+        changes: refreshed.changes.map((change) => ({ path: change.path, kind: change.kind })),
+        drift: refreshed.drift,
+        draftDir: refreshed.draftDir,
+      });
+      if (jsonEvents) {
+        process.stdout.write(`${JSON.stringify(draftEvent)}\n`);
+      } else {
+        const counts = refreshed.changes.reduce<Record<string, number>>((acc, change) => {
+          acc[change.kind] = (acc[change.kind] ?? 0) + 1;
+          return acc;
+        }, {});
+        process.stdout.write(
+          `\n草稿 ${refreshed.runId}: ${counts.added ?? 0} 新增 / ${counts.modified ?? 0} 修改 / ${counts.deleted ?? 0} 删除`
+          + `${refreshed.drift.length ? `；警告：原目录有 ${refreshed.drift.length} 个范围文件在运行期间变化` : ""}\n`
+          + `应用: room draft apply --run-id ${refreshed.runId}\n`,
+        );
+      }
+    }
     if (!jsonEvents) {
       process.stdout.write(
         `\n状态: ${result.status}，停止原因: ${result.stopReason}，agent 回合: ${result.agentTurns}，费用: ¥${result.costYuan.toFixed(2)}\n`,

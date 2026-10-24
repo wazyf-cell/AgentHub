@@ -36,6 +36,9 @@ export interface RunRoomOptions {
   signal?: AbortSignal;
   onEvent?: (event: RoomEvent) => void;
   summarizer?: RoomSummarizer;
+  cwdOverride?: string;
+  writeMode?: boolean;
+  draftMode?: boolean;
 }
 
 export interface RoomRunResult {
@@ -140,6 +143,7 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
       brief: store.readBrief(roomId),
       summary: store.readSummary(roomId),
       maxInputTokens,
+      draftMode: options.draftMode,
     });
     const promptTokens = estimateTokens(prompt);
     if (contextWindow && promptTokens > contextWindow * (room.rules.hardStopAt ?? 0.85)) {
@@ -178,6 +182,8 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
         turnId,
         images: options.images,
         signal: options.signal,
+        cwd: options.cwdOverride,
+        writeMode: options.writeMode,
         onDelta: (text) => {
           if (!text) {
             return;
