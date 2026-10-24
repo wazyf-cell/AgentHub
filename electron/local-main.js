@@ -14,6 +14,7 @@ const ROOM_DATA_DIR = path.join(USER_DATA_DIR, "rooms");
 let mainWindow = null;
 let activeRun = null;
 let activeRoomRun = null;
+let roomStopRequested = false;
 
 function log(message) {
   try {
@@ -463,6 +464,7 @@ ipcMain.handle("room:run", async (_event, input) => {
   }
 
   let stdoutBuffer = "";
+  roomStopRequested = false;
   const result = await spawnRoomCli("run", args, {
     onChild: (child) => {
       activeRoomRun = child;
@@ -489,14 +491,25 @@ ipcMain.handle("room:run", async (_event, input) => {
       }
     },
   });
+  const stopped = roomStopRequested;
   activeRoomRun = null;
+  roomStopRequested = false;
+  if (stopped) {
+    await spawnRoomCli("mark-stopped", [
+      "--room", roomId,
+      "--data-dir", ROOM_DATA_DIR,
+      "--detail", "stopped from desktop",
+    ]);
+  }
   mainWindow?.webContents.send("room:run-finished", {
     exitCode: result.exitCode,
     stderr: result.stderr,
+    stopped,
   });
   return {
-    status: result.exitCode === 0 ? "success" : "error",
+    status: stopped ? "success" : result.exitCode === 0 ? "success" : "error",
     exitCode: result.exitCode,
+    stopped,
     stderr: result.stderr,
   };
 });
@@ -505,6 +518,7 @@ ipcMain.handle("room:stop", () => {
   if (!activeRoomRun) {
     return { status: "warning", summary: "No active room run." };
   }
+  roomStopRequested = true;
   const pid = activeRoomRun.pid;
   if (process.platform === "win32" && pid) {
     spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });

@@ -15,7 +15,7 @@ import { createRealRoom } from "./real-room.ts";
 import { SessionStore } from "./sessions.ts";
 import { RoomStore, resolveRoomDataDir } from "./store.ts";
 import { createRoomSummarizer } from "./summary.ts";
-import type { RoomConfig, RoomEvent, RoomMember, RoomRules } from "./types.ts";
+import type { RoomConfig, RoomEvent, RoomMember, RoomRules, StopReason } from "./types.ts";
 
 const HELP = `AgentHub room CLI
 
@@ -58,6 +58,8 @@ async function main(): Promise<number> {
       image: { type: "string", multiple: true },
       command: { type: "string" },
       timeout: { type: "string" },
+      reason: { type: "string" },
+      detail: { type: "string" },
       out: { type: "string" },
       "json-file": { type: "string" },
       platform: { type: "string" },
@@ -232,6 +234,34 @@ async function main(): Promise<number> {
         process.stderr.write(`${result.error ?? "vision failed"}\n`);
       }
       return result.status === "completed" ? 0 : 1;
+    }
+    case "mark-stopped": {
+      const reason = parsed.values.reason ?? "human_stop";
+      const stopReasons = [
+        "done",
+        "human_mention",
+        "autonomy_low",
+        "max_handoffs",
+        "budget",
+        "context_limit",
+        "no_eligible_speaker",
+        "human_stop",
+        "error",
+      ];
+      if (!stopReasons.includes(reason)) {
+        process.stderr.write(`--reason 必须是 ${stopReasons.join(" / ")} 之一。\n`);
+        return 2;
+      }
+      const events = store.readEvents(roomId);
+      if (events.at(-1)?.type === "room_stopped") {
+        return 0;
+      }
+      store.appendEvent(roomId, {
+        type: "room_stopped",
+        reason: reason as StopReason,
+        detail: parsed.values.detail,
+      });
+      return 0;
     }
     case "help":
     default:

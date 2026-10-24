@@ -193,6 +193,7 @@
       events: [],
       selectedMemberId: null,
       running: false,
+      stopping: false,
       costYuan: 0,
       totalTokens: 0,
       liveText: "",
@@ -272,7 +273,11 @@
         state.running = false;
         $("run").disabled = false;
         $("stop").disabled = true;
-        setStatus(payload.exitCode === 0 ? "运行结束" : `运行结束（exit ${payload.exitCode}）`, payload.exitCode === 0 ? "ok" : "error");
+        if (payload.stopped || state.stopping) {
+          setStatus("已停止", "ok");
+        } else {
+          setStatus(payload.exitCode === 0 ? "运行结束" : `运行结束（exit ${payload.exitCode}）`, payload.exitCode === 0 ? "ok" : "error");
+        }
         if (payload.stderr) appendLog(payload.stderr.trim());
       });
     }
@@ -962,6 +967,7 @@
         return;
       }
       state.running = true;
+      state.stopping = false;
       state.costYuan = 0;
       state.totalTokens = 0;
       state.liveText = "";
@@ -981,7 +987,11 @@
       state.running = false;
       $("run").disabled = false;
       $("stop").disabled = true;
-      if (result.status !== "success") {
+      const stopped = state.stopping || result.stopped === true;
+      state.stopping = false;
+      if (stopped) {
+        setStatus("已停止", "ok");
+      } else if (result.status !== "success") {
         setStatus(result.summary || "运行失败", "error");
         if (result.stderr) appendLog(result.stderr);
       } else {
@@ -1017,8 +1027,14 @@
     $("legacy").addEventListener("click", () => api.openLegacy());
     $("run").addEventListener("click", runRoom);
     $("stop").addEventListener("click", async () => {
+      state.stopping = true;
       const result = await api.stop();
-      setStatus(result.summary || "已发送停止", result.status === "success" ? "ok" : "error");
+      if (result.status !== "success") {
+        state.stopping = false;
+        setStatus(result.summary || "没有可停止的运行", "error");
+      } else {
+        setStatus("正在停止…");
+      }
     });
     $("replay").addEventListener("click", async () => {
       if (!state.room) return;
