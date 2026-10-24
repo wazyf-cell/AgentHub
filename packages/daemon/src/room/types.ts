@@ -70,6 +70,7 @@ export interface RoomConfig {
   id: string;
   name: string;
   workspace: string;
+  workspaceId?: string;
   members: RoomMember[];
   rules: RoomRules;
   createdAt: string;

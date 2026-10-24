@@ -147,22 +147,84 @@
     #shell.left-collapsed #left { opacity: 0; pointer-events: none; }
     .left-scroll { flex: 1; overflow: auto; min-height: 0; padding: 10px 8px 12px; }
     .workspace-card {
-      display: flex; align-items: center; gap: 8px;
       margin: 0 2px 12px;
-      padding: 8px 9px;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: linear-gradient(180deg, #13161b, #101216);
-      cursor: pointer;
+      overflow: hidden;
       width: calc(100% - 4px);
-      text-align: left;
     }
-    .workspace-card:hover { border-color: var(--line-2); background: var(--panel-2); }
+    .ws-main {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; padding: 8px 9px;
+      background: transparent; border: 0; border-radius: 0;
+      text-align: left; min-height: 0;
+    }
+    .ws-main:hover { background: var(--panel-2); border-color: transparent; }
     .ws-icon { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 6px; background: var(--amber-soft); color: var(--amber); }
     .ws-icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    .ws-text { min-width: 0; flex: 1; }
-    .ws-label { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
-    .ws-path { font: 11px/1.35 var(--font-mono); color: #b9bec4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+    .ws-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+    .ws-label { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+    .ws-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ws-path { font: 10.5px/1.35 var(--font-mono); color: #a9aeb4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ws-actions { display: flex; gap: 4px; padding: 5px 6px 6px; border-top: 1px solid var(--line); }
+    .ws-actions button {
+      flex: 1; min-height: 22px; padding: 2px 4px; font-size: 10.5px;
+      background: transparent; border-color: transparent; color: var(--muted);
+    }
+    .ws-actions button:hover { background: var(--panel-3); color: var(--text); }
+
+    .workspace-menu {
+      position: fixed; z-index: 60; width: 296px;
+      padding: 6px;
+      background: #111318;
+      border: 1px solid var(--line-2);
+      border-radius: 10px;
+      box-shadow: 0 18px 44px rgba(0, 0, 0, .5);
+    }
+    .workspace-menu[hidden] { display: none; }
+    .ws-menu-head {
+      padding: 5px 8px 6px;
+      color: var(--dim); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    }
+    .ws-menu-body { max-height: 42vh; overflow: auto; }
+    .ws-menu-item {
+      width: 100%; display: flex; align-items: center; gap: 8px;
+      padding: 7px 8px; min-height: 0;
+      background: transparent; border: 1px solid transparent; border-radius: 7px;
+      text-align: left;
+    }
+    .ws-menu-item:hover { background: var(--panel-2); border-color: transparent; }
+    .ws-menu-item.active { background: var(--amber-soft); border-color: rgba(227, 163, 85, .24); }
+    .ws-menu-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex: none; }
+    .ws-menu-dot.missing { background: var(--danger); }
+    .ws-menu-text { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+    .ws-menu-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ws-menu-path { font: 10px/1.35 var(--font-mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ws-menu-meta { font: 10px/1 var(--font-mono); color: var(--dim); flex: none; }
+    .ws-menu-sep { height: 1px; background: var(--line); margin: 5px 3px; }
+    .ws-menu-foot { display: flex; gap: 6px; padding: 6px 3px 2px; border-top: 1px solid var(--line); margin-top: 5px; }
+    .ws-menu-foot button { flex: 1; min-height: 26px; font-size: 11px; padding: 3px 6px; }
+
+    .path-popover {
+      position: fixed; z-index: 80; width: min(390px, 90vw);
+      padding: 7px;
+      background: #121419;
+      border: 1px solid var(--line-2);
+      border-radius: 8px;
+      box-shadow: 0 16px 38px rgba(0, 0, 0, .5);
+    }
+    .path-popover[hidden] { display: none; }
+    .path-value {
+      width: 100%; text-align: left; padding: 7px 8px; min-height: 0;
+      font: 11px/1.55 var(--font-mono); color: #c7ccd2;
+      background: transparent; border: 1px solid transparent; border-radius: 6px;
+      word-break: break-all;
+    }
+    .path-value:hover { background: var(--panel-3); border-color: var(--line); }
+    .path-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 5px; padding: 0 2px; }
+    .path-actions span { color: var(--dim); font-size: 10px; }
+    .path-actions button { min-height: 24px; padding: 2px 8px; font-size: 10.5px; }
 
     .section-head {
       display: flex; align-items: center; justify-content: space-between;
@@ -174,6 +236,7 @@
     }
     .section-head .count { font: 10.5px/1 var(--font-mono); color: var(--dim); letter-spacing: 0; }
     .section-head button { min-height: 22px; height: 22px; width: 22px; padding: 0; font-size: 14px; line-height: 1; border-radius: 6px; }
+    .head-actions { display: flex; align-items: center; gap: 6px; }
 
     .rooms, .members { display: flex; flex-direction: column; gap: 2px; }
     .rooms { max-height: 34vh; overflow: auto; }
@@ -441,6 +504,19 @@
     .shortcut-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 11px; color: var(--muted); }
     .shortcut-row kbd { font: 10px/1 var(--font-mono); border: 1px solid var(--line); border-bottom-color: var(--line-2); border-radius: 4px; padding: 3px 6px; background: var(--panel-2); color: #c4c8cc; }
     .inline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .path-input-row { display: flex; gap: 6px; }
+    .path-input-row input { flex: 1; }
+    .path-input-row button { flex: none; min-height: 32px; }
+    .form-hint { color: var(--dim); font-size: 10.5px; margin-top: 4px; line-height: 1.5; }
+    .ws-settings-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 0; border-bottom: 1px solid rgba(36, 40, 47, .6);
+    }
+    .ws-settings-row:last-child { border-bottom: 0; }
+    .ws-settings-row .ws-setting-name { font-size: 12px; min-width: 88px; max-width: 36%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ws-settings-row .ws-setting-path { flex: 1; min-width: 0; font: 10px/1.4 var(--font-mono); color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ws-settings-row button { min-height: 22px; padding: 1px 7px; font-size: 10px; flex: none; }
+    .drawer-delete { width: 100%; margin-top: 6px; min-height: 28px; font-size: 11px; }
 
     /* ---------- palette ---------- */
     #palette {
@@ -520,32 +596,35 @@
 
     <aside id="left" aria-label="房间与成员">
       <div class="left-scroll">
-        <button class="workspace-card" id="openWorkspace" title="打开工作区目录">
-          <span class="ws-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
-          </span>
-          <span class="ws-text">
-            <span class="ws-label">当前工作区</span>
-            <span class="ws-path" id="workspacePath">未选择</span>
-          </span>
-        </button>
+        <div class="workspace-card">
+          <button class="ws-main" id="workspaceSwitcher" aria-haspopup="menu" aria-expanded="false" title="切换工作区">
+            <span class="ws-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+            </span>
+            <span class="ws-text">
+              <span class="ws-label" id="workspaceLabel">当前工作区</span>
+              <span class="ws-name" id="workspaceName">未选择</span>
+              <span class="ws-path" id="workspacePath">未选择</span>
+            </span>
+          </button>
+          <div class="ws-actions">
+            <button id="viewWorkspacePath" type="button" title="在鼠标附近查看完整路径">查看</button>
+            <button id="openWorkspace" type="button" title="打开工作区文件夹">打开文件夹</button>
+          </div>
+        </div>
 
         <div class="section-head">
           <span>房间</span>
           <button class="ghost" id="newRoom" title="新建房间" aria-label="新建房间">+</button>
         </div>
         <div class="rooms" id="rooms"></div>
-        <div class="create-row" id="createRow">
-          <input id="workspace" placeholder="工作区路径" aria-label="新房间工作区路径" />
-          <div class="row-actions">
-            <button id="pickWorkspace" type="button">浏览</button>
-            <button class="primary" id="createRoom" type="button">创建</button>
-          </div>
-        </div>
 
         <div class="section-head">
           <span>成员</span>
-          <span class="count" id="memberCount"></span>
+          <span class="head-actions">
+            <span class="count" id="memberCount"></span>
+            <button class="ghost" id="newMember" title="新增成员" aria-label="新增成员">+</button>
+          </span>
         </div>
         <div class="members" id="members"></div>
       </div>
@@ -668,6 +747,106 @@
     </div>
   </div>
 
+  <div class="modal" id="workspaceSheet" role="dialog" aria-modal="true" aria-labelledby="workspaceSheetTitle" style="width:520px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="workspaceSheetTitle">新建工作区</div>
+        <div class="modal-sub">登记一个文件夹；不会移动或修改它</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closeWorkspaceSheet" title="关闭" aria-label="关闭新建工作区">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="wsName">名称</label>
+        <input id="wsName" placeholder="例如：AgentHub、课程作业" />
+        <div class="form-hint">名称用于左侧区分，可重命名；工作区 id 不会变。</div>
+      </div>
+      <div class="field">
+        <label for="wsFolder">文件夹</label>
+        <div class="path-input-row">
+          <input id="wsFolder" placeholder="选择或输入绝对路径" />
+          <button id="browseWorkspace" type="button">浏览</button>
+        </div>
+        <div class="form-hint">同一文件夹只能登记一次；登记后路径不可修改。</div>
+      </div>
+      <label class="check" id="wsAlsoRoomRow">
+        <input type="checkbox" id="wsAlsoRoom" checked />
+        <span>同时创建一个房间</span>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button id="cancelWorkspaceSheet" type="button">取消</button>
+      <button class="primary" id="saveWorkspace" type="button">创建工作区</button>
+    </div>
+  </div>
+
+  <div class="modal" id="createRoomSheet" role="dialog" aria-modal="true" aria-labelledby="createRoomSheetTitle" style="width:520px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="createRoomSheetTitle">新建房间</div>
+        <div class="modal-sub">房间决定用哪些成员和哪套规则</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closeCreateRoomSheet" title="关闭" aria-label="关闭新建房间">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="createRoomName">房间名称</label>
+        <input id="createRoomName" placeholder="例如：AgentHub 前端、论文修改" />
+        <div class="form-hint" id="createRoomIdHint">房间 id 将自动生成。</div>
+      </div>
+      <div class="field">
+        <label for="createRoomWorkspace">工作区</label>
+        <select id="createRoomWorkspace"></select>
+        <div class="form-hint">不绑定工作区即为纯聊天；任务板与文件写入不可用。</div>
+      </div>
+      <div class="field">
+        <label for="createRoomCopy">成员来源</label>
+        <select id="createRoomCopy"></select>
+        <div class="form-hint">复制会带走角色卡、模型绑定、备用链、权限、技能/MCP 和房间规则；对话从空白开始。</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button id="cancelCreateRoomSheet" type="button">取消</button>
+      <button class="primary" id="createRoomSubmit" type="button">创建房间</button>
+    </div>
+  </div>
+
+  <div class="workspace-menu" id="workspaceMenu" role="menu" aria-label="切换工作区" hidden>
+    <div class="ws-menu-head">切换工作区</div>
+    <div class="ws-menu-body">
+      <button class="ws-menu-item" data-filter="all" type="button">
+        <span class="ws-menu-dot"></span>
+        <span class="ws-menu-text"><span class="ws-menu-name">全部房间</span><span class="ws-menu-path">显示所有工作区与纯聊天</span></span>
+        <span class="ws-menu-meta" id="wsAllCount"></span>
+      </button>
+      <button class="ws-menu-item" data-filter="chat" type="button">
+        <span class="ws-menu-dot"></span>
+        <span class="ws-menu-text"><span class="ws-menu-name">纯聊天</span><span class="ws-menu-path">没有绑定工作区的房间</span></span>
+        <span class="ws-menu-meta" id="wsChatCount"></span>
+      </button>
+      <div class="ws-menu-sep"></div>
+      <div id="workspaceMenuList"></div>
+    </div>
+    <div class="ws-menu-foot">
+      <button class="primary" id="newWorkspace" type="button">+ 新建工作区</button>
+      <button id="manageWorkspaces" type="button">管理</button>
+    </div>
+  </div>
+
+  <div class="path-popover" id="pathPopover" hidden>
+    <button class="path-value" id="pathPopoverValue" type="button"></button>
+    <div class="path-actions">
+      <span>点击路径打开资源管理器</span>
+      <button id="copyWorkspacePath" type="button">复制</button>
+    </div>
+  </div>
+
   <div id="palette" role="dialog" aria-modal="true" aria-label="命令面板">
     <div class="palette-panel">
       <div class="palette-input-row">
@@ -683,6 +862,8 @@
     const api = window.agentHub;
     const state = {
       rooms: [],
+      workspaces: [],
+      workspaceFilter: localStorage.getItem("agenthub.workspaceFilter") || "all",
       room: null,
       settings: {},
       platforms: [],
@@ -699,10 +880,12 @@
       paletteIndex: 0,
       paletteFilter: "",
       overlays: [],
+      pathPopoverTarget: "",
+      renamingWorkspaceId: "",
     };
     const $ = (id) => document.getElementById(id);
     const AUTONOMY_LABELS = { low: "低自治", medium: "中自治", high: "高自治" };
-    const OVERLAY_IDS = ["memberDrawer", "roomSheet", "settingsModal", "palette"];
+    const OVERLAY_IDS = ["memberDrawer", "roomSheet", "settingsModal", "workspaceSheet", "createRoomSheet", "palette"];
     const DISPLAY_EVENT_TYPES = new Set(["user_message", "agent_message", "handoff", "binding_used", "summary_updated", "room_stopped", "error"]);
 
     function setStatus(text, kind = "") {
@@ -787,7 +970,7 @@
 
     async function boot() {
       state.settings = await api.settings();
-      $("workspace").value = state.settings.homeDir || state.settings.appRoot || "";
+      const workspacesResult = await api.workspaces();
       const [roomsResult, platformsResult, modelsResult, capabilitiesResult] = await Promise.all([
         api.listRooms(),
         api.platforms(),
@@ -795,18 +978,28 @@
         api.capabilities(),
       ]);
       if (roomsResult.status === "success") state.rooms = roomsResult.data || [];
+      if (workspacesResult.status === "success") state.workspaces = workspacesResult.data || [];
       if (platformsResult.status === "success") state.platforms = platformsResult.data || [];
       if (modelsResult.status === "success") state.models = modelsResult.data || [];
       if (capabilitiesResult.status === "success" && capabilitiesResult.data) {
         state.capabilities = capabilitiesResult.data;
       }
+      if (state.workspaceFilter !== "all" && state.workspaceFilter !== "chat"
+        && !state.workspaces.some((workspace) => workspace.id === state.workspaceFilter)) {
+        state.workspaceFilter = "all";
+        localStorage.setItem("agenthub.workspaceFilter", "all");
+      }
+      if (state.workspaceFilter === "chat" && !state.rooms.some((room) => !roomWorkspace(room))) {
+        state.workspaceFilter = "all";
+        localStorage.setItem("agenthub.workspaceFilter", "all");
+      }
       bindGlobalUi();
-      renderRooms();
       renderModelCount();
-      if (state.rooms.length > 0) {
-        await loadRoom(state.rooms[0].id);
+      const visibleRooms = filteredRooms();
+      if (visibleRooms.length > 0) {
+        await loadRoom(visibleRooms[0].id);
       } else {
-        renderEmpty();
+        renderAll();
       }
       api.onRunEvent(handleRunEvent);
       api.onRunLog((line) => appendLog(line));
@@ -828,16 +1021,59 @@
 
     function bindGlobalUi() {
       $("toggleLeft").addEventListener("click", toggleLeft);
-      $("newRoom").addEventListener("click", () => {
-        $("createRow").classList.toggle("show");
-        if ($("createRow").classList.contains("show")) $("workspace").focus();
-      });
-      $("pickWorkspace").addEventListener("click", async () => {
-        const result = await api.pickWorkspace();
-        if (result.status === "success" && result.path) $("workspace").value = result.path;
-      });
-      $("createRoom").addEventListener("click", createRoom);
+      $("workspaceSwitcher").addEventListener("click", toggleWorkspaceMenu);
+      $("viewWorkspacePath").addEventListener("click", openWorkspacePathPopover);
       $("openWorkspace").addEventListener("click", openWorkspace);
+      $("newRoom").addEventListener("click", () => openCreateRoomSheet());
+      $("newMember").addEventListener("click", addMember);
+      $("newWorkspace").addEventListener("click", () => {
+        closeWorkspaceMenu();
+        openWorkspaceSheet();
+      });
+      $("manageWorkspaces").addEventListener("click", () => {
+        closeWorkspaceMenu();
+        openSettings({ focusWorkspaces: true });
+      });
+      $("closeWorkspaceSheet").addEventListener("click", closeOverlays);
+      $("cancelWorkspaceSheet").addEventListener("click", closeOverlays);
+      $("saveWorkspace").addEventListener("click", createWorkspaceFlow);
+      $("browseWorkspace").addEventListener("click", async () => {
+        const result = await api.pickWorkspace();
+        if (result.status === "success" && result.path) $("wsFolder").value = result.path;
+      });
+      $("closeCreateRoomSheet").addEventListener("click", closeOverlays);
+      $("cancelCreateRoomSheet").addEventListener("click", closeOverlays);
+      $("createRoomSubmit").addEventListener("click", createRoomSubmit);
+      $("createRoomName").addEventListener("input", updateRoomIdHint);
+      $("pathPopoverValue").addEventListener("click", () => {
+        if (state.pathPopoverTarget) api.openPath(state.pathPopoverTarget);
+        closePathPopover();
+      });
+      $("copyWorkspacePath").addEventListener("click", copyPathPopoverValue);
+      $("workspaceMenu").addEventListener("click", (event) => {
+        const item = event.target.closest("[data-filter]");
+        if (item) setWorkspaceFilter(item.dataset.filter);
+      });
+      document.addEventListener("click", (event) => {
+        if (!$("workspaceMenu").hidden
+          && !$("workspaceMenu").contains(event.target)
+          && !$("workspaceSwitcher").contains(event.target)) {
+          closeWorkspaceMenu();
+        }
+        if (!$("pathPopover").hidden
+          && !$("pathPopover").contains(event.target)
+          && !$("viewWorkspacePath").contains(event.target)) {
+          closePathPopover();
+        }
+      });
+      window.addEventListener("resize", () => {
+        closeWorkspaceMenu();
+        closePathPopover();
+      });
+      window.addEventListener("scroll", () => {
+        closeWorkspaceMenu();
+        closePathPopover();
+      }, true);
       $("openRoomSettings").addEventListener("click", openRoomSettings);
       $("openSettings").addEventListener("click", openSettings);
       $("openPalette").addEventListener("click", openPalette);
@@ -895,7 +1131,13 @@
           event.preventDefault();
           toggleLeft();
         } else if (event.key === "Escape") {
-          if (state.overlays.length > 0) {
+          if (!$("workspaceMenu").hidden) {
+            event.preventDefault();
+            closeWorkspaceMenu();
+          } else if (!$("pathPopover").hidden) {
+            event.preventDefault();
+            closePathPopover();
+          } else if (state.overlays.length > 0) {
             event.preventDefault();
             closeOverlays();
           }
@@ -909,7 +1151,7 @@
     }
 
     function openOverlay(id) {
-      if (id !== "palette") closeOverlays();
+      closeOverlays();
       state.overlays = [id];
       $(id).classList.add("open");
       $("scrim").classList.add("show");
@@ -926,6 +1168,8 @@
       for (const id of OVERLAY_IDS) $(id).classList.remove("open");
       $("scrim").classList.remove("show");
       state.overlays = [];
+      closeWorkspaceMenu();
+      closePathPopover();
     }
 
     function togglePalette() {
@@ -939,7 +1183,9 @@
 
     function paletteActions() {
       const actions = [
-        { id: "new-room", label: "新建房间", hint: "房间", run: () => { closeOverlays(); $("createRow").classList.add("show"); $("workspace").focus(); } },
+        { id: "new-room", label: "新建房间", hint: "房间", run: () => { closeOverlays(); openCreateRoomSheet(); } },
+        { id: "new-workspace", label: "新建工作区", hint: "工作区", run: () => { closeOverlays(); openWorkspaceSheet(); } },
+        { id: "manage-workspaces", label: "管理工作区", hint: "工作区", run: () => { closeOverlays(); openSettings({ focusWorkspaces: true }); } },
         { id: "app-settings", label: "打开应用设置", hint: "设置", run: () => { closeOverlays(); openSettings(); } },
         { id: "room-settings", label: "编辑当前房间规则", hint: "设置", run: () => { closeOverlays(); openRoomSettings(); } },
         { id: "replay", label: "回放当前房间", hint: "会话", run: () => { closeOverlays(); replayRoom(); } },
@@ -950,12 +1196,26 @@
         { id: "toggle-left", label: ($("shell").classList.contains("left-collapsed") ? "展开" : "折叠") + "侧栏", hint: "布局", run: () => { closeOverlays(); toggleLeft(); } },
         { id: "legacy", label: "打开批处理", hint: "高级", run: () => { closeOverlays(); api.openLegacy(); } },
       ];
+      for (const workspace of state.workspaces) {
+        actions.push({
+          id: `workspace:${workspace.id}`,
+          label: `切换工作区 · ${workspace.name}`,
+          hint: `${workspace.roomCount ?? 0} 房间`,
+          run: async () => { closeOverlays(); await setWorkspaceFilter(workspace.id); },
+        });
+      }
       for (const room of state.rooms) {
+        const workspace = roomWorkspace(room);
         actions.push({
           id: `room:${room.id}`,
           label: `切换房间 · ${room.name || room.id}`,
-          hint: `${room.members.length} 成员`,
-          run: async () => { closeOverlays(); await loadRoom(room.id); },
+          hint: `${workspace?.name || "纯聊天"} · ${room.members.length} 成员`,
+          run: async () => {
+            closeOverlays();
+            state.workspaceFilter = workspace?.id || "chat";
+            localStorage.setItem("agenthub.workspaceFilter", state.workspaceFilter);
+            await loadRoom(room.id);
+          },
         });
       }
       for (const member of state.room?.members || []) {
@@ -1009,9 +1269,12 @@
       item.run();
     }
 
-    async function openSettings() {
+    async function openSettings(options = {}) {
       renderSettings();
       openOverlay("settingsModal");
+      if (options.focusWorkspaces) {
+        requestAnimationFrame(() => $("settingsWorkspaces")?.scrollIntoView({ block: "start" }));
+      }
     }
 
     function renderSettings() {
@@ -1052,6 +1315,41 @@
       }
       paths.appendChild(logRow);
       body.appendChild(paths);
+
+      const workspacesSection = el("section", "settings-group");
+      workspacesSection.id = "settingsWorkspaces";
+      workspacesSection.appendChild(el("h4", "", "工作区"));
+      if (state.workspaces.length === 0) {
+        workspacesSection.appendChild(el("div", "form-hint", "还没有登记工作区。"));
+      }
+      for (const workspace of state.workspaces) {
+        const row = el("div", "ws-settings-row");
+        const name = el("span", "ws-setting-name", workspace.name);
+        name.title = workspace.name;
+        row.appendChild(name);
+        const path = el("span", "ws-setting-path", workspace.available ? workspace.path : `${workspace.path}（目录缺失）`);
+        path.title = workspace.path;
+        row.appendChild(path);
+        const rename = el("button", "", "重命名");
+        rename.type = "button";
+        rename.addEventListener("click", () => renameWorkspaceFlow(workspace));
+        row.appendChild(rename);
+        const remove = el("button", "danger", "注销");
+        remove.type = "button";
+        remove.title = "只移除登记，不删除磁盘文件夹";
+        remove.addEventListener("click", () => removeWorkspaceFlow(workspace));
+        row.appendChild(remove);
+        workspacesSection.appendChild(row);
+      }
+      const addWorkspaceButton = el("button", "", "新建工作区");
+      addWorkspaceButton.type = "button";
+      addWorkspaceButton.style.marginTop = "8px";
+      addWorkspaceButton.addEventListener("click", () => {
+        closeOverlays();
+        openWorkspaceSheet();
+      });
+      workspacesSection.appendChild(addWorkspaceButton);
+      body.appendChild(workspacesSection);
 
       const platformsSection = el("section", "settings-group");
       platformsSection.appendChild(el("h4", "", "平台健康"));
@@ -1125,6 +1423,29 @@
       body.appendChild(misc);
     }
 
+    function renameWorkspaceFlow(workspace) {
+      closeOverlays();
+      openWorkspaceSheet(workspace);
+    }
+
+    async function removeWorkspaceFlow(workspace) {
+      if (!window.confirm(`注销工作区「${workspace.name}」？\n只会移除登记，不会删除磁盘文件夹。`)) return;
+      const result = await api.removeWorkspace({ id: workspace.id });
+      if (result.status !== "success") {
+        setStatus(workspaceErrorMessage(result.summary, "注销失败"), "error");
+        return;
+      }
+      const wasActive = state.workspaceFilter === workspace.id;
+      if (wasActive) {
+        state.workspaceFilter = "all";
+        localStorage.setItem("agenthub.workspaceFilter", "all");
+      }
+      await refreshWorkspaceData();
+      if (wasActive) await setWorkspaceFilter("all");
+      renderSettings();
+      setStatus("工作区已注销", "ok");
+    }
+
     async function syncModels() {
       setStatus("正在同步模型目录…", "busy");
       const result = await api.syncModels();
@@ -1150,28 +1471,502 @@
       renderEditor();
     }
 
-    function renderEmpty() {
-      $("roomName").textContent = "还没有房间";
-      $("roomMeta").textContent = "创建一个真实房间开始";
-      $("workspacePath").textContent = state.settings.homeDir || state.settings.appRoot || "未选择";
-      $("memberCount").textContent = "";
-      $("ruleChip").textContent = "未选择房间";
-      clearNode($("members"));
-      clearNode($("rooms"));
+    function workspaceById(id) {
+      return state.workspaces.find((workspace) => workspace.id === id);
+    }
+
+    function baseName(target) {
+      const value = String(target || "").replace(/[\\/]+$/, "");
+      return value.split(/[\\/]/).pop() || value;
+    }
+
+    function roomWorkspace(room) {
+      if (!room) return null;
+      if (room.workspaceId) {
+        const found = workspaceById(room.workspaceId);
+        if (found) return found;
+      }
+      if (room.workspace) {
+        const normalized = room.workspace.toLowerCase();
+        return state.workspaces.find((workspace) => workspace.path.toLowerCase() === normalized)
+          || { id: room.workspaceId || "", name: baseName(room.workspace), path: room.workspace, available: true, roomCount: 1 };
+      }
+      return null;
+    }
+
+    function filteredRooms() {
+      if (state.workspaceFilter === "all") return state.rooms;
+      if (state.workspaceFilter === "chat") return state.rooms.filter((room) => !roomWorkspace(room));
+      const target = workspaceById(state.workspaceFilter);
+      if (!target) return [];
+      return state.rooms.filter((room) => room.workspace
+        && room.workspace.toLowerCase() === target.path.toLowerCase());
+    }
+
+    function displayWorkspace() {
+      if (state.workspaceFilter !== "all" && state.workspaceFilter !== "chat") {
+        return workspaceById(state.workspaceFilter) || null;
+      }
+      return state.room ? roomWorkspace(state.room) : null;
+    }
+
+    function activeWorkspacePath() {
+      return displayWorkspace()?.path || state.room?.workspace || "";
+    }
+
+    function renderWorkspaceCard() {
+      const display = displayWorkspace();
+      const path = activeWorkspacePath();
+      const isChatFilter = state.workspaceFilter === "chat";
+      $("workspaceLabel").textContent = state.workspaceFilter === "all" ? "当前工作区" : isChatFilter ? "房间类型" : "工作区";
+      $("workspaceName").textContent = isChatFilter
+        ? "纯聊天"
+        : display?.name || (state.workspaceFilter === "all" ? (state.room ? "未绑定工作区" : "全部房间") : "工作区不存在");
+      $("workspacePath").textContent = path || "未绑定工作区";
+      $("workspacePath").title = path;
+      const unavailable = Boolean(display && display.available === false);
+      $("viewWorkspacePath").disabled = !path;
+      $("openWorkspace").disabled = !path || unavailable;
+      $("openWorkspace").title = unavailable ? "工作区目录不存在" : "在资源管理器中打开";
+    }
+
+    function renderWorkspaceMenu() {
+      const all = state.rooms.length;
+      const chat = state.rooms.filter((room) => !roomWorkspace(room)).length;
+      $("wsAllCount").textContent = String(all);
+      $("wsChatCount").textContent = String(chat);
+      $("workspaceMenu").querySelectorAll("[data-filter]").forEach((node) => {
+        node.classList.toggle("active", node.dataset.filter === state.workspaceFilter);
+      });
+      const list = $("workspaceMenuList");
+      clearNode(list);
+      if (state.workspaces.length === 0) {
+        list.appendChild(el("div", "form-hint", "还没有登记工作区。"));
+        return;
+      }
+      for (const workspace of [...state.workspaces].sort((left, right) => left.name.localeCompare(right.name, "zh-CN"))) {
+        const button = el("button", `ws-menu-item${state.workspaceFilter === workspace.id ? " active" : ""}`);
+        button.type = "button";
+        button.dataset.filter = workspace.id;
+        button.appendChild(el("span", `ws-menu-dot${workspace.available ? "" : " missing"}`, ""));
+        const text = el("span", "ws-menu-text");
+        text.appendChild(el("span", "ws-menu-name", workspace.name));
+        const path = el("span", "ws-menu-path", workspace.available ? workspace.path : `${workspace.path}（目录缺失）`);
+        path.title = workspace.path;
+        text.appendChild(path);
+        button.appendChild(text);
+        button.appendChild(el("span", "ws-menu-meta", String(workspace.roomCount ?? 0)));
+        list.appendChild(button);
+      }
+    }
+
+    function toggleWorkspaceMenu() {
+      if (!$("workspaceMenu").hidden) {
+        closeWorkspaceMenu();
+        return;
+      }
+      closePathPopover();
+      renderWorkspaceMenu();
+      const menu = $("workspaceMenu");
+      menu.hidden = false;
+      $("workspaceSwitcher").setAttribute("aria-expanded", "true");
+      const anchor = $("workspaceSwitcher").getBoundingClientRect();
+      const width = menu.offsetWidth;
+      const height = menu.offsetHeight;
+      const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8));
+      let top = anchor.bottom + 6;
+      if (top + height > window.innerHeight - 8) {
+        top = Math.max(8, anchor.top - height - 6);
+      }
+      menu.style.left = `${Math.round(left)}px`;
+      menu.style.top = `${Math.round(top)}px`;
+    }
+
+    function closeWorkspaceMenu() {
+      $("workspaceMenu").hidden = true;
+      $("workspaceSwitcher").setAttribute("aria-expanded", "false");
+    }
+
+    async function setWorkspaceFilter(filter) {
+      if (filter !== "all" && filter !== "chat" && !workspaceById(filter)) return;
+      state.workspaceFilter = filter;
+      localStorage.setItem("agenthub.workspaceFilter", filter);
+      closeWorkspaceMenu();
+      renderWorkspaceCard();
+      renderRooms();
+      const rooms = filteredRooms();
+      if (state.room && rooms.some((room) => room.id === state.room.id)) {
+        return;
+      }
+      if (rooms.length > 0) {
+        await loadRoom(rooms[0].id);
+        return;
+      }
+      state.room = null;
+      state.events = [];
+      state.selectedMemberId = null;
+      state.costYuan = 0;
+      state.totalTokens = 0;
+      state.liveText = "";
+      state.liveMemberId = null;
+      renderAll();
+    }
+
+    function openWorkspacePathPopover(event) {
+      const path = activeWorkspacePath();
+      if (!path) return;
+      closeWorkspaceMenu();
+      state.pathPopoverTarget = path;
+      $("pathPopoverValue").textContent = path;
+      const popover = $("pathPopover");
+      popover.hidden = false;
+      const width = popover.offsetWidth;
+      const height = popover.offsetHeight;
+      const anchor = event.clientX || event.clientY
+        ? { x: event.clientX, y: event.clientY }
+        : (() => {
+          const rect = $("viewWorkspacePath").getBoundingClientRect();
+          return { x: rect.left, y: rect.bottom };
+        })();
+      let left = anchor.x + 10;
+      let top = anchor.y + 12;
+      if (left + width > window.innerWidth - 8) left = anchor.x - width - 10;
+      if (top + height > window.innerHeight - 8) top = anchor.y - height - 12;
+      popover.style.left = `${Math.round(Math.max(8, left))}px`;
+      popover.style.top = `${Math.round(Math.max(8, top))}px`;
+    }
+
+    function closePathPopover() {
+      $("pathPopover").hidden = true;
+      state.pathPopoverTarget = "";
+    }
+
+    async function copyPathPopoverValue() {
+      const value = state.pathPopoverTarget;
+      if (!value) return;
+      try {
+        await navigator.clipboard.writeText(value);
+        setStatus("路径已复制", "ok");
+      } catch {
+        const area = document.createElement("textarea");
+        area.value = value;
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        const ok = document.execCommand("copy");
+        area.remove();
+        setStatus(ok ? "路径已复制" : "复制失败", ok ? "ok" : "error");
+      }
+    }
+
+    function openWorkspaceSheet(workspace = null) {
+      state.renamingWorkspaceId = workspace?.id || "";
+      const renaming = Boolean(workspace);
+      $("workspaceSheetTitle").textContent = renaming ? "重命名工作区" : "新建工作区";
+      $("workspaceSheet").querySelector(".modal-sub").textContent = renaming
+        ? "只改显示名称；id 与文件夹不变"
+        : "登记一个文件夹；不会移动或修改它";
+      $("wsName").value = workspace?.name || "";
+      $("wsFolder").value = workspace?.path || state.settings.homeDir || "";
+      $("wsFolder").disabled = renaming;
+      $("browseWorkspace").disabled = renaming;
+      $("wsAlsoRoomRow").style.display = renaming ? "none" : "";
+      $("wsAlsoRoom").checked = !renaming;
+      $("saveWorkspace").textContent = renaming ? "保存名称" : "创建工作区";
+      openOverlay("workspaceSheet");
+      $("wsName").focus();
+    }
+
+    function workspaceErrorMessage(summary, fallback) {
+      const text = String(summary || "").trim();
+      if (!text) return fallback;
+      if (/used by/i.test(text)) {
+        return `该工作区仍被房间使用：${text.replace(/^Workspace is used by\s*/i, "").replace(/\.$/, "")}`;
+      }
+      if (/already registered/i.test(text)) return "这个文件夹已经登记过工作区。";
+      if (/name already exists/i.test(text)) return "工作区名称已存在，换一个名字。";
+      if (/does not exist/i.test(text)) return "文件夹不存在，请重新选择。";
+      if (/Workspace not found/i.test(text)) return "工作区不存在或已被注销。";
+      return text;
+    }
+
+    function roomErrorMessage(summary) {
+      const text = String(summary || "").trim();
+      if (!text) return "创建房间失败";
+      if (/Workspace not found/i.test(text)) return "工作区不存在或已被注销。";
+      if (/already exists/i.test(text)) return "房间 id 已存在，请换一个名称。";
+      if (/Room .* not found/i.test(text)) return "成员来源房间不存在。";
+      if (/does not exist/i.test(text)) return "工作区文件夹不存在。";
+      if (/needs at least one member/i.test(text)) return "房间至少需要一名成员。";
+      return text;
+    }
+
+    async function createWorkspaceFlow() {
+      const name = $("wsName").value.trim();
+      const target = $("wsFolder").value.trim();
+      if (!name || (!state.renamingWorkspaceId && !target)) {
+        setStatus("工作区名称和文件夹不能为空", "error");
+        return;
+      }
+      const renamingId = state.renamingWorkspaceId;
+      const alsoRoom = !renamingId && $("wsAlsoRoom").checked;
+      $("saveWorkspace").disabled = true;
+      setStatus(renamingId ? "正在重命名…" : "正在创建工作区…", "busy");
+      const result = renamingId
+        ? await api.renameWorkspace({ id: renamingId, name })
+        : await api.addWorkspace({ name, path: target });
+      $("saveWorkspace").disabled = false;
+      if (result.status !== "success" || !result.data) {
+        setStatus(workspaceErrorMessage(result.summary, renamingId ? "重命名失败" : "创建工作区失败"), "error");
+        return;
+      }
+      const workspace = result.data;
+      await refreshWorkspaceData();
+      closeOverlays();
+      if (alsoRoom) {
+        setStatus("工作区已创建", "ok");
+        openCreateRoomSheet({ workspaceId: workspace.id });
+      } else {
+        if (renamingId) {
+          setStatus("工作区已重命名", "ok");
+        } else {
+          await setWorkspaceFilter(workspace.id);
+          setStatus("工作区已创建", "ok");
+        }
+      }
+    }
+
+    function catalogMemberBinding() {
+      const models = state.models.filter((model) => model.enabled !== false);
+      const knownGood = ["deepseek-v4.1-flash", "glm-5.3-flash", "kimi-k2.6"];
+      const preferred = knownGood.map((id) => models.find((model) => model.modelId === id)).find(Boolean)
+        ?? models.find((model) => model.platformId === "codex-cli")
+        ?? models[0];
+      return preferred ? { platformId: preferred.platformId, modelId: preferred.modelId } : null;
+    }
+
+    function preferredMemberBinding() {
+      const existing = state.room?.members?.[0]?.binding;
+      if (existing) {
+        return { platformId: existing.platformId, modelId: existing.modelId, thinking: existing.thinking };
+      }
+      return catalogMemberBinding();
+    }
+
+    function openCreateRoomSheet(options = {}) {
+      const workspaceSelect = $("createRoomWorkspace");
+      clearNode(workspaceSelect);
+      const chatOption = document.createElement("option");
+      chatOption.value = "__chat__";
+      chatOption.textContent = "纯聊天（不绑定工作区）";
+      workspaceSelect.appendChild(chatOption);
+      for (const workspace of state.workspaces) {
+        const option = document.createElement("option");
+        option.value = workspace.id;
+        option.textContent = `${workspace.name} · ${workspace.path}${workspace.available ? "" : "（目录缺失）"}`;
+        option.disabled = !workspace.available;
+        workspaceSelect.appendChild(option);
+      }
+      const filteredWorkspace = state.workspaceFilter !== "all" && state.workspaceFilter !== "chat"
+        ? workspaceById(state.workspaceFilter)
+        : null;
+      const defaultWorkspace = options.workspaceId
+        || filteredWorkspace?.id
+        || state.room?.workspaceId
+        || "__chat__";
+      workspaceSelect.value = [...workspaceSelect.options].some((option) => option.value === defaultWorkspace && !option.disabled)
+        ? defaultWorkspace
+        : "__chat__";
+
+      const copySelect = $("createRoomCopy");
+      clearNode(copySelect);
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "__default__";
+      defaultOption.textContent = "默认单个成员（基于当前模型）";
+      copySelect.appendChild(defaultOption);
+      for (const room of state.rooms) {
+        const option = document.createElement("option");
+        option.value = room.id;
+        option.textContent = `${room.name} · ${room.members.length} 名成员`;
+        copySelect.appendChild(option);
+      }
+      copySelect.value = state.room && state.rooms.some((room) => room.id === state.room.id)
+        ? state.room.id
+        : "__default__";
+
+      $("createRoomName").value = "";
+      updateRoomIdHint();
+      openOverlay("createRoomSheet");
+      $("createRoomName").focus();
+    }
+
+    function updateRoomIdHint() {
+      const name = $("createRoomName").value.trim();
+      const slug = name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      $("createRoomIdHint").textContent = slug.length >= 3
+        ? `房间 id：${slug}（冲突时自动加后缀）`
+        : "房间 id 将自动生成。";
+    }
+
+    async function createRoomSubmit() {
+      const name = $("createRoomName").value.trim();
+      if (!name) {
+        setStatus("房间名称不能为空", "error");
+        $("createRoomName").focus();
+        return;
+      }
+      const workspaceValue = $("createRoomWorkspace").value;
+      const copyValue = $("createRoomCopy").value;
+      const input = { name };
+      if (workspaceValue === "__chat__") {
+        input.noWorkspace = true;
+      } else {
+        input.workspaceId = workspaceValue;
+      }
+      if (copyValue === "__default__") {
+        const binding = catalogMemberBinding() || preferredMemberBinding();
+        if (binding) {
+          input.defaultPlatformId = binding.platformId;
+          input.defaultModelId = binding.modelId;
+        }
+      } else {
+        input.copyFromRoomId = copyValue;
+      }
+      $("createRoomSubmit").disabled = true;
+      setStatus("正在创建房间…", "busy");
+      const result = await api.createRoom(input);
+      $("createRoomSubmit").disabled = false;
+      if (result.status !== "success" || !result.data) {
+        setStatus(roomErrorMessage(result.summary), "error");
+        return;
+      }
+      const room = result.data;
+      await refreshWorkspaceData();
+      state.workspaceFilter = room.workspaceId || "chat";
+      localStorage.setItem("agenthub.workspaceFilter", state.workspaceFilter);
+      closeOverlays();
+      await loadRoom(room.id);
+      setStatus("房间已创建", "ok");
+    }
+
+    async function refreshWorkspaceData() {
+      const workspacesResult = await api.workspaces();
+      const roomsResult = await api.listRooms();
+      if (roomsResult.status === "success") state.rooms = roomsResult.data || [];
+      if (workspacesResult.status === "success") state.workspaces = workspacesResult.data || [];
+      if (state.workspaceFilter !== "all" && state.workspaceFilter !== "chat"
+        && !workspaceById(state.workspaceFilter)) {
+        state.workspaceFilter = "all";
+        localStorage.setItem("agenthub.workspaceFilter", "all");
+      }
+      renderAll();
+    }
+
+    function uniqueMemberName() {
+      const names = new Set((state.room?.members || []).map((member) => member.name.toLowerCase()));
+      let name = "新成员";
+      let suffix = 2;
+      while (names.has(name.toLowerCase())) {
+        name = `新成员 ${suffix}`;
+        suffix += 1;
+      }
+      return name;
+    }
+
+    async function addMember() {
+      if (!state.room) {
+        setStatus("先创建或选择一个房间", "error");
+        return;
+      }
+      if (state.running) {
+        setStatus("运行中不能新增成员", "error");
+        return;
+      }
+      const binding = preferredMemberBinding();
+      if (!binding) {
+        setStatus("没有可用模型；请先在应用设置同步模型目录", "error");
+        return;
+      }
+      const member = {
+        id: `member-${Math.random().toString(36).slice(2, 10)}`,
+        name: uniqueMemberName(),
+        role: "成员",
+        instructions: "给出具体、可执行的建议；需要交接时写 @成员名，完成任务以 DONE 结束。",
+        binding: { ...binding },
+        behavior: { weight: 1 },
+        permissions: { write: false },
+      };
+      state.room.members = [...state.room.members, member];
+      state.room.updatedAt = new Date().toISOString();
+      const result = await api.updateRoom(state.room.id, state.room);
+      if (result.status !== "success") {
+        await loadRoom(state.room.id);
+        setStatus(result.summary || "新增成员失败", "error");
+        return;
+      }
+      await loadRoom(state.room.id);
+      selectMember(member.id);
+      setStatus("成员已添加", "ok");
+    }
+
+    async function deleteCurrentMember() {
+      if (!state.room || !state.selectedMemberId) return;
+      if (state.running) {
+        setStatus("运行中不能删除成员", "error");
+        return;
+      }
+      const member = state.room.members.find((item) => item.id === state.selectedMemberId);
+      if (!member) return;
+      if (state.room.members.length <= 1) {
+        setStatus("至少保留一名成员", "error");
+        return;
+      }
+      if (!window.confirm(`删除成员「${member.name}」？该成员的历史消息会保留。`)) return;
+      state.room.members = state.room.members.filter((item) => item.id !== member.id);
+      if (state.room.rules?.planOrder) {
+        state.room.rules.planOrder = state.room.rules.planOrder.filter((id) => id !== member.id);
+      }
+      state.room.updatedAt = new Date().toISOString();
+      const result = await api.updateRoom(state.room.id, state.room);
+      if (result.status !== "success") {
+        await loadRoom(state.room.id);
+        setStatus(result.summary || "删除成员失败", "error");
+        return;
+      }
+      state.selectedMemberId = state.room.members[0]?.id || null;
+      closeOverlays();
+      await loadRoom(state.room.id);
+      setStatus("成员已删除", "ok");
+    }
+
+    function renderNoRoom() {
       const chat = $("chat");
       clearNode(chat);
       chat.classList.add("empty-chat");
+      const workspace = displayWorkspace();
+      const hasRooms = state.rooms.length > 0;
       const box = el("div", "empty");
-      box.appendChild(el("div", "big", "还没有房间"));
-      box.appendChild(el("p", "", "创建一个包含三个真实模型的房间：架构师（DeepSeek）、实现者（GLM）、前端优化（Kimi）。"));
-      const preview = el("div", "members-line");
-      for (const name of ["架构师", "实现者", "前端优化"]) preview.appendChild(el("span", "", name));
-      box.appendChild(preview);
+      if (!hasRooms) {
+        box.appendChild(el("div", "big", "还没有房间"));
+        box.appendChild(el("p", "", "先创建一个工作区或纯聊天房间，再为它添加成员。"));
+        const preview = el("div", "members-line");
+        for (const name of ["工作区", "房间", "成员"]) preview.appendChild(el("span", "", name));
+        box.appendChild(preview);
+      } else if (state.workspaceFilter === "chat") {
+        box.appendChild(el("div", "big", "还没有纯聊天房间"));
+        box.appendChild(el("p", "", "不绑定工作区的房间会出现在这里；它们不能使用任务板。"));
+      } else if (workspace) {
+        box.appendChild(el("div", "big", `${workspace.name} 还没有房间`));
+        box.appendChild(el("p", "", workspace.available
+          ? "为这个工作区创建一个房间，成员可以复用现有角色卡。"
+          : "这个工作区的文件夹已不存在；聊天仍可打开，但任务与文件功能会受限。"));
+      } else {
+        box.appendChild(el("div", "big", "没有匹配的房间"));
+        box.appendChild(el("p", "", "切换工作区，或直接创建一个新房间。"));
+      }
       const button = el("button", "primary", "新建房间");
-      button.addEventListener("click", () => {
-        $("createRow").classList.add("show");
-        $("workspace").focus();
-      });
+      button.addEventListener("click", () => openCreateRoomSheet(workspace?.available ? { workspaceId: workspace.id } : {}));
       box.appendChild(button);
       chat.appendChild(box);
     }
@@ -1179,18 +1974,28 @@
     function renderRooms() {
       const list = $("rooms");
       clearNode(list);
-      if (state.rooms.length === 0) {
-        list.appendChild(el("div", "hint", "（空）"));
+      const rooms = filteredRooms();
+      if (rooms.length === 0) {
+        list.appendChild(el("div", "hint", state.rooms.length === 0 ? "（空）" : "这个工作区下还没有房间"));
+        if (state.rooms.length > 0) {
+          const create = el("button", "ghost", "+ 新建房间");
+          create.type = "button";
+          create.style.width = "100%";
+          create.style.marginTop = "4px";
+          create.addEventListener("click", () => openCreateRoomSheet());
+          list.appendChild(create);
+        }
         return;
       }
-      for (const room of state.rooms) {
+      for (const room of rooms) {
+        const workspace = roomWorkspace(room);
         const button = el("button", `room-item${state.room?.id === room.id ? " active" : ""}`);
         button.type = "button";
         const title = el("div", "item-title");
         title.appendChild(el("strong", "", room.name || room.id));
         title.appendChild(el("span", "item-count", String(room.members.length)));
-        const sub = el("div", "item-sub", `${room.id} · ${room.workspace}`);
-        sub.title = room.workspace || "";
+        const sub = el("div", "item-sub", `${workspace?.name || "纯聊天"} · ${room.id}`);
+        sub.title = room.workspace || "纯聊天房间";
         button.appendChild(title);
         button.appendChild(sub);
         button.addEventListener("click", () => loadRoom(room.id));
@@ -1250,6 +2055,8 @@
     }
 
     function renderAll() {
+      renderWorkspaceCard();
+      if (!$("workspaceMenu").hidden) renderWorkspaceMenu();
       renderRooms();
       renderMembers();
       renderChat();
@@ -1260,15 +2067,21 @@
 
     function renderRoomMeta() {
       if (!state.room) {
-        renderEmpty();
+        const workspace = displayWorkspace();
+        $("roomName").textContent = state.workspaceFilter === "chat"
+          ? "纯聊天"
+          : workspace?.name || (state.workspaceFilter === "all" ? "全部房间" : "未选择房间");
+        $("roomMeta").textContent = workspace?.path || "未绑定工作区";
+        $("roomMeta").title = workspace?.path || "";
+        $("ruleChip").textContent = "未选择房间";
+        document.title = "AgentHub";
+        renderWorkspaceCard();
         return;
       }
       $("roomName").textContent = state.room.name || state.room.id;
       const workspace = state.room.workspace || "";
-      $("roomMeta").textContent = `${state.room.id}${workspace ? ` · ${workspace}` : ""}`;
+      $("roomMeta").textContent = `${state.room.id}${workspace ? ` · ${workspace}` : " · 纯聊天"}`;
       $("roomMeta").title = workspace;
-      $("workspacePath").textContent = workspace || state.settings.homeDir || "未选择";
-      $("workspacePath").title = workspace;
       const rules = state.room.rules || {};
       const autonomy = AUTONOMY_LABELS[rules.autonomy] || "中自治";
       $("ruleChip").textContent = `${autonomy} · 最多 ${rules.maxHandoffs || 6} 回合 · ${rules.stopToken || "DONE"}`;
@@ -1299,7 +2112,7 @@
       const chat = $("chat");
       clearNode(chat);
       if (!state.room) {
-        renderEmpty();
+        renderNoRoom();
         return;
       }
       state.events = dedupeEvents(state.events);
@@ -1531,6 +2344,10 @@
       save.addEventListener("click", () => saveMember(member.id));
       saveBar.appendChild(save);
       saveBar.appendChild(el("div", "hint", "保存后下一回合生效；运行中换模型不被允许。"));
+      const remove = el("button", "danger drawer-delete", "删除成员");
+      remove.type = "button";
+      remove.addEventListener("click", deleteCurrentMember);
+      saveBar.appendChild(remove);
       editor.appendChild(saveBar);
 
       syncBindingControls(platformSelect, modelSelect, thinking, caps, member);
@@ -1780,16 +2597,18 @@
         setStatus("名称和角色不能为空", "error");
         return;
       }
-      if (state.room.members.some((item) => item.id !== memberId && item.name === values.name)) {
+      const normalizedName = values.name.trim().toLowerCase();
+      if (state.room.members.some((item) => item.id !== memberId && item.name.trim().toLowerCase() === normalizedName)) {
         setStatus("成员名称必须唯一，否则 @ 提及会歧义", "error");
         return;
       }
+      const isFake = values.platformId === "fake";
       const model = findModel(values.platformId, values.modelId);
-      if (!model) {
+      if (!isFake && !model) {
         setStatus("请选择一个有效模型", "error");
         return;
       }
-      if (values.thinking && !(model.thinkingLevels || []).includes(values.thinking)) {
+      if (!isFake && values.thinking && !(model?.thinkingLevels || []).includes(values.thinking)) {
         setStatus("思考强度不在该模型的能力列表里", "error");
         return;
       }
@@ -1799,7 +2618,7 @@
       }
       const fallbacks = member.binding.fallback || [];
       for (const fallback of fallbacks) {
-        if (!findModel(fallback.platformId, fallback.modelId)) {
+        if (fallback.platformId !== "fake" && !findModel(fallback.platformId, fallback.modelId)) {
           setStatus("备用模型链里有无效模型", "error");
           return;
         }
@@ -1893,8 +2712,11 @@
     }
 
     async function openWorkspace() {
-      const target = state.room?.workspace || state.settings.homeDir;
-      if (!target) return;
+      const target = activeWorkspacePath();
+      if (!target) {
+        setStatus("当前房间没有绑定工作区", "error");
+        return;
+      }
       const result = await api.openPath(target);
       if (result.status !== "success") setStatus(result.summary || "无法打开工作区", "error");
     }
@@ -2023,24 +2845,6 @@
         renderCost();
         setStatus("已回放", "ok");
       }
-    }
-
-    async function createRoom() {
-      const workspace = $("workspace").value.trim();
-      setStatus("正在创建房间…", "busy");
-      const result = await api.initRoom({ real: true, workspace });
-      if (result.status !== "success") {
-        setStatus(result.summary || "创建失败", "error");
-        return;
-      }
-      const rooms = await api.listRooms();
-      if (rooms.status === "success") state.rooms = rooms.data || [];
-      $("createRow").classList.remove("show");
-      renderRooms();
-      const real = state.rooms.find((room) => room.id === "real");
-      if (real) await loadRoom(real.id);
-      else if (state.rooms.length > 0) await loadRoom(state.rooms[0].id);
-      setStatus("房间已创建", "ok");
     }
 
     boot().catch((error) => {

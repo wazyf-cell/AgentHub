@@ -7,6 +7,7 @@ import { RoomBackendRouter } from "./backends/router.ts";
 import { scanCapabilities } from "./capabilities.ts";
 import { describeImage } from "./vision.ts";
 import { findModel, loadModels, syncModelsFromAiWorkGate } from "./catalog.ts";
+import { createRoomFromInput } from "./create-room.ts";
 import { createDemoRoom } from "./demo.ts";
 import { runRoom } from "./engine.ts";
 import { HealthChecker } from "./health.ts";
@@ -15,12 +16,18 @@ import { createRealRoom } from "./real-room.ts";
 import { SessionStore } from "./sessions.ts";
 import { RoomStore, resolveRoomDataDir } from "./store.ts";
 import { createRoomSummarizer } from "./summary.ts";
+import { addWorkspace, listWorkspaceSummaries, removeWorkspace, renameWorkspace } from "./workspaces.ts";
 import type { RoomConfig, RoomEvent, RoomMember, RoomRules, StopReason } from "./types.ts";
 
 const HELP = `AgentHub room CLI
 
 用法:
   room init [--real] [--data-dir <dir>] [--workspace <path>]
+  room create --name <名称> [--id <id>] [--workspace <path> | --workspace-id <id> | --no-workspace] [--copy-from <roomId>] [--json]
+  room workspace list [--json]
+  room workspace add --name <名称> --workspace <path> [--json]
+  room workspace rename --id <id> --name <名称> [--json]
+  room workspace remove --id <id> [--json]
   room run --prompt "..." [--room real] [--data-dir <dir>] [--autonomy low|medium|high] [--max-handoffs 8] [--image <path> ...] [--fake] [--json-events]
   room list [--json]
   room show [--json] [--room <id>]
@@ -35,6 +42,8 @@ const HELP = `AgentHub room CLI
 
 说明:
   init         创建假后端演示房间；加 --real 创建三个真实模型的房间。
+  create       新建命名房间；工作区可复用已有登记，也可用 --workspace 直接登记该文件夹。
+  workspace    管理工作区登记：list / add / rename / remove；remove 不会删除磁盘文件夹。
   run          默认自动选择后端：成员全是 fake 时用假后端，否则走平台路由。
   run --image  附带图片；只有声明支持图片的模型会收到图片，其他成员只收到附件说明。
   models sync  从 AIWorkGate 的本地目录导入模型能力（需要 Node 24 的 node:sqlite）。
@@ -50,6 +59,12 @@ async function main(): Promise<number> {
       room: { type: "string", default: "demo" },
       prompt: { type: "string" },
       workspace: { type: "string" },
+      "workspace-id": { type: "string" },
+      "no-workspace": { type: "boolean", default: false },
+      "copy-from": { type: "string" },
+      name: { type: "string" },
+      id: { type: "string" },
+      model: { type: "string" },
       real: { type: "boolean", default: false },
       fake: { type: "boolean", default: false },
       "json-events": { type: "boolean", default: false },
@@ -87,6 +102,83 @@ async function main(): Promise<number> {
         : createDemoRoom(store, parsed.values.workspace ?? process.cwd());
       process.stdout.write(`房间已就绪: ${store.roomDir(room.id)}\n`);
       return 0;
+    }
+    case "create": {
+      try {
+        const models = loadModels(store).filter((model) => model.enabled !== false);
+        const knownGood = ["deepseek-v4.1-flash", "glm-5.3-flash", "kimi-k2.6"];
+        const preferred = knownGood.map((id) => models.find((model) => model.modelId === id)).find(Boolean)
+          ?? models.find((model) => model.platformId === "codex-cli")
+          ?? models[0];
+        if ((parsed.values.platform && !parsed.values.model) || (!parsed.values.platform && parsed.values.model)) {
+          process.stderr.write("--platform 和 --model 必须同时提供。\n");
+          return 2;
+        }
+        const defaultBinding = parsed.values.platform && parsed.values.model
+          ? { platformId: parsed.values.platform, modelId: parsed.values.model }
+          : preferred
+            ? { platformId: preferred.platformId, modelId: preferred.modelId }
+            : undefined;
+        const room = createRoomFromInput(store, {
+          id: parsed.values.id,
+          name: parsed.values.name ?? "",
+          workspaceId: parsed.values["workspace-id"],
+          workspacePath: parsed.values.workspace,
+          noWorkspace: parsed.values["no-workspace"] === true,
+          copyFromRoomId: parsed.values["copy-from"],
+          defaultBinding,
+        });
+        if (parsed.values.json) {
+          process.stdout.write(`${JSON.stringify(room, null, 2)}\n`);
+        } else {
+          process.stdout.write(`房间已创建: ${room.id}\t${room.name}\t${room.workspace || "纯聊天"}\n`);
+        }
+        return 0;
+      } catch (error) {
+        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+        return 1;
+      }
+    }
+    case "workspace": {
+      const sub = parsed.positionals[1] ?? "list";
+      try {
+        if (sub === "list") {
+          const rows = listWorkspaceSummaries(store);
+          if (parsed.values.json) {
+            process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
+          } else if (rows.length === 0) {
+            process.stdout.write("没有登记的工作区。\n");
+          } else {
+            for (const row of rows) {
+              process.stdout.write(`${row.id}\t${row.name}\t${row.path}\t${row.roomCount} 个房间\t${row.available ? "" : "目录缺失"}\n`);
+            }
+          }
+          return 0;
+        }
+        if (sub === "add") {
+          const workspace = addWorkspace(store, {
+            name: parsed.values.name ?? "",
+            path: parsed.values.workspace ?? "",
+          });
+          process.stdout.write(parsed.values.json ? `${JSON.stringify(workspace, null, 2)}\n` : `工作区已登记: ${workspace.id}\t${workspace.name}\t${workspace.path}\n`);
+          return 0;
+        }
+        if (sub === "rename") {
+          const workspace = renameWorkspace(store, parsed.values.id ?? "", parsed.values.name ?? "");
+          process.stdout.write(parsed.values.json ? `${JSON.stringify(workspace, null, 2)}\n` : `工作区已重命名: ${workspace.id}\t${workspace.name}\n`);
+          return 0;
+        }
+        if (sub === "remove") {
+          const workspace = removeWorkspace(store, parsed.values.id ?? "");
+          process.stdout.write(parsed.values.json ? `${JSON.stringify({ removed: workspace.id })}\n` : `工作区已注销: ${workspace.id}\n`);
+          return 0;
+        }
+        process.stderr.write("workspace 子命令必须是 list、add、rename 或 remove。\n");
+        return 2;
+      } catch (error) {
+        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+        return 1;
+      }
     }
     case "run":
       return runCommand(store, roomId, {

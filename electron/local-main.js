@@ -398,6 +398,59 @@ ipcMain.handle("room:models", () => runRoomJson("models", ["--json"]));
 
 ipcMain.handle("room:capabilities", () => runRoomJson("capabilities", ["--json"]));
 
+ipcMain.handle("room:workspaces", () => runRoomJson("workspace", ["list", "--json"]));
+
+ipcMain.handle("room:workspace-add", (_event, input) => {
+  const name = String(input?.name || "").trim();
+  const target = String(input?.path || "").trim();
+  if (!name || !target) {
+    return { status: "error", summary: "工作区名称和路径不能为空。" };
+  }
+  return runRoomJson("workspace", ["add", "--name", name, "--workspace", target, "--json"]);
+});
+
+ipcMain.handle("room:workspace-rename", (_event, input) => {
+  const id = String(input?.id || "").trim();
+  const name = String(input?.name || "").trim();
+  if (!id || !name) {
+    return { status: "error", summary: "工作区 id 和名称不能为空。" };
+  }
+  return runRoomJson("workspace", ["rename", "--id", id, "--name", name, "--json"]);
+});
+
+ipcMain.handle("room:workspace-remove", (_event, input) => {
+  const id = String(input?.id || "").trim();
+  if (!id) {
+    return { status: "error", summary: "工作区 id 不能为空。" };
+  }
+  return runRoomJson("workspace", ["remove", "--id", id, "--json"]);
+});
+
+ipcMain.handle("room:create", (_event, input) => {
+  const name = String(input?.name || "").trim();
+  if (!name) {
+    return { status: "error", summary: "房间名称不能为空。" };
+  }
+  const args = ["create", "--name", name, "--json"];
+  if (input?.id) {
+    args.push("--id", String(input.id));
+  }
+  if (input?.noWorkspace === true) {
+    args.push("--no-workspace");
+  } else if (input?.workspaceId) {
+    args.push("--workspace-id", String(input.workspaceId));
+  } else if (input?.workspacePath) {
+    args.push("--workspace", String(input.workspacePath));
+  }
+  if (input?.copyFromRoomId) {
+    args.push("--copy-from", String(input.copyFromRoomId));
+  }
+  if (input?.defaultPlatformId && input?.defaultModelId) {
+    args.push("--platform", String(input.defaultPlatformId), "--model", String(input.defaultModelId));
+  }
+  return runRoomJson("create", args);
+});
+
 ipcMain.handle("room:models-sync", async () => {
   const result = await spawnRoomCli("models", ["sync", "--data-dir", ROOM_DATA_DIR]);
   return {
