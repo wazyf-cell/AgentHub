@@ -76,6 +76,8 @@ dist-electron-local-out\win-unpacked\AgentSpaceLocal.exe
 
 ## 还没做（v1.5）
 
+下一步的完整实施顺序见 [`ROOM_WORKBENCH_PLAN.md`](./ROOM_WORKBENCH_PLAN.md)。
+
 - 工作区写入与审计（当前全员只读提示，不是强制沙箱）。
 - 历史消息编辑/分叉/重生成。
 - DSH 插件桥、房间级视觉代理（非视觉成员自动调用 ModLens）。
