@@ -6,11 +6,13 @@ import test from "node:test";
 import { createRoomFromInput } from "./create-room.ts";
 import { RoomStore } from "./store.ts";
 import {
+  archiveTask,
   createTask,
   loadTasks,
   readTaskEvents,
   recordTaskReport,
   recoverRunningTasks,
+  restoreTask,
   setTaskStatus,
   updateTask,
 } from "./tasks.ts";
@@ -98,8 +100,7 @@ test("task status transitions and running locks follow the plan", () => {
   }
 });
 
-test("running tasks are recovered as interrupted, never auto-resumed", () => {
-  const { root, store, room, owner } = setup();
+test("running tasks are recovered as interrupted, never auto-resumed", () => {  const { root, store, room, owner } = setup();
   try {
     const task = createTask(store, room.id, {
       title: "崩溃恢复",
@@ -112,6 +113,33 @@ test("running tasks are recovered as interrupted, never auto-resumed", () => {
     assert.equal(recoverRunningTasks(store, room.id), 0);
     assert.equal(loadTasks(store, room.id)[0].status, "interrupted");
     assert.equal(setTaskStatus(store, room.id, task.id, "ready").status, "ready");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("tasks can be archived and restored without changing status", () => {
+  const { root, store, room, owner } = setup();
+  try {
+    const task = createTask(store, room.id, {
+      title: "归档任务",
+      description: "做完后归档",
+      acceptance: "可以从归档恢复",
+      ownerMemberId: owner,
+    });
+    setTaskStatus(store, room.id, task.id, "running");
+    assert.throws(() => archiveTask(store, room.id, task.id), /运行中/);
+    setTaskStatus(store, room.id, task.id, "review");
+    setTaskStatus(store, room.id, task.id, "merge_ready");
+    setTaskStatus(store, room.id, task.id, "done");
+    const archived = archiveTask(store, room.id, task.id);
+    assert.ok(archived.archivedAt);
+    assert.equal(archived.status, "done");
+    assert.ok(readTaskEvents(store, room.id, task.id).some((event) => event.type === "task_archived"));
+    const restored = restoreTask(store, room.id, task.id);
+    assert.equal(restored.archivedAt, undefined);
+    assert.equal(restored.status, "done");
+    assert.ok(readTaskEvents(store, room.id, task.id).some((event) => event.type === "task_restored"));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -1,4 +1,4 @@
-import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -98,6 +98,14 @@ export class RoomStore {
     mkdirSync(roomDir, { recursive: true });
     mkdirSync(join(roomDir, "runs"), { recursive: true });
     writeFileSync(join(roomDir, "room.json"), `${JSON.stringify(room, null, 2)}\n`, "utf8");
+  }
+
+  deleteRoom(roomId: string): void {
+    const roomDir = this.roomDir(roomId);
+    if (!existsSync(join(roomDir, "room.json"))) {
+      throw new Error(`Room "${roomId}" not found at ${roomDir}.`);
+    }
+    rmSync(roomDir, { recursive: true, force: true });
   }
 
   listRooms(): RoomConfig[] {

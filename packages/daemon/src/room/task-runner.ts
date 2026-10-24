@@ -45,6 +45,8 @@ export interface TaskRunOptions {
   backend: AgentBackend;
   signal?: AbortSignal;
   verificationTimeoutMs?: number;
+  roomBudgetYuan?: number;
+  priorRoomCostYuan?: number;
   onProgress?: (message: string) => void;
 }
 
@@ -274,6 +276,15 @@ export async function runTask(options: TaskRunOptions): Promise<TaskRunResult> {
     let agentText = "";
     let costYuan = 0;
     let usageTokens = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cacheReadTokens = 0;
+    const usagePatch = (): Record<string, number> => ({
+      usageTokens,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+    });
     const result = await backend.runTurn({
       room,
       member: owner,
@@ -288,6 +299,9 @@ export async function runTask(options: TaskRunOptions): Promise<TaskRunResult> {
     });
     costYuan += result.costYuan ?? 0;
     usageTokens += result.usage?.totalTokens ?? 0;
+    inputTokens += result.usage?.inputTokens ?? 0;
+    outputTokens += result.usage?.outputTokens ?? 0;
+    cacheReadTokens += result.usage?.cacheReadTokens ?? 0;
     if (!agentText && result.text) agentText = result.text;
     appendTaskEvent(store, roomId, taskId, {
       type: "task_turn_finished",
@@ -318,12 +332,12 @@ export async function runTask(options: TaskRunOptions): Promise<TaskRunResult> {
       };
       setTaskStatus(store, roomId, taskId, status, message);
       recordTaskReport(store, roomId, taskId, report);
-      patchTask(store, roomId, taskId, { costYuan, lastError: message, finishedAt: now });
+      patchTask(store, roomId, taskId, { costYuan, ...usagePatch(), lastError: message, finishedAt: now });
       return { task: requireTask(store, roomId, taskId), report, error: message };
     };
 
     if (options.signal?.aborted) {
-      const current = patchTask(store, roomId, taskId, { costYuan });
+      const current = patchTask(store, roomId, taskId, { costYuan, ...usagePatch() });
       if (current.status === "running") setTaskStatus(store, roomId, taskId, "interrupted", "已取消");
       return { task: requireTask(store, roomId, taskId), error: "已取消" };
     }
@@ -334,6 +348,13 @@ export async function runTask(options: TaskRunOptions): Promise<TaskRunResult> {
     const budget = task.budgetYuan ?? 2;
     if (budget > 0 && costYuan > budget) {
       return fail("budget_paused", `任务费用 ¥${costYuan.toFixed(2)} 超过预算 ¥${budget.toFixed(2)}`);
+    }
+    if (options.roomBudgetYuan !== undefined
+      && (options.priorRoomCostYuan ?? 0) + costYuan >= options.roomBudgetYuan) {
+      return fail(
+        "budget_paused",
+        `房间费用 ¥${((options.priorRoomCostYuan ?? 0) + costYuan).toFixed(2)} 达到房间预算 ¥${options.roomBudgetYuan.toFixed(2)}`,
+      );
     }
 
     const changed = changedPaths(worktree.path);
@@ -373,9 +394,9 @@ export async function runTask(options: TaskRunOptions): Promise<TaskRunResult> {
     }
 
     setTaskStatus(store, roomId, taskId, "review");
-    const reviewerId = task.reviewerMemberId && task.reviewerMemberId !== owner.id
+    const reviewerId = task.reviewerMemberId && task.reviewerMemberId !== task.ownerMemberId
       ? task.reviewerMemberId
-      : room.members.find((member) => member.id !== owner.id)?.id;
+      : room.members.find((member) => member.id !== task.ownerMemberId)?.id;
     let review: TaskReview = { verdict: "skipped", notes: "没有独立审查成员，等待人工合并。" };
     if (reviewerId) {
       const reviewerBase = pickMember(room, reviewerId);
@@ -400,13 +421,16 @@ export async function runTask(options: TaskRunOptions): Promise<TaskRunResult> {
       });
       costYuan += reviewResult.costYuan ?? 0;
       usageTokens += reviewResult.usage?.totalTokens ?? 0;
+      inputTokens += reviewResult.usage?.inputTokens ?? 0;
+      outputTokens += reviewResult.usage?.outputTokens ?? 0;
+      cacheReadTokens += reviewResult.usage?.cacheReadTokens ?? 0;
       const verdict = /^\s*APPROVE\b/im.test(reviewResult.text)
         ? "approved"
         : /^\s*REJECT\b/im.test(reviewResult.text)
           ? "rejected"
           : "skipped";
-      review = { reviewerMemberId: reviewer.id, verdict, notes: summarizeText(reviewResult.text) };
-      appendTaskEvent(store, roomId, taskId, { type: "task_review", reviewerId: reviewer.id, verdict, notes: review.notes });
+      review = { reviewerMemberId: reviewerBase.id, verdict, notes: summarizeText(reviewResult.text) };
+      appendTaskEvent(store, roomId, taskId, { type: "task_review", reviewerId: reviewerBase.id, verdict, notes: review.notes });
       if (verdict === "rejected") {
         const rejectedReport: TaskReport = {
           version: 1, taskId, summary: summarizeText(agentText), risks: extractList(agentText, /风险|risks?/i),
@@ -415,7 +439,7 @@ export async function runTask(options: TaskRunOptions): Promise<TaskRunResult> {
         };
         setTaskStatus(store, roomId, taskId, "failed", "审查未通过");
         recordTaskReport(store, roomId, taskId, rejectedReport);
-        patchTask(store, roomId, taskId, { costYuan, lastError: "审查未通过", finishedAt: new Date().toISOString() });
+        patchTask(store, roomId, taskId, { costYuan, ...usagePatch(), lastError: "审查未通过", finishedAt: new Date().toISOString() });
         return { task: requireTask(store, roomId, taskId), report: rejectedReport, error: "审查未通过" };
       }
     }
@@ -438,7 +462,7 @@ export async function runTask(options: TaskRunOptions): Promise<TaskRunResult> {
     };
     setTaskStatus(store, roomId, taskId, "merge_ready");
     recordTaskReport(store, roomId, taskId, finalReport);
-    patchTask(store, roomId, taskId, { costYuan, finishedAt: new Date().toISOString() });
+    patchTask(store, roomId, taskId, { costYuan, ...usagePatch(), finishedAt: new Date().toISOString() });
 
     if (task.autoMerge === true && room.rules.allowAutoMerge !== false) {
       const merged = mergeTask(store, roomId, taskId);
@@ -530,4 +554,52 @@ export function taskRepoPath(store: RoomStore, roomId: string, taskId: string): 
 
 export function taskBranchName(taskId: string): string {
   return `agenthub/${basename(taskId)}`;
+}
+
+export interface WorktreeCleanupResult {
+  removed: number;
+  skipped: number;
+  failed: Array<{ taskId: string; error: string }>;
+}
+
+export function cleanupTaskWorktrees(
+  store: RoomStore,
+  roomId: string,
+  options: { force?: boolean } = {},
+): WorktreeCleanupResult {
+  const room = store.readRoom(roomId);
+  const tasks = loadTasks(store, roomId);
+  const result: WorktreeCleanupResult = { removed: 0, skipped: 0, failed: [] };
+  let changed = false;
+  for (const task of tasks) {
+    if (!task.worktreePath) continue;
+    if (task.status === "running") {
+      result.skipped += 1;
+      continue;
+    }
+    if (!existsSync(task.worktreePath)) {
+      task.worktreePath = undefined;
+      changed = true;
+      continue;
+    }
+    if (!room.workspace) {
+      result.skipped += 1;
+      continue;
+    }
+    try {
+      discardWorktree(room.workspace, task.worktreePath, { force: options.force === true });
+      task.worktreePath = undefined;
+      task.updatedAt = new Date().toISOString();
+      appendTaskEvent(store, roomId, task.id, { type: "worktree_cleaned" });
+      result.removed += 1;
+      changed = true;
+    } catch (error) {
+      result.failed.push({
+        taskId: task.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  if (changed) saveTasks(store, roomId, tasks);
+  return result;
 }

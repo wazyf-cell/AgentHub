@@ -71,7 +71,12 @@ export interface RoomTask {
   worktreePath?: string;
   branch?: string;
   costYuan?: number;
+  usageTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
   lastError?: string;
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
   startedAt?: string;
@@ -413,8 +418,7 @@ export function canTransition(from: TaskStatus, to: TaskStatus): boolean {
   return TRANSITIONS[from]?.includes(to) === true;
 }
 
-export function setTaskStatus(
-  store: RoomStore,
+export function setTaskStatus(  store: RoomStore,
   roomId: string,
   taskId: string,
   to: TaskStatus,
@@ -446,6 +450,33 @@ export function setTaskStatus(
   saveTasks(store, roomId, tasks);
   store.appendEvent(roomId, { type: "task_status", taskId, from, to, detail });
   appendTaskEvent(store, roomId, taskId, { type: "task_status", from, to, detail });
+  return task;
+}
+
+export function archiveTask(store: RoomStore, roomId: string, taskId: string): RoomTask {
+  const tasks = loadTasks(store, roomId);
+  const task = tasks.find((item) => item.id === taskId);
+  if (!task) throw new Error(`Task "${taskId}" not found.`);
+  if (task.status === "running") throw new Error("运行中的任务不能归档。");
+  if (task.archivedAt) return task;
+  task.archivedAt = new Date().toISOString();
+  task.updatedAt = task.archivedAt;
+  saveTasks(store, roomId, tasks);
+  store.appendEvent(roomId, { type: "task_archived", taskId, status: task.status });
+  appendTaskEvent(store, roomId, taskId, { type: "task_archived", status: task.status });
+  return task;
+}
+
+export function restoreTask(store: RoomStore, roomId: string, taskId: string): RoomTask {
+  const tasks = loadTasks(store, roomId);
+  const task = tasks.find((item) => item.id === taskId);
+  if (!task) throw new Error(`Task "${taskId}" not found.`);
+  if (!task.archivedAt) return task;
+  delete task.archivedAt;
+  task.updatedAt = new Date().toISOString();
+  saveTasks(store, roomId, tasks);
+  store.appendEvent(roomId, { type: "task_restored", taskId, status: task.status });
+  appendTaskEvent(store, roomId, taskId, { type: "task_restored", status: task.status });
   return task;
 }
 

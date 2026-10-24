@@ -27,6 +27,8 @@
       --statusbar: 26px;
       --left: 264px;
       --drawer: 404px;
+      --dock: 360px;
+      --preview: 440px;
       --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
       --font-display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", sans-serif;
       --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "Microsoft YaHei UI", monospace;
@@ -91,6 +93,60 @@
       transition: grid-template-columns .18s ease;
     }
     #shell.left-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+    #shell.dock-open {
+      grid-template-columns: var(--left) minmax(0, 1fr) var(--dock);
+      grid-template-areas:
+        "topbar topbar topbar"
+        "left center dock"
+        "status status status";
+    }
+    #shell.dock-open.preview-open {
+      grid-template-columns: var(--left) minmax(0, 1fr) var(--preview) var(--dock);
+      grid-template-areas:
+        "topbar topbar topbar topbar"
+        "left center preview dock"
+        "status status status status";
+    }
+    #shell.left-collapsed.dock-open {
+      grid-template-columns: 0 minmax(0, 1fr) var(--dock);
+      grid-template-areas:
+        "topbar topbar topbar"
+        "left center dock"
+        "status status status";
+    }
+    #shell.left-collapsed.dock-open.preview-open {
+      grid-template-columns: 0 minmax(0, 1fr) var(--preview) var(--dock);
+      grid-template-areas:
+        "topbar topbar topbar topbar"
+        "left center preview dock"
+        "status status status status";
+    }
+    @media (max-width: 1400px) {
+      #shell.dock-open.preview-open {
+        grid-template-columns: 0 minmax(0, 1fr) 340px 320px;
+        grid-template-areas:
+          "topbar topbar topbar topbar"
+          "left center preview dock"
+          "status status status status";
+      }
+      #shell.dock-open.preview-open #left { opacity: 0; pointer-events: none; }
+    }
+    #previewPane { grid-area: preview; }
+    .inspector-panel { grid-area: dock; }
+    #previewPane, .inspector-panel {
+      background: var(--panel);
+      border-left: 1px solid var(--line-2);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    #previewPane[hidden], .inspector-panel[hidden] { display: none !important; }
+    .preview-body { flex: 1; overflow: auto; padding: 12px 14px 18px; }
+    .preview-body img { max-width: 100%; border-radius: 8px; border: 1px solid var(--line); display: block; }
+    .preview-body .preview-pre { max-height: none; }
+    .preview-actions { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .preview-actions .spacer { flex: 1; }
 
     /* ---------- topbar ---------- */
     #topbar {
@@ -446,6 +502,93 @@
     .chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
     .chip { border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; font-size: 10.5px; color: #b8bdc3; background: var(--panel-2); }
     .editor button + button { margin-left: 0; }
+    .editor-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+    .editor-tabs button { flex: 1; min-height: 28px; background: transparent; border-color: transparent; color: var(--muted); font-size: 11.5px; }
+    .editor-tabs button:hover { color: var(--text); }
+    .editor-tabs button.on { background: var(--amber-soft); border-color: rgba(227, 163, 85, .28); color: var(--amber-strong); }
+
+    /* ---------- member library ---------- */
+    .library-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .library-toolbar input { flex: 1 1 180px; }
+    .library-cats { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 14px; }
+    .library-cats button {
+      min-height: 25px; padding: 2px 10px; border-radius: 999px;
+      background: transparent; border-color: transparent; color: var(--muted); font-size: 11px;
+    }
+    .library-cats button.on { background: var(--amber-soft); border-color: rgba(227, 163, 85, .28); color: var(--amber-strong); }
+    .library-group { margin-bottom: 16px; }
+    .library-group h5 {
+      margin: 0 0 7px; font: 600 10px/1.4 var(--font-display);
+      letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+    }
+    .library-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .library-grid.picker-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .member-card {
+      position: relative; display: flex; gap: 10px; align-items: flex-start; text-align: left;
+      padding: 10px 11px; border-radius: 10px; background: var(--panel-2);
+      border: 1px solid var(--line); min-height: 74px; min-width: 0;
+    }
+    .member-card:hover { border-color: var(--line-2); background: var(--panel-3); }
+    .member-card.selectable { cursor: pointer; }
+    .member-card.selected { border-color: rgba(227, 163, 85, .55); background: var(--amber-soft); }
+    .member-card.disabled { opacity: .42; cursor: not-allowed; }
+    .member-card.disabled:hover { border-color: var(--line); background: var(--panel-2); }
+    .lib-avatar {
+      width: 34px; height: 34px; border-radius: 9px; flex: none;
+      display: grid; place-items: center; font-size: 18px; line-height: 1;
+      background: #171b21; border: 1px solid var(--line-2);
+    }
+    .lib-main { min-width: 0; flex: 1; }
+    .lib-name { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-weight: 600; font-size: 12.5px; }
+    .lib-role { color: var(--muted); font-size: 10.5px; margin-top: 1px; }
+    .lib-desc { color: var(--dim); font-size: 10.5px; margin-top: 3px; line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .lib-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+    .lib-tag { border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 9.5px; color: var(--dim); }
+    .mini-badge { font: 9.5px/1 var(--font-mono); padding: 2px 5px; border-radius: 5px; border: 1px solid var(--line); color: var(--dim); }
+    .mini-badge.builtin { color: #e0b77c; border-color: rgba(227, 163, 85, .34); }
+    .mini-badge.edited { color: #9fc3e8; border-color: rgba(111, 179, 255, .3); }
+    .mini-badge.hidden { color: #f2b9b2; border-color: rgba(221, 107, 95, .35); }
+    .lib-actions { position: absolute; right: 6px; top: 6px; display: flex; gap: 3px; opacity: 0; transition: opacity .12s ease; }
+    .member-card:hover .lib-actions, .member-card:focus-within .lib-actions { opacity: 1; }
+    .lib-actions button { min-height: 21px; padding: 0 6px; font-size: 10px; background: var(--panel); border-radius: 5px; }
+    .lib-check {
+      position: absolute; right: 8px; top: 8px; width: 17px; height: 17px; border-radius: 50%;
+      border: 1px solid var(--line-2); display: grid; place-items: center; font-size: 10px; color: transparent;
+      background: var(--panel);
+    }
+    .member-card.selected .lib-check { background: var(--amber); border-color: var(--amber); color: #17130c; font-weight: 700; }
+    .library-empty { border: 1px dashed var(--line); border-radius: 10px; padding: 22px; text-align: center; color: var(--dim); font-size: 11.5px; }
+    .lib-form-head {
+      display: flex; gap: 12px; align-items: center; margin-bottom: 14px;
+      padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2);
+    }
+    .lib-form-head .lib-avatar { width: 46px; height: 46px; font-size: 23px; border-radius: 11px; }
+    .lib-form-head .lib-name { font-size: 14px; }
+    .avatar-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+    .avatar-row button { width: 30px; height: 30px; min-height: 30px; padding: 0; font-size: 16px; line-height: 1; }
+    .avatar-row button.on { border-color: var(--amber); background: var(--amber-soft); }
+    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .form-section-title {
+      margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+      font: 600 10px/1.4 var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+    }
+    .picker-selection { color: var(--amber-strong); font-size: 11px; }
+    .overview-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .overview-toolbar input[type="search"] { flex: 1 1 180px; }
+    .overview-toolbar select { width: auto; min-width: 110px; }
+    .overview-list { display: flex; flex-direction: column; gap: 4px; }
+    .overview-row {
+      display: grid; grid-template-columns: 128px minmax(0, 1fr) 84px 76px 104px;
+      gap: 10px; align-items: center; width: 100%; text-align: left;
+      padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: var(--panel-2); min-height: 0;
+    }
+    .overview-row:hover { border-color: var(--line-2); background: var(--panel-3); }
+    .overview-row .ov-room { color: var(--muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .overview-row .ov-title { font-weight: 600; font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .overview-row .ov-status { font-size: 10.5px; color: var(--muted); }
+    .overview-row .ov-cost { font: 10.5px/1 var(--font-mono); color: var(--dim); }
+    .overview-row .ov-time { font: 10px/1 var(--font-mono); color: var(--dim); text-align: right; }
+    .overview-row.archived { opacity: .62; }
 
     .modal {
       position: fixed; z-index: 50;
@@ -643,6 +786,7 @@
     .board-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
     .board-head h2 { font: 600 15px var(--font-display); margin: 0; }
     .board-head .hint { flex: 1; min-width: 160px; }
+    .task-card.archived { opacity: .6; }
     .board-tools { display: flex; align-items: center; gap: 6px; }
     .board-tools input, .board-tools select { min-height: 28px; font-size: 11px; }
     .board-tools input { width: 190px; }
@@ -695,6 +839,7 @@
     .inspector-body { flex: 1; overflow: auto; padding: 12px 14px 18px; }
     .inspector-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
     .inspector-row input { flex: 1; }
+    .tree-entry.active { background: var(--amber-soft); color: var(--amber-strong); }
     .tree-entry { display: flex; align-items: center; gap: 6px; width: 100%; padding: 3px 6px; border: 0; background: transparent; border-radius: 5px; text-align: left; font: 11.5px/1.4 var(--font-mono); color: #b9bec4; min-height: 24px; }
     .tree-entry:hover { background: var(--panel-3); }
     .tree-entry.dir { color: var(--amber); }
@@ -851,6 +996,40 @@
         <span class="mono">Ctrl K</span>
       </div>
     </footer>
+
+    <section id="previewPane" hidden aria-label="文件预览">
+      <div class="drawer-head">
+        <div style="min-width:0">
+          <div class="drawer-title" id="previewTitle">预览</div>
+          <div class="drawer-sub" id="previewPath">—</div>
+        </div>
+        <div class="spacer"></div>
+        <button class="icon-btn" id="closePreview" title="关闭预览" aria-label="关闭预览">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="preview-body" id="previewBody"></div>
+    </section>
+
+    <aside class="inspector-panel" id="inspectorDrawer" aria-label="检查器" hidden>
+      <div class="drawer-head">
+        <div>
+          <div class="drawer-title">检查器（只读）</div>
+          <div class="drawer-sub" id="inspectorPath">—</div>
+        </div>
+        <div class="spacer"></div>
+        <button class="icon-btn" id="closeInspector" title="关闭" aria-label="关闭检查器">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="inspector-tabs" id="inspectorTabs">
+        <button type="button" data-itab="files" class="active">文件</button>
+        <button type="button" data-itab="git">Git</button>
+        <button type="button" data-itab="search">查找</button>
+        <button type="button" data-itab="graph">图谱</button>
+      </div>
+      <div class="inspector-body" id="inspectorBody"></div>
+    </aside>
   </div>
 
   <div id="scrim"></div>
@@ -925,6 +1104,7 @@
       <div class="hint">完成标记用于判断 agent 是否收尾；改完保存后，本房间下一次运行生效。</div>
     </div>
     <div class="modal-foot">
+      <button id="deleteRoomBtn" type="button" class="danger" style="margin-right:auto">删除房间</button>
       <button id="cancelRoomSheet" type="button">取消</button>
       <button class="primary" id="saveRoomSheet" type="button">保存规则</button>
     </div>
@@ -947,6 +1127,24 @@
     </div>
     <div class="modal-foot">
       <button class="primary" id="settingsDone" type="button">完成</button>
+    </div>
+  </div>
+
+  <div class="modal" id="libraryMemberSheet" role="dialog" aria-modal="true" aria-labelledby="libraryMemberTitle" style="width:640px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="libraryMemberTitle">新增成员</div>
+        <div class="modal-sub" id="libraryMemberSub">保存到全局成员库；加入房间时会复制一份</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closeLibraryMemberSheet" title="关闭" aria-label="关闭成员编辑">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="libraryMemberBody"></div>
+    <div class="modal-foot">
+      <button id="cancelLibraryMember" type="button">取消</button>
+      <button class="primary" id="saveLibraryMember" type="button">保存</button>
     </div>
   </div>
 
@@ -986,11 +1184,11 @@
     </div>
   </div>
 
-  <div class="modal" id="createRoomSheet" role="dialog" aria-modal="true" aria-labelledby="createRoomSheetTitle" style="width:520px;">
+  <div class="modal" id="createRoomSheet" role="dialog" aria-modal="true" aria-labelledby="createRoomSheetTitle" style="width:720px;">
     <div class="modal-head">
       <div>
         <div class="modal-title" id="createRoomSheetTitle">新建房间</div>
-        <div class="modal-sub">房间决定用哪些成员和哪套规则</div>
+        <div class="modal-sub">从成员库挑选角色；房间规则可稍后调整</div>
       </div>
       <div class="spacer"></div>
       <button class="icon-btn" id="closeCreateRoomSheet" title="关闭" aria-label="关闭新建房间">
@@ -998,25 +1196,93 @@
       </button>
     </div>
     <div class="modal-body">
-      <div class="field">
-        <label for="createRoomName">房间名称</label>
-        <input id="createRoomName" placeholder="例如：AgentHub 前端、论文修改" />
-        <div class="form-hint" id="createRoomIdHint">房间 id 将自动生成。</div>
+      <div class="form-grid-2">
+        <div class="field">
+          <label for="createRoomName">房间名称</label>
+          <input id="createRoomName" placeholder="例如：AgentHub 前端、论文修改" />
+          <div class="form-hint" id="createRoomIdHint">房间 id 将自动生成。</div>
+        </div>
+        <div class="field">
+          <label for="createRoomWorkspace">工作区</label>
+          <select id="createRoomWorkspace"></select>
+          <div class="form-hint">不绑定工作区即为纯聊天；任务板与文件写入不可用。</div>
+        </div>
       </div>
       <div class="field">
-        <label for="createRoomWorkspace">工作区</label>
-        <select id="createRoomWorkspace"></select>
-        <div class="form-hint">不绑定工作区即为纯聊天；任务板与文件写入不可用。</div>
-      </div>
-      <div class="field">
-        <label for="createRoomCopy">成员来源</label>
-        <select id="createRoomCopy"></select>
-        <div class="form-hint">复制会带走角色卡、模型绑定、备用链、权限、技能/MCP 和房间规则；对话从空白开始。</div>
+        <label>成员</label>
+        <div class="library-cats" id="createRoomMode" role="tablist" aria-label="成员来源">
+          <button type="button" data-mode="library" class="on">从成员库选择</button>
+          <button type="button" data-mode="copy">复制现有房间</button>
+        </div>
+        <div id="createRoomLibrary">
+          <div class="library-toolbar">
+            <input id="createRoomMemberSearch" placeholder="搜索名称、角色、标签…" />
+            <span class="picker-selection" id="createRoomMemberCount">已选 0</span>
+          </div>
+          <div class="library-cats" id="createRoomMemberCats"></div>
+          <div class="library-grid picker-grid" id="createRoomMemberGrid" style="max-height:300px; overflow:auto; padding:2px 2px 4px;"></div>
+        </div>
+        <div id="createRoomCopyWrap" hidden>
+          <select id="createRoomCopy"></select>
+          <div class="form-hint">复制会带走角色卡、模型绑定、备用链、权限、技能/MCP 和房间规则；对话从空白开始。</div>
+        </div>
       </div>
     </div>
     <div class="modal-foot">
       <button id="cancelCreateRoomSheet" type="button">取消</button>
       <button class="primary" id="createRoomSubmit" type="button">创建房间</button>
+    </div>
+  </div>
+
+  <div class="modal" id="memberPickerSheet" role="dialog" aria-modal="true" aria-labelledby="memberPickerTitle" style="width:820px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="memberPickerTitle">添加成员</div>
+        <div class="modal-sub">从成员库多选，加入当前房间；已加入的成员会置灰</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closeMemberPicker" title="关闭" aria-label="关闭成员选择">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="library-toolbar">
+        <input id="pickerSearch" placeholder="搜索名称、角色、标签…" />
+        <span class="picker-selection" id="pickerCount">已选 0</span>
+      </div>
+      <div class="library-cats" id="pickerCats"></div>
+      <div id="pickerBody"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="pickerManage" type="button" class="ghost">管理成员库</button>
+      <button id="pickerCreate" type="button">+ 新建自定义成员</button>
+      <button id="cancelMemberPicker" type="button">取消</button>
+      <button class="primary" id="pickerAdd" type="button" disabled>添加成员</button>
+    </div>
+  </div>
+
+  <div class="modal" id="taskOverviewSheet" role="dialog" aria-modal="true" aria-labelledby="taskOverviewTitle" style="width:900px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="taskOverviewTitle">全部任务</div>
+        <div class="modal-sub">跨房间总览；点击一行切换到对应房间并打开详情</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closeTaskOverview" title="关闭" aria-label="关闭全部任务">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="overview-toolbar">
+        <input type="search" id="overviewSearch" placeholder="搜索任务、房间、成员…" />
+        <select id="overviewStatus"></select>
+        <label class="check" style="margin:0"><input type="checkbox" id="overviewArchived" /> 含归档</label>
+        <span class="hint" id="overviewCount"></span>
+      </div>
+      <div class="overview-list" id="overviewList"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="overviewDone" type="button">关闭</button>
     </div>
   </div>
 
@@ -1049,26 +1315,6 @@
       <button id="copyWorkspacePath" type="button">复制</button>
     </div>
   </div>
-
-  <aside class="drawer inspector" id="inspectorDrawer" role="dialog" aria-modal="true" aria-label="检查器">
-    <div class="drawer-head">
-      <div>
-        <div class="drawer-title">检查器（只读）</div>
-        <div class="drawer-sub" id="inspectorPath">—</div>
-      </div>
-      <div class="spacer"></div>
-      <button class="icon-btn" id="closeInspector" title="关闭" aria-label="关闭检查器">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
-    <div class="inspector-tabs" id="inspectorTabs">
-      <button type="button" data-itab="files" class="active">文件</button>
-      <button type="button" data-itab="git">Git</button>
-      <button type="button" data-itab="search">查找</button>
-      <button type="button" data-itab="graph">图谱</button>
-    </div>
-    <div class="inspector-body" id="inspectorBody"></div>
-  </aside>
 
   <div class="modal" id="taskSheet" role="dialog" aria-modal="true" aria-labelledby="taskSheetTitle" style="width:660px;">
     <div class="modal-head">
@@ -1335,6 +1581,9 @@
       inspectorWorkspace: "",
       inspectorFile: "",
       inspectorTreePath: "",
+      inspectorOpen: false,
+      previewOffset: 0,
+      previewToken: 0,
       btwLastId: "",
       draftDetails: {},
       openDrafts: new Set(),
@@ -1357,6 +1606,28 @@
       fileTimer: null,
       boardQuery: "",
       boardOrigin: "all",
+      taskCostYuan: 0,
+      taskTokens: 0,
+      memberLibrary: [],
+      libraryQuery: "",
+      libraryCategory: "all",
+      libraryShowHidden: false,
+      editingLibraryMemberId: "",
+      libraryAfterSave: null,
+      libraryReturnTo: "",
+      createRoomMode: "library",
+      createRoomSelection: new Set(),
+      createRoomMemberQuery: "",
+      createRoomMemberCategory: "all",
+      pickerSelection: new Set(),
+      pickerQuery: "",
+      pickerCategory: "all",
+      memberEditorTab: "basic",
+      showArchivedTasks: false,
+      allTasks: [],
+      overviewQuery: "",
+      overviewStatus: "all",
+      overviewArchived: false,
     };
     const $ = (id) => document.getElementById(id);
     const AUTONOMY_LABELS = { low: "低自治", medium: "中自治", high: "高自治" };
@@ -1372,7 +1643,7 @@
       budget_paused: "预算暂停", interrupted: "已中断",
     };
     const ABNORMAL_STATUSES = ["failed", "blocked", "cancelled", "conflict", "budget_paused", "interrupted"];
-    const OVERLAY_IDS = ["memberDrawer", "roomSheet", "settingsModal", "workspaceSheet", "createRoomSheet", "palette", "taskSheet", "btwModal", "inspectorDrawer", "platformSheet", "planModal", "briefModal"];
+    const OVERLAY_IDS = ["memberDrawer", "roomSheet", "settingsModal", "workspaceSheet", "createRoomSheet", "palette", "taskSheet", "btwModal", "platformSheet", "planModal", "briefModal", "libraryMemberSheet", "memberPickerSheet", "taskOverviewSheet"];
     const DISPLAY_EVENT_TYPES = new Set(["user_message", "agent_message", "handoff", "binding_used", "summary_updated", "room_stopped", "error", "draft_created"]);
 
     function setStatus(text, kind = "") {
@@ -1516,15 +1787,20 @@
     }
 
     function renderTaskCount() {
-      const active = state.tasks.filter((task) => !["done", "cancelled"].includes(task.status)).length;
-      $("taskCount").textContent = state.tasks.length > 0 ? String(active) : "";
-      $("boardTab").title = state.tasks.length > 0 ? `未完成 ${active} / 共 ${state.tasks.length}` : "任务板";
+      const tasks = state.tasks.filter((task) => !task.archivedAt);
+      const active = tasks.filter((task) => !["done", "cancelled"].includes(task.status)).length;
+      $("taskCount").textContent = tasks.length > 0 ? String(active) : "";
+      $("boardTab").title = tasks.length > 0 ? `未完成 ${active} / 共 ${tasks.length}` : "任务板";
     }
 
     async function refreshTasks() {
       if (!state.room) return;
       const result = await api.listTasks(state.room.id);
-      if (result.status === "success") state.tasks = result.data || [];
+      if (result.status === "success") {
+        state.tasks = result.data || [];
+        updateTaskCosts();
+        renderCost();
+      }
       renderTaskCount();
       if (state.view === "board") renderBoard();
       if (state.view === "task" && state.taskDetailId) {
@@ -1571,9 +1847,33 @@
       });
       tools.appendChild(origin);
       head.appendChild(tools);
-      const running = state.tasks.filter((task) => task.status === "running").length;
-      const done = state.tasks.filter((task) => task.status === "done").length;
-      head.appendChild(el("span", "board-summary", `共 ${state.tasks.length} · 进行中 ${running} · 已完成 ${done}`));
+      const visibleTasks = state.tasks.filter((task) => state.showArchivedTasks || !task.archivedAt);
+      const archivedCount = state.tasks.filter((task) => task.archivedAt).length;
+      const running = visibleTasks.filter((task) => task.status === "running").length;
+      const done = visibleTasks.filter((task) => task.status === "done").length;
+      head.appendChild(el("span", "board-summary", `共 ${visibleTasks.length} · 进行中 ${running} · 已完成 ${done}`));
+      const overview = el("button", "", "全部任务");
+      overview.type = "button";
+      overview.title = "跨房间查看与搜索任务";
+      overview.addEventListener("click", openTaskOverview);
+      head.appendChild(overview);
+      if (archivedCount > 0) {
+        const archiveToggle = el("button", state.showArchivedTasks ? "primary" : "", state.showArchivedTasks ? `隐藏归档 (${archivedCount})` : `归档 (${archivedCount})`);
+        archiveToggle.type = "button";
+        archiveToggle.addEventListener("click", () => {
+          state.showArchivedTasks = !state.showArchivedTasks;
+          renderBoard();
+        });
+        head.appendChild(archiveToggle);
+      }
+      const worktreeCount = state.tasks.filter((task) => task.worktreePath && task.status !== "running").length;
+      if (worktreeCount > 0) {
+        const cleanup = el("button", "", `清理 worktree (${worktreeCount})`);
+        cleanup.type = "button";
+        cleanup.title = "删除已结束任务残留的 worktree；分支会保留";
+        cleanup.addEventListener("click", cleanupWorktreesFlow);
+        head.appendChild(cleanup);
+      }
       const create = el("button", "primary", "+ 新建任务");
       create.type = "button";
       create.disabled = !state.workspaceIsGit;
@@ -1581,7 +1881,7 @@
       head.appendChild(create);
       board.appendChild(head);
 
-      const abnormal = state.tasks.filter((task) => ABNORMAL_STATUSES.includes(task.status));
+      const abnormal = visibleTasks.filter((task) => ABNORMAL_STATUSES.includes(task.status));
       if (abnormal.length > 0) {
         const strip = el("div", "board-errors");
         for (const task of abnormal) strip.appendChild(taskCard(task));
@@ -1601,7 +1901,7 @@
         column.dataset.status = status;
         const header = el("div", "col-head");
         header.appendChild(el("strong", "", label));
-        const tasks = state.tasks.filter((task) => status === "review"
+        const tasks = visibleTasks.filter((task) => status === "review"
           ? ["review", "merge_ready"].includes(task.status)
           : task.status === status);
         header.appendChild(el("span", "count", String(tasks.length)));
@@ -1669,7 +1969,7 @@
     }
 
     function taskCard(task) {
-      const card = el("div", `task-card${task.status === "running" ? " running" : ""}`);
+      const card = el("div", `task-card${task.status === "running" ? " running" : ""}${task.archivedAt ? " archived" : ""}`);
       card.dataset.origin = task.sourceMessageId ? "chat" : "manual";
       card.dataset.search = [
         task.title,
@@ -1696,6 +1996,7 @@
       if (task.attempt > 0) meta.appendChild(el("span", "task-badge", `#${task.attempt}`));
       if (task.dependsOn.length > 0) meta.appendChild(el("span", "task-badge", `依赖 ${task.dependsOn.length}`));
       if (task.autoMerge) meta.appendChild(el("span", "task-badge warn", "自动合并"));
+      if (task.archivedAt) meta.appendChild(el("span", "task-badge", "已归档"));
       if (task.budgetYuan !== undefined) meta.appendChild(el("span", "task-badge", `¥${task.budgetYuan}`));
       if (task.status === "running" && state.runningTaskId === task.id) meta.appendChild(el("span", "task-badge warn", "运行中"));
       card.appendChild(meta);
@@ -1780,6 +2081,9 @@
       }
       if (task.sourceMessageId) {
         actions.appendChild(taskAction("回到来源消息", () => locateMessage(task.sourceMessageId)));
+      }
+      if (task.status !== "running") {
+        actions.appendChild(taskAction(task.archivedAt ? "取消归档" : "归档", () => taskArchiveFlow(task)));
       }
       container.appendChild(actions);
 
@@ -1958,6 +2262,94 @@
       await refreshTasks();
       await openTaskDetail(taskId);
       setStatus("任务已回到就绪", "ok");
+    }
+
+    async function taskArchiveFlow(task) {
+      const archived = !task.archivedAt;
+      const result = await api.archiveTask({ roomId: state.room.id, taskId: task.id, archived });
+      if (result.status !== "success") {
+        setStatus(result.summary || "归档失败", "error");
+        return;
+      }
+      await refreshTasks();
+      await openTaskDetail(task.id);
+      setStatus(archived ? "任务已归档" : "任务已取消归档", "ok");
+    }
+
+    async function openTaskOverview() {
+      state.overviewQuery = "";
+      state.overviewStatus = "all";
+      state.overviewArchived = false;
+      const statusSelect = $("overviewStatus");
+      clearNode(statusSelect);
+      const allOption = document.createElement("option");
+      allOption.value = "all";
+      allOption.textContent = "全部状态";
+      statusSelect.appendChild(allOption);
+      for (const [value, label] of Object.entries(TASK_STATUS_LABELS)) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        statusSelect.appendChild(option);
+      }
+      $("overviewSearch").value = "";
+      $("overviewArchived").checked = false;
+      $("overviewList").textContent = "加载中…";
+      openOverlay("taskOverviewSheet");
+      const result = await api.allTasks({ all: true });
+      if (result.status !== "success") {
+        $("overviewList").textContent = result.summary || "加载任务失败";
+        return;
+      }
+      state.allTasks = result.data || [];
+      renderTaskOverview();
+    }
+
+    function renderTaskOverview() {
+      const list = $("overviewList");
+      clearNode(list);
+      const query = state.overviewQuery.toLowerCase();
+      const tasks = state.allTasks.filter((task) => {
+        if (!state.overviewArchived && task.archivedAt) return false;
+        if (state.overviewStatus !== "all" && task.status !== state.overviewStatus) return false;
+        if (!query) return true;
+        return [task.title, task.id, task.roomName, task.roomId, TASK_STATUS_LABELS[task.status] || task.status]
+          .join(" ").toLowerCase().includes(query);
+      });
+      $("overviewCount").textContent = `${tasks.length} 个任务`;
+      if (tasks.length === 0) {
+        list.appendChild(el("div", "library-empty", "没有匹配的任务。"));
+        return;
+      }
+      for (const task of tasks) {
+        const row = el("button", `overview-row${task.archivedAt ? " archived" : ""}`);
+        row.type = "button";
+        row.appendChild(el("span", "ov-room", `${task.roomName || task.roomId}${task.archivedAt ? " · 已归档" : ""}`));
+        row.appendChild(el("span", "ov-title", task.title));
+        row.appendChild(el("span", "ov-status", TASK_STATUS_LABELS[task.status] || task.status));
+        row.appendChild(el("span", "ov-cost", Number(task.costYuan || 0) > 0 ? `¥${Number(task.costYuan).toFixed(2)}` : "—"));
+        row.appendChild(el("span", "ov-time", formatDate(task.updatedAt)));
+        row.addEventListener("click", async () => {
+          closeOverlays();
+          if (!state.room || state.room.id !== task.roomId) await loadRoom(task.roomId);
+          await openTaskDetail(task.id);
+        });
+        list.appendChild(row);
+      }
+    }
+
+    async function cleanupWorktreesFlow() {
+      if (!window.confirm("删除已结束任务残留的 worktree？分支会保留，但 worktree 内未提交的改动会丢失。")) return;
+      const result = await api.cleanupTaskWorktrees({ roomId: state.room.id, force: true });
+      if (result.status !== "success") {
+        setStatus(result.summary || "清理失败", "error");
+        return;
+      }
+      await refreshTasks();
+      const failed = result.data?.failed?.length || 0;
+      setStatus(failed > 0
+        ? `已清理 ${result.data.removed} 个，${failed} 个失败`
+        : `已清理 ${result.data?.removed || 0} 个 worktree`, failed > 0 ? "error" : "ok");
     }
 
     async function taskDiscardFlow(taskId) {
@@ -2307,13 +2699,103 @@
         setStatus("这个房间没有工作区", "error");
         return;
       }
+      const sameWorkspace = state.inspectorOpen && state.inspectorWorkspace === workspace;
       state.inspectorWorkspace = workspace;
-      state.inspectorFile = "";
-      state.inspectorTreePath = "";
+      if (!sameWorkspace) {
+        state.inspectorFile = "";
+        state.inspectorTreePath = "";
+        closePreview();
+      }
       $("inspectorPath").textContent = workspace;
       $("inspectorPath").title = workspace;
+      state.inspectorOpen = true;
+      $("inspectorDrawer").hidden = false;
+      $("shell").classList.add("dock-open");
       renderInspector();
-      openOverlay("inspectorDrawer");
+    }
+
+    function closeInspector() {
+      state.inspectorOpen = false;
+      $("inspectorDrawer").hidden = true;
+      $("shell").classList.remove("dock-open");
+      closePreview();
+    }
+
+    function closePreview() {
+      state.previewToken += 1;
+      state.inspectorFile = "";
+      state.previewOffset = 0;
+      $("previewPane").hidden = true;
+      $("shell").classList.remove("preview-open");
+      clearNode($("previewBody"));
+    }
+
+    async function openPreview(file, offset = 0) {
+      if (!state.inspectorWorkspace) return;
+      state.inspectorFile = file;
+      state.previewOffset = offset;
+      $("previewPane").hidden = false;
+      $("shell").classList.add("preview-open");
+      await renderPreview();
+      if (state.inspectorOpen && state.inspectorTab === "files") renderInspector();
+    }
+
+    async function renderPreview() {
+      const body = $("previewBody");
+      clearNode(body);
+      const file = state.inspectorFile;
+      if (!file) return;
+      $("previewTitle").textContent = file.split("/").pop() || "预览";
+      $("previewPath").textContent = file;
+      $("previewPath").title = file;
+      const token = ++state.previewToken;
+      const preview = await api.inspect({
+        roomId: state.room.id,
+        workspace: state.inspectorWorkspace,
+        sub: "read",
+        file,
+        offset: state.previewOffset,
+      });
+      if (token !== state.previewToken) return;
+      if (preview.status !== "success") {
+        body.appendChild(el("div", "hint", preview.summary || "读取失败"));
+        return;
+      }
+      const actions = el("div", "preview-actions");
+      const meta = [
+        preview.data?.kind || "文件",
+        preview.data?.mime,
+        preview.data?.encoding,
+        preview.data?.size !== undefined ? `${preview.data.size} bytes` : "",
+      ].filter(Boolean).join(" · ");
+      actions.appendChild(el("span", "hint", meta));
+      actions.appendChild(el("span", "spacer"));
+      const close = el("button", "", "关闭预览");
+      close.type = "button";
+      close.addEventListener("click", closePreview);
+      actions.appendChild(close);
+      body.appendChild(actions);
+      if (preview.data?.kind === "image") {
+        const image = document.createElement("img");
+        image.src = preview.data.dataUrl;
+        image.alt = file;
+        body.appendChild(image);
+      } else if (preview.data?.kind === "text") {
+        body.appendChild(el("pre", "preview-pre", preview.data.content || ""));
+        if (preview.data.truncated) {
+          const pager = el("div", "inspector-row");
+          pager.appendChild(el("span", "hint", `第 ${Math.floor(preview.data.offset / (2 * 1024 * 1024)) + 1} 页 · 总 ${preview.data.size} bytes`));
+          if (state.previewOffset > 0) {
+            pager.appendChild(taskAction("第一页", () => openPreview(file, 0)));
+          }
+          if (preview.data.nextOffset !== undefined) {
+            pager.appendChild(taskAction("下一页", () => openPreview(file, preview.data.nextOffset), "primary"));
+          }
+          body.appendChild(pager);
+        }
+      } else {
+        body.appendChild(el("div", "hint", "二进制文件，暂不支持预览。"));
+      }
     }
 
     function inspectorTabButton(tab, label) {
@@ -2369,7 +2851,7 @@
         const baseDepth = state.inspectorTreePath.split("/").filter(Boolean).length;
         for (const entry of result.data || []) {
           const depth = entry.path.split("/").filter(Boolean).length - baseDepth - 1;
-          const button = el("button", `tree-entry${entry.type === "dir" ? " dir" : ""}`);
+          const button = el("button", `tree-entry${entry.type === "dir" ? " dir" : ""}${entry.type !== "dir" && state.inspectorFile === entry.path ? " active" : ""}`);
           button.type = "button";
           button.style.paddingLeft = `${6 + Math.max(0, depth) * 12}px`;
           button.textContent = `${entry.type === "dir" ? "▸" : "·"} ${entry.name}`;
@@ -2379,9 +2861,7 @@
               state.inspectorTreePath = entry.path;
               renderInspector();
             } else {
-              state.inspectorFile = entry.path;
-              state.inspectorOffset = 0;
-              renderInspector();
+              openPreview(entry.path);
             }
           });
           tree.appendChild(button);
@@ -2389,46 +2869,6 @@
         if (!result.data?.length) tree.appendChild(el("div", "hint", "空目录。"));
       }
       body.appendChild(tree);
-      if (state.inspectorFile) {
-        const preview = await api.inspect({
-          roomId: state.room.id,
-          workspace: state.inspectorWorkspace,
-          sub: "read",
-          file: state.inspectorFile,
-          offset: state.inspectorOffset,
-        });
-        body.appendChild(el("div", "hint", state.inspectorFile));
-        if (preview.status !== "success") {
-          body.appendChild(el("div", "hint", preview.summary || "读取失败"));
-        } else if (preview.data?.kind === "image") {
-          const image = document.createElement("img");
-          image.src = preview.data.dataUrl;
-          image.style.maxWidth = "100%";
-          image.alt = state.inspectorFile;
-          body.appendChild(image);
-        } else if (preview.data?.kind === "text") {
-          body.appendChild(el("pre", "preview-pre", preview.data.content || ""));
-          if (preview.data.truncated) {
-            const pager = el("div", "inspector-row");
-            pager.appendChild(el("span", "hint", `第 ${Math.floor(preview.data.offset / (2 * 1024 * 1024)) + 1} 页 · 总 ${preview.data.size} bytes`));
-            if (state.inspectorOffset > 0) {
-              pager.appendChild(taskAction("第一页", () => {
-                state.inspectorOffset = 0;
-                renderInspector();
-              }));
-            }
-            if (preview.data.nextOffset !== undefined) {
-              pager.appendChild(taskAction("下一页", () => {
-                state.inspectorOffset = preview.data.nextOffset;
-                renderInspector();
-              }, "primary"));
-            }
-            body.appendChild(pager);
-          }
-        } else {
-          body.appendChild(el("div", "hint", `二进制文件 · ${preview.data?.mime || "unknown"} · ${preview.data?.size || 0} bytes`));
-        }
-      }
     }
 
     async function renderInspectorGit(body) {
@@ -2495,11 +2935,11 @@
           button.appendChild(el("div", "line", hit.text));
           button.addEventListener("click", () => {
             state.inspectorTab = "files";
-            state.inspectorFile = hit.path;
             const parts = hit.path.split("/");
             parts.pop();
             state.inspectorTreePath = parts.join("/");
             renderInspector();
+            openPreview(hit.path);
           });
           results.appendChild(button);
         }
@@ -2652,16 +3092,18 @@
     async function boot() {
       state.settings = await api.settings();
       const workspacesResult = await api.workspaces();
-      const [roomsResult, platformsResult, modelsResult, capabilitiesResult] = await Promise.all([
+      const [roomsResult, platformsResult, modelsResult, capabilitiesResult, libraryResult] = await Promise.all([
         api.listRooms(),
         api.platforms(),
         api.models(),
         api.capabilities(),
+        api.memberLibrary(),
       ]);
       if (roomsResult.status === "success") state.rooms = roomsResult.data || [];
       if (workspacesResult.status === "success") state.workspaces = workspacesResult.data || [];
       if (platformsResult.status === "success") state.platforms = platformsResult.data || [];
       if (modelsResult.status === "success") state.models = modelsResult.data || [];
+      if (libraryResult.status === "success") state.memberLibrary = libraryResult.data || [];
       if (capabilitiesResult.status === "success" && capabilitiesResult.data) {
         state.capabilities = capabilitiesResult.data;
       }
@@ -2717,7 +3159,7 @@
       $("viewWorkspacePath").addEventListener("click", openWorkspacePathPopover);
       $("openWorkspace").addEventListener("click", openWorkspace);
       $("newRoom").addEventListener("click", () => openCreateRoomSheet());
-      $("newMember").addEventListener("click", addMember);
+      $("newMember").addEventListener("click", openMemberPicker);
       $("newWorkspace").addEventListener("click", () => {
         closeWorkspaceMenu();
         openWorkspaceSheet();
@@ -2737,6 +3179,34 @@
       $("cancelCreateRoomSheet").addEventListener("click", closeOverlays);
       $("createRoomSubmit").addEventListener("click", createRoomSubmit);
       $("createRoomName").addEventListener("input", updateRoomIdHint);
+      $("createRoomMode").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-mode]");
+        if (button) setCreateRoomMode(button.dataset.mode);
+      });
+      $("createRoomMemberSearch").addEventListener("input", (event) => {
+        state.createRoomMemberQuery = event.target.value.trim();
+        renderCreateRoomMembers();
+      });
+      $("closeMemberPicker").addEventListener("click", closeOverlays);
+      $("cancelMemberPicker").addEventListener("click", closeOverlays);
+      $("pickerAdd").addEventListener("click", addSelectedMembersToRoom);
+      $("pickerSearch").addEventListener("input", (event) => {
+        state.pickerQuery = event.target.value.trim();
+        renderMemberPicker();
+      });
+      $("pickerManage").addEventListener("click", () => {
+        closeOverlays();
+        openSettings({ section: "members" });
+      });
+      $("pickerCreate").addEventListener("click", () => {
+        openLibraryMemberSheet(null, {
+          returnTo: "picker",
+          afterSave: async (saved) => {
+            const entry = state.memberLibrary.find((member) => member.id === saved.id) || saved;
+            await addLibraryEntriesToRoom([entry]);
+          },
+        });
+      });
       $("pathPopoverValue").addEventListener("click", () => {
         if (state.pathPopoverTarget) api.openPath(state.pathPopoverTarget);
         closePathPopover();
@@ -2868,7 +3338,11 @@
       $("cancelRoomSheet").addEventListener("click", closeOverlays);
       $("closeSettings").addEventListener("click", closeOverlays);
       $("settingsDone").addEventListener("click", closeOverlays);
+      $("closeLibraryMemberSheet").addEventListener("click", cancelLibraryMemberSheet);
+      $("cancelLibraryMember").addEventListener("click", cancelLibraryMemberSheet);
+      $("saveLibraryMember").addEventListener("click", saveLibraryMemberFlow);
       $("saveRoomSheet").addEventListener("click", saveRoomSettings);
+      $("deleteRoomBtn").addEventListener("click", deleteRoomFlow);
       $("rsOpenWorkspace").addEventListener("click", () => {
         if (state.room) api.openPath(state.room.workspace);
       });
@@ -2878,7 +3352,22 @@
       });
       $("openInspector").addEventListener("click", () => openInspector());
       $("openBtw").addEventListener("click", () => openBtw());
-      $("closeInspector").addEventListener("click", closeOverlays);
+      $("closeTaskOverview").addEventListener("click", closeOverlays);
+      $("overviewDone").addEventListener("click", closeOverlays);
+      $("overviewSearch").addEventListener("input", (event) => {
+        state.overviewQuery = event.target.value.trim();
+        renderTaskOverview();
+      });
+      $("overviewStatus").addEventListener("change", (event) => {
+        state.overviewStatus = event.target.value;
+        renderTaskOverview();
+      });
+      $("overviewArchived").addEventListener("change", (event) => {
+        state.overviewArchived = event.target.checked;
+        renderTaskOverview();
+      });
+      $("closeInspector").addEventListener("click", closeInspector);
+      $("closePreview").addEventListener("click", closePreview);
       $("closeBtw").addEventListener("click", closeOverlays);
       $("closeBtwFoot").addEventListener("click", closeOverlays);
       $("closeTaskSheet").addEventListener("click", closeOverlays);
@@ -2945,6 +3434,12 @@
           } else if (state.overlays.length > 0) {
             event.preventDefault();
             closeOverlays();
+          } else if (!$("previewPane").hidden) {
+            event.preventDefault();
+            closePreview();
+          } else if (state.inspectorOpen) {
+            event.preventDefault();
+            closeInspector();
           }
         }
       });
@@ -3075,6 +3570,7 @@
 
     const SETTINGS_SECTIONS = [
       ["platforms", "平台配置"],
+      ["members", "成员管理"],
       ["environment", "环境与工具"],
       ["usage", "用量统计"],
       ["models", "模型与能力"],
@@ -3106,6 +3602,7 @@
         nav.appendChild(button);
       }
       if (state.settingsSection === "platforms") renderPlatformsSettings(body);
+      else if (state.settingsSection === "members") renderMembersSettings(body);
       else if (state.settingsSection === "environment") renderEnvironmentSettings(body);
       else if (state.settingsSection === "usage") renderUsageSettings(body);
       else if (state.settingsSection === "models") renderModelsSettings(body);
@@ -3165,6 +3662,422 @@
       platformsSection.appendChild(addPlatform);
       platformsSection.appendChild(el("div", "hint", "接入方式决定调用方式；密钥只填环境变量名，不写入配置文件。"));
       body.appendChild(platformsSection);
+    }
+
+    const MEMBER_CATEGORY_ORDER = ["产品与规划", "工程与架构", "前端与设计", "质量与审查", "运维与安全", "数据与研究", "自定义"];
+    const MEMBER_AVATARS = ["🧭", "📋", "🏛️", "⚙️", "🖥️", "🎨", "🧪", "🔍", "🚀", "🛡️", "📊", "✍️", "🙂", "🤖", "🧠", "🧰"];
+
+    async function refreshMemberLibrary() {
+      const result = await api.memberLibrary();
+      if (result.status === "success") state.memberLibrary = result.data || [];
+      return state.memberLibrary;
+    }
+
+    function splitList(value) {
+      return String(value || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean);
+    }
+
+    function libraryMemberBadges(member) {
+      const badges = el("span", "lib-name");
+      badges.appendChild(el("strong", "", member.name));
+      if (member.builtin) badges.appendChild(el("span", "mini-badge builtin", "内置"));
+      else badges.appendChild(el("span", "mini-badge", "自定义"));
+      if (member.edited) badges.appendChild(el("span", "mini-badge edited", "已修改"));
+      if (member.hidden) badges.appendChild(el("span", "mini-badge hidden", "已隐藏"));
+      return badges;
+    }
+
+    function libraryMemberCard(member, options = {}) {
+      const card = el("div", "member-card");
+      card.dataset.memberId = member.id;
+      card.appendChild(el("div", "lib-avatar", member.avatar || member.name.slice(0, 1)));
+      const main = el("div", "lib-main");
+      main.appendChild(libraryMemberBadges(member));
+      main.appendChild(el("div", "lib-role", member.role));
+      if (member.description) {
+        const desc = el("div", "lib-desc", member.description);
+        desc.title = member.description;
+        main.appendChild(desc);
+      }
+      if (member.tags?.length) {
+        const tags = el("div", "lib-tags");
+        for (const tag of member.tags.slice(0, 5)) tags.appendChild(el("span", "lib-tag", tag));
+        main.appendChild(tags);
+      }
+      card.appendChild(main);
+
+      if (options.selectable) {
+        card.classList.add("selectable");
+        if (options.selected) card.classList.add("selected");
+        if (options.disabled) card.classList.add("disabled");
+        else card.tabIndex = 0;
+        card.appendChild(el("span", "lib-check", options.selected ? "✓" : ""));
+        const activate = () => {
+          if (options.disabled) return;
+          (options.onToggle || (() => {}))(member);
+        };
+        card.addEventListener("click", activate);
+        card.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            activate();
+          }
+        });
+        return card;
+      }
+
+      card.tabIndex = 0;
+      card.addEventListener("click", () => openLibraryMemberSheet(member, { returnTo: "settings" }));
+      card.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openLibraryMemberSheet(member, { returnTo: "settings" });
+        }
+      });
+      const actions = el("div", "lib-actions");
+      const action = (label, kind, handler) => {
+        const button = el("button", kind, label);
+        button.type = "button";
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          handler();
+        });
+        actions.appendChild(button);
+      };
+      action("编辑", "", () => openLibraryMemberSheet(member, { returnTo: "settings" }));
+      if (member.builtin && member.edited) action("恢复", "", () => restoreLibraryMemberFlow(member));
+      action(member.hidden ? "显示" : "隐藏", "", () => setLibraryMemberHiddenFlow(member, !member.hidden));
+      if (!member.builtin) action("删除", "danger", () => removeLibraryMemberFlow(member));
+      card.appendChild(actions);
+      return card;
+    }
+
+    function renderMembersSettings(body) {
+      const intro = settingsGroup("成员库");
+      intro.appendChild(el("div", "hint", "内置 12 个角色，覆盖产品、工程、设计、质量、运维安全、数据研究。加入房间时复制一份，之后在房间内单独调整，不会反向修改成员库。"));
+      const toolbar = el("div", "library-toolbar");
+      const search = document.createElement("input");
+      search.id = "librarySearch";
+      search.placeholder = "搜索名称、角色、标签…";
+      search.value = state.libraryQuery;
+      search.addEventListener("input", () => {
+        state.libraryQuery = search.value.trim();
+        renderSettings();
+        const next = $("librarySearch");
+        if (next) {
+          next.focus();
+          next.setSelectionRange(next.value.length, next.value.length);
+        }
+      });
+      toolbar.appendChild(search);
+      const add = el("button", "primary", "新增成员");
+      add.type = "button";
+      add.addEventListener("click", () => openLibraryMemberSheet(null, { returnTo: "settings" }));
+      toolbar.appendChild(add);
+      const hiddenCount = state.memberLibrary.filter((member) => member.hidden).length;
+      if (hiddenCount > 0) {
+        const toggle = el("button", "", state.libraryShowHidden ? `收起隐藏 (${hiddenCount})` : `隐藏成员 (${hiddenCount})`);
+        toggle.type = "button";
+        toggle.addEventListener("click", () => {
+          state.libraryShowHidden = !state.libraryShowHidden;
+          renderSettings();
+        });
+        toolbar.appendChild(toggle);
+      }
+      intro.appendChild(toolbar);
+      const cats = el("div", "library-cats");
+      const catButton = (value, label) => {
+        const button = el("button", state.libraryCategory === value ? "on" : "", label);
+        button.type = "button";
+        button.addEventListener("click", () => {
+          state.libraryCategory = value;
+          renderSettings();
+        });
+        cats.appendChild(button);
+      };
+      catButton("all", "全部");
+      for (const category of MEMBER_CATEGORY_ORDER) {
+        if (state.memberLibrary.some((member) => member.category === category && !member.hidden)) catButton(category, category);
+      }
+      intro.appendChild(cats);
+
+      const query = state.libraryQuery.toLowerCase();
+      const matchesQuery = (member) => !query
+        || [member.name, member.role, member.description || "", ...(member.tags || []), member.instructions]
+          .join(" ").toLowerCase().includes(query);
+      let shown = 0;
+      for (const category of MEMBER_CATEGORY_ORDER) {
+        if (state.libraryCategory !== "all" && state.libraryCategory !== category) continue;
+        const members = state.memberLibrary.filter((member) => !member.hidden && member.category === category && matchesQuery(member));
+        if (members.length === 0) continue;
+        shown += members.length;
+        const group = el("div", "library-group");
+        group.appendChild(el("h5", "", `${category} · ${members.length}`));
+        const grid = el("div", "library-grid");
+        for (const member of members) grid.appendChild(libraryMemberCard(member));
+        group.appendChild(grid);
+        intro.appendChild(group);
+      }
+      if (state.libraryShowHidden && state.libraryCategory === "all") {
+        const hidden = state.memberLibrary.filter((member) => member.hidden && matchesQuery(member));
+        if (hidden.length > 0) {
+          shown += hidden.length;
+          const group = el("div", "library-group");
+          group.appendChild(el("h5", "", `已隐藏 · ${hidden.length}`));
+          const grid = el("div", "library-grid");
+          for (const member of hidden) grid.appendChild(libraryMemberCard(member));
+          group.appendChild(grid);
+          intro.appendChild(group);
+        }
+      }
+      if (shown === 0) intro.appendChild(el("div", "library-empty", "没有匹配的成员。换个关键字，或新增一个。"));
+      body.appendChild(intro);
+    }
+
+    function openLibraryMemberSheet(member = null, options = {}) {
+      state.editingLibraryMemberId = member?.id || "";
+      state.libraryAfterSave = options.afterSave || null;
+      state.libraryReturnTo = options.returnTo || "";
+      $("libraryMemberTitle").textContent = member ? `编辑成员 · ${member.name}` : "新增成员";
+      $("libraryMemberSub").textContent = member
+        ? (member.builtin ? "内置成员可修改并随时恢复；改动只影响之后加入的房间" : "自定义成员；可删除")
+        : "保存到全局成员库；加入房间时会复制一份";
+      const body = $("libraryMemberBody");
+      clearNode(body);
+      const draft = member || {
+        name: "",
+        role: "",
+        category: "自定义",
+        avatar: "🙂",
+        description: "",
+        instructions: "",
+        tags: [],
+        skills: [],
+        mcps: [],
+      };
+
+      const head = el("div", "lib-form-head");
+      const previewAvatar = el("div", "lib-avatar", draft.avatar || "🙂");
+      previewAvatar.id = "lmPreviewAvatar";
+      head.appendChild(previewAvatar);
+      const previewMain = el("div", "lib-main");
+      const previewName = el("div", "lib-name");
+      previewName.id = "lmPreviewName";
+      previewName.appendChild(el("strong", "", draft.name || "未命名成员"));
+      const previewRole = el("div", "lib-role", draft.role || "角色未填写");
+      previewRole.id = "lmPreviewRole";
+      previewMain.appendChild(previewName);
+      previewMain.appendChild(previewRole);
+      head.appendChild(previewMain);
+      body.appendChild(head);
+
+      const identity = el("div", "form-grid-2");
+      const nameField = el("div", "field");
+      nameField.appendChild(el("label", "", "名称"));
+      const nameInput = document.createElement("input");
+      nameInput.id = "lmName";
+      nameInput.value = draft.name || "";
+      nameInput.placeholder = "例如：性能工程师";
+      nameField.appendChild(nameInput);
+      identity.appendChild(nameField);
+      const roleField = el("div", "field");
+      roleField.appendChild(el("label", "", "角色"));
+      const roleInput = document.createElement("input");
+      roleInput.id = "lmRole";
+      roleInput.value = draft.role || "";
+      roleInput.placeholder = "例如：性能优化";
+      roleField.appendChild(roleInput);
+      identity.appendChild(roleField);
+      body.appendChild(identity);
+
+      const meta = el("div", "form-grid-2");
+      const categoryField = el("div", "field");
+      categoryField.appendChild(el("label", "", "分类"));
+      const categorySelect = document.createElement("select");
+      categorySelect.id = "lmCategory";
+      for (const category of MEMBER_CATEGORY_ORDER) {
+        const option = document.createElement("option");
+        option.value = category;
+        option.textContent = category;
+        categorySelect.appendChild(option);
+      }
+      categorySelect.value = MEMBER_CATEGORY_ORDER.includes(draft.category) ? draft.category : "自定义";
+      categoryField.appendChild(categorySelect);
+      meta.appendChild(categoryField);
+      const avatarField = el("div", "field");
+      avatarField.appendChild(el("label", "", "头像（单个 emoji）"));
+      const avatarInput = document.createElement("input");
+      avatarInput.id = "lmAvatar";
+      avatarInput.value = draft.avatar || "🙂";
+      avatarInput.maxLength = 2;
+      avatarField.appendChild(avatarInput);
+      const avatarRow = el("div", "avatar-row");
+      for (const emoji of MEMBER_AVATARS) {
+        const button = el("button", draft.avatar === emoji ? "on" : "", emoji);
+        button.type = "button";
+        button.addEventListener("click", () => {
+          avatarInput.value = emoji;
+          paintAvatarPreview();
+          [...avatarRow.children].forEach((node) => node.classList.toggle("on", node === button));
+        });
+        avatarRow.appendChild(button);
+      }
+      avatarField.appendChild(avatarRow);
+      meta.appendChild(avatarField);
+      body.appendChild(meta);
+
+      const descField = el("div", "field");
+      descField.appendChild(el("label", "", "一句话描述"));
+      const descInput = document.createElement("input");
+      descInput.id = "lmDescription";
+      descInput.value = draft.description || "";
+      descInput.placeholder = "例如：定位卡顿、内存与首屏性能问题";
+      descField.appendChild(descInput);
+      body.appendChild(descField);
+
+      const tagsField = el("div", "field");
+      tagsField.appendChild(el("label", "", "标签（逗号分隔）"));
+      const tagsInput = document.createElement("input");
+      tagsInput.id = "lmTags";
+      tagsInput.value = (draft.tags || []).join(", ");
+      tagsInput.placeholder = "性能, 压测, 内存";
+      tagsField.appendChild(tagsInput);
+      body.appendChild(tagsField);
+
+      body.appendChild(el("div", "form-section-title", "提示词"));
+      const instructionsField = el("div", "field");
+      const instructionsInput = document.createElement("textarea");
+      instructionsInput.id = "lmInstructions";
+      instructionsInput.value = draft.instructions || "";
+      instructionsInput.style.minHeight = "190px";
+      instructionsInput.placeholder = "写清职责、关注点、输出格式、边界与交接方式；完成时以 DONE 结束。";
+      instructionsField.appendChild(instructionsInput);
+      instructionsField.appendChild(el("div", "hint", "成员提示词会随每轮注入；房间内仍可单独修改，不会回写成员库。"));
+      body.appendChild(instructionsField);
+
+      body.appendChild(el("div", "form-section-title", "可选能力"));
+      const caps = el("div", "form-grid-2");
+      const skillsField = el("div", "field");
+      skillsField.appendChild(el("label", "", "技能（逗号分隔）"));
+      const skillsInput = document.createElement("input");
+      skillsInput.id = "lmSkills";
+      skillsInput.value = (draft.skills || []).join(", ");
+      skillsInput.placeholder = "例如：code-review, pdf";
+      skillsField.appendChild(skillsInput);
+      caps.appendChild(skillsField);
+      const mcpsField = el("div", "field");
+      mcpsField.appendChild(el("label", "", "MCP 服务（逗号分隔）"));
+      const mcpsInput = document.createElement("input");
+      mcpsInput.id = "lmMcps";
+      mcpsInput.value = (draft.mcps || []).join(", ");
+      mcpsInput.placeholder = "例如：github, filesystem";
+      mcpsField.appendChild(mcpsInput);
+      caps.appendChild(mcpsField);
+      body.appendChild(caps);
+
+      function paintAvatarPreview() {
+        previewAvatar.textContent = avatarInput.value.trim() || "🙂";
+      }
+      function paintTextPreview() {
+        previewName.querySelector("strong").textContent = nameInput.value.trim() || "未命名成员";
+        previewRole.textContent = roleInput.value.trim() || "角色未填写";
+      }
+      avatarInput.addEventListener("input", paintAvatarPreview);
+      nameInput.addEventListener("input", paintTextPreview);
+      roleInput.addEventListener("input", paintTextPreview);
+      openOverlay("libraryMemberSheet");
+      nameInput.focus();
+    }
+
+    async function saveLibraryMemberFlow() {
+      const name = $("lmName").value.trim();
+      const role = $("lmRole").value.trim();
+      const instructions = $("lmInstructions").value.trim();
+      if (!name) {
+        setStatus("成员名称不能为空", "error");
+        $("lmName").focus();
+        return;
+      }
+      if (!instructions) {
+        setStatus("成员提示词不能为空", "error");
+        $("lmInstructions").focus();
+        return;
+      }
+      const payload = {
+        name,
+        role,
+        category: $("lmCategory").value,
+        avatar: $("lmAvatar").value.trim() || "🙂",
+        description: $("lmDescription").value.trim(),
+        instructions,
+        tags: splitList($("lmTags").value),
+        skills: splitList($("lmSkills").value),
+        mcps: splitList($("lmMcps").value),
+      };
+      $("saveLibraryMember").disabled = true;
+      const result = state.editingLibraryMemberId
+        ? await api.updateLibraryMember({ id: state.editingLibraryMemberId, ...payload })
+        : await api.addLibraryMember(payload);
+      $("saveLibraryMember").disabled = false;
+      if (result.status !== "success") {
+        setStatus(result.summary || "保存成员失败", "error");
+        return;
+      }
+      const saved = result.data;
+      const afterSave = state.libraryAfterSave;
+      const returnTo = state.libraryReturnTo;
+      state.libraryAfterSave = null;
+      state.libraryReturnTo = "";
+      await refreshMemberLibrary();
+      closeOverlays();
+      if (returnTo === "settings") openSettings({ section: "members" });
+      if (afterSave) afterSave(saved);
+      setStatus("成员已保存", "ok");
+    }
+
+    function cancelLibraryMemberSheet() {
+      const returnTo = state.libraryReturnTo;
+      state.libraryReturnTo = "";
+      state.libraryAfterSave = null;
+      state.editingLibraryMemberId = "";
+      closeOverlays();
+      if (returnTo === "settings") openSettings({ section: "members" });
+      else if (returnTo === "picker") openMemberPicker({ keepSelection: true });
+    }
+
+    async function setLibraryMemberHiddenFlow(member, hidden) {
+      const result = await api.updateLibraryMember({ id: member.id, hidden });
+      if (result.status !== "success") {
+        setStatus(result.summary || "更新成员失败", "error");
+        return;
+      }
+      await refreshMemberLibrary();
+      renderSettings();
+      setStatus(hidden ? "成员已隐藏" : "成员已显示", "ok");
+    }
+
+    async function restoreLibraryMemberFlow(member) {
+      if (!window.confirm(`恢复「${member.name}」为内置版本？当前修改会丢失。`)) return;
+      const result = await api.restoreLibraryMember(member.id);
+      if (result.status !== "success") {
+        setStatus(result.summary || "恢复失败", "error");
+        return;
+      }
+      await refreshMemberLibrary();
+      renderSettings();
+      setStatus("已恢复内置成员", "ok");
+    }
+
+    async function removeLibraryMemberFlow(member) {
+      if (!window.confirm(`从成员库删除「${member.name}」？已加入房间的副本不受影响。`)) return;
+      const result = await api.removeLibraryMember(member.id);
+      if (result.status !== "success") {
+        setStatus(result.summary || "删除失败", "error");
+        return;
+      }
+      await refreshMemberLibrary();
+      renderSettings();
+      setStatus("成员已删除", "ok");
     }
 
     function renderEnvironmentSettings(body) {
@@ -3231,6 +4144,31 @@
       graphSection.appendChild(graphRow);
       graphSection.appendChild(el("div", "hint", "保存后对新启动的检查器、任务和图谱查询生效。安装：npm i -g codegraph（需联网，本应用不代装）。"));
       body.appendChild(graphSection);
+
+      const cleanupSection = settingsGroup("磁盘清理");
+      const cleanupRow = el("div", "stat-row");
+      cleanupRow.appendChild(el("span", "", "附件目录"));
+      cleanupRow.appendChild(el("span", "spacer", ""));
+      const cleanupInfo = el("span", "hint", "");
+      cleanupRow.appendChild(cleanupInfo);
+      const cleanup = el("button", "", "清理孤立附件");
+      cleanup.type = "button";
+      cleanup.addEventListener("click", async () => {
+        cleanup.disabled = true;
+        const result = await api.cleanupAttachments();
+        cleanup.disabled = false;
+        if (result.status !== "success") {
+          setStatus(result.summary || "清理失败", "error");
+          return;
+        }
+        const data = result.data || {};
+        cleanupInfo.textContent = `清理 ${data.removedDirs || 0} 个目录、${data.removedFiles || 0} 个文件，释放 ${((data.freedBytes || 0) / 1024 / 1024).toFixed(1)} MB`;
+        setStatus("附件清理完成", "ok");
+      });
+      cleanupRow.appendChild(cleanup);
+      cleanupSection.appendChild(cleanupRow);
+      cleanupSection.appendChild(el("div", "hint", "删除已不存在房间的附件目录，以及房间 journal 未引用的图片文件；正在使用的附件不会被删除。"));
+      body.appendChild(cleanupSection);
     }
 
     function renderUsageSettings(body) {
@@ -3280,6 +4218,8 @@
       const rate = totals.inputTokens > 0 && totals.cacheReadTokens > 0
         ? `${((totals.cacheReadTokens / totals.inputTokens) * 100).toFixed(1)}%`
         : "—";
+      const taskStats = stats.tasks || { tasks: 0, done: 0, failed: 0, costYuan: 0, usageTokens: 0 };
+      const chatCost = Number(totals.costYuan || 0) - Number(taskStats.costYuan || 0);
       const cards = el("div", "stat-cards");
       const card = (key, value, sub) => {
         const node = el("div", "stat-card");
@@ -3288,11 +4228,18 @@
         if (sub) node.appendChild(el("div", "s", sub));
         cards.appendChild(node);
       };
-      card("请求", String(totals.requests || 0), `失败 ${totals.failed || 0}`);
+      card("请求", String(totals.requests || 0), `失败 ${totals.failed || 0} · 任务 ${taskStats.tasks}`);
       card("Token", Number(totals.totalTokens || 0).toLocaleString(), `入 ${Number(totals.inputTokens || 0).toLocaleString()} · 出 ${Number(totals.outputTokens || 0).toLocaleString()}`);
       card("缓存命中", rate, `缓存读 ${Number(totals.cacheReadTokens || 0).toLocaleString()}`);
-      card("费用", `¥${Number(totals.costYuan || 0).toFixed(2)}`, "按模型价格估算");
+      card("费用", `¥${Number(totals.costYuan || 0).toFixed(2)}`, `聊天 ¥${chatCost.toFixed(2)} · 任务 ¥${Number(taskStats.costYuan || 0).toFixed(2)}`);
       container.appendChild(cards);
+      if (taskStats.tasks > 0) {
+        container.appendChild(el(
+          "div",
+          "hint",
+          `任务 ${taskStats.tasks} 个 · 完成 ${taskStats.done} · 失败 ${taskStats.failed} · 任务 token ${Number(taskStats.usageTokens || 0).toLocaleString()}`,
+        ));
+      }
 
       const budget = Number(state.room?.rules?.budgetYuan || 0);
       if (budget > 0) {
@@ -3876,32 +4823,86 @@
 
       const copySelect = $("createRoomCopy");
       clearNode(copySelect);
-      const defaultOption = document.createElement("option");
-      defaultOption.value = "__default__";
-      defaultOption.textContent = "默认单个成员（基于当前模型）";
-      copySelect.appendChild(defaultOption);
+      if (state.rooms.length === 0) {
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "还没有可复制的房间";
+        empty.disabled = true;
+        copySelect.appendChild(empty);
+      }
       for (const room of state.rooms) {
         const option = document.createElement("option");
         option.value = room.id;
         option.textContent = `${room.name} · ${room.members.length} 名成员`;
         copySelect.appendChild(option);
       }
-      copySelect.value = state.room && state.rooms.some((room) => room.id === state.room.id)
-        ? state.room.id
-        : "__default__";
+      if (state.room && state.rooms.some((room) => room.id === state.room.id)) copySelect.value = state.room.id;
 
+      state.createRoomMode = "library";
+      state.createRoomMemberQuery = "";
+      state.createRoomMemberCategory = "all";
+      state.createRoomSelection = new Set();
+      for (const member of state.room?.members || []) {
+        const libraryId = member.sourceMemberId || member.id;
+        if (state.memberLibrary.some((entry) => entry.id === libraryId && !entry.hidden)) {
+          state.createRoomSelection.add(libraryId);
+        }
+      }
       $("createRoomName").value = "";
+      $("createRoomMemberSearch").value = "";
+      setCreateRoomMode("library");
+      renderCreateRoomMembers();
       updateRoomIdHint();
       openOverlay("createRoomSheet");
       $("createRoomName").focus();
     }
 
-    function updateRoomIdHint() {
-      const name = $("createRoomName").value.trim();
-      const slug = name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-      $("createRoomIdHint").textContent = slug.length >= 3
-        ? `房间 id：${slug}（冲突时自动加后缀）`
-        : "房间 id 将自动生成。";
+    function setCreateRoomMode(mode) {
+      state.createRoomMode = mode;
+      for (const button of $("createRoomMode").querySelectorAll("[data-mode]")) {
+        button.classList.toggle("on", button.dataset.mode === mode);
+      }
+      $("createRoomLibrary").hidden = mode !== "library";
+      $("createRoomCopyWrap").hidden = mode !== "copy";
+    }
+
+    function renderCreateRoomMembers() {
+      const cats = $("createRoomMemberCats");
+      clearNode(cats);
+      const catButton = (value, label) => {
+        const button = el("button", state.createRoomMemberCategory === value ? "on" : "", label);
+        button.type = "button";
+        button.addEventListener("click", () => {
+          state.createRoomMemberCategory = value;
+          renderCreateRoomMembers();
+        });
+        cats.appendChild(button);
+      };
+      catButton("all", "全部");
+      for (const category of MEMBER_CATEGORY_ORDER) {
+        if (state.memberLibrary.some((member) => member.category === category && !member.hidden)) catButton(category, category);
+      }
+      const grid = $("createRoomMemberGrid");
+      clearNode(grid);
+      const query = state.createRoomMemberQuery.toLowerCase();
+      const members = state.memberLibrary.filter((member) => !member.hidden
+        && (state.createRoomMemberCategory === "all" || member.category === state.createRoomMemberCategory)
+        && (!query || [member.name, member.role, member.description || "", ...(member.tags || [])].join(" ").toLowerCase().includes(query)));
+      if (members.length === 0) {
+        grid.appendChild(el("div", "library-empty", "没有匹配的成员；可以在设置 → 成员管理中新增。"));
+      }
+      for (const member of members) {
+        grid.appendChild(libraryMemberCard(member, {
+          selectable: true,
+          selected: state.createRoomSelection.has(member.id),
+          onToggle: (entry) => {
+            if (state.createRoomSelection.has(entry.id)) state.createRoomSelection.delete(entry.id);
+            else state.createRoomSelection.add(entry.id);
+            renderCreateRoomMembers();
+          },
+        }));
+      }
+      $("createRoomMemberCount").textContent = `已选 ${state.createRoomSelection.size}`;
     }
 
     async function createRoomSubmit() {
@@ -3912,21 +4913,30 @@
         return;
       }
       const workspaceValue = $("createRoomWorkspace").value;
-      const copyValue = $("createRoomCopy").value;
       const input = { name };
       if (workspaceValue === "__chat__") {
         input.noWorkspace = true;
       } else {
         input.workspaceId = workspaceValue;
       }
-      if (copyValue === "__default__") {
+      if (state.createRoomMode === "copy") {
+        const copyValue = $("createRoomCopy").value;
+        if (!copyValue) {
+          setStatus("没有可复制的房间", "error");
+          return;
+        }
+        input.copyFromRoomId = copyValue;
+      } else {
+        if (state.createRoomSelection.size === 0) {
+          setStatus("至少选择 1 名成员", "error");
+          return;
+        }
+        input.libraryMemberIds = [...state.createRoomSelection];
         const binding = catalogMemberBinding() || preferredMemberBinding();
         if (binding) {
           input.defaultPlatformId = binding.platformId;
           input.defaultModelId = binding.modelId;
         }
-      } else {
-        input.copyFromRoomId = copyValue;
       }
       $("createRoomSubmit").disabled = true;
       setStatus("正在创建房间…", "busy");
@@ -3945,6 +4955,14 @@
       setStatus("房间已创建", "ok");
     }
 
+    function updateRoomIdHint() {
+      const name = $("createRoomName").value.trim();
+      const slug = name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      $("createRoomIdHint").textContent = slug.length >= 3
+        ? `房间 id：${slug}（冲突时自动加后缀）`
+        : "房间 id 将自动生成。";
+    }
+
     async function refreshWorkspaceData() {
       const workspacesResult = await api.workspaces();
       const roomsResult = await api.listRooms();
@@ -3958,18 +4976,41 @@
       renderAll();
     }
 
-    function uniqueMemberName() {
-      const names = new Set((state.room?.members || []).map((member) => member.name.toLowerCase()));
-      let name = "新成员";
+    function roomMemberFromLibrary(entry, binding, taken) {
+      let id = entry.id;
       let suffix = 2;
-      while (names.has(name.toLowerCase())) {
-        name = `新成员 ${suffix}`;
+      while (taken.ids.has(id)) {
+        id = `${entry.id}-${suffix}`;
         suffix += 1;
       }
-      return name;
+      let name = entry.name;
+      suffix = 2;
+      while (taken.names.has(name.trim().toLowerCase())) {
+        name = `${entry.name} ${suffix}`;
+        suffix += 1;
+      }
+      taken.ids.add(id);
+      taken.names.add(name.trim().toLowerCase());
+      return {
+        id,
+        name,
+        avatar: entry.avatar,
+        role: entry.role,
+        instructions: entry.instructions,
+        binding: { ...binding },
+        behavior: { weight: 1 },
+        permissions: { write: false },
+        skills: entry.skills?.length ? [...entry.skills] : undefined,
+        mcps: entry.mcps?.length ? [...entry.mcps] : undefined,
+        sourceMemberId: entry.id,
+      };
     }
 
-    async function addMember() {
+    function roomHasLibraryMember(entry) {
+      return (state.room?.members || []).some((member) => member.sourceMemberId === entry.id || member.id === entry.id);
+    }
+
+    function openMemberPicker(options = {}) {
       if (!state.room) {
         setStatus("先创建或选择一个房间", "error");
         return;
@@ -3978,21 +5019,83 @@
         setStatus("运行中不能新增成员", "error");
         return;
       }
+      if (!options.keepSelection) state.pickerSelection = new Set();
+      state.pickerQuery = "";
+      state.pickerCategory = "all";
+      $("pickerSearch").value = "";
+      renderMemberPicker();
+      openOverlay("memberPickerSheet");
+      $("pickerSearch").focus();
+    }
+
+    function renderMemberPicker() {
+      const cats = $("pickerCats");
+      clearNode(cats);
+      const catButton = (value, label) => {
+        const button = el("button", state.pickerCategory === value ? "on" : "", label);
+        button.type = "button";
+        button.addEventListener("click", () => {
+          state.pickerCategory = value;
+          renderMemberPicker();
+        });
+        cats.appendChild(button);
+      };
+      catButton("all", "全部");
+      for (const category of MEMBER_CATEGORY_ORDER) {
+        if (state.memberLibrary.some((member) => member.category === category && !member.hidden)) catButton(category, category);
+      }
+      const body = $("pickerBody");
+      clearNode(body);
+      const query = state.pickerQuery.toLowerCase();
+      const matches = (member) => !query
+        || [member.name, member.role, member.description || "", ...(member.tags || [])].join(" ").toLowerCase().includes(query);
+      let shown = 0;
+      for (const category of MEMBER_CATEGORY_ORDER) {
+        if (state.pickerCategory !== "all" && state.pickerCategory !== category) continue;
+        const members = state.memberLibrary.filter((member) => !member.hidden && member.category === category && matches(member));
+        if (members.length === 0) continue;
+        shown += members.length;
+        const group = el("div", "library-group");
+        group.appendChild(el("h5", "", category));
+        const grid = el("div", "library-grid picker-grid");
+        for (const member of members) {
+          const already = roomHasLibraryMember(member);
+          grid.appendChild(libraryMemberCard(member, {
+            selectable: true,
+            selected: state.pickerSelection.has(member.id),
+            disabled: already,
+            onToggle: (entry) => {
+              if (state.pickerSelection.has(entry.id)) state.pickerSelection.delete(entry.id);
+              else state.pickerSelection.add(entry.id);
+              renderMemberPicker();
+            },
+          }));
+        }
+        group.appendChild(grid);
+        body.appendChild(group);
+      }
+      if (shown === 0) body.appendChild(el("div", "library-empty", "没有匹配的成员；可以新建自定义成员。"));
+      $("pickerCount").textContent = `已选 ${state.pickerSelection.size}`;
+      $("pickerAdd").disabled = state.pickerSelection.size === 0;
+    }
+
+    async function addLibraryEntriesToRoom(entries) {
+      if (!state.room) return;
       const binding = preferredMemberBinding();
       if (!binding) {
         setStatus("没有可用模型；请先在应用设置同步模型目录", "error");
         return;
       }
-      const member = {
-        id: `member-${Math.random().toString(36).slice(2, 10)}`,
-        name: uniqueMemberName(),
-        role: "成员",
-        instructions: "给出具体、可执行的建议；需要交接时写 @成员名，完成任务以 DONE 结束。",
-        binding: { ...binding },
-        behavior: { weight: 1 },
-        permissions: { write: false },
+      const taken = {
+        ids: new Set(state.room.members.map((member) => member.id)),
+        names: new Set(state.room.members.map((member) => member.name.trim().toLowerCase())),
       };
-      state.room.members = [...state.room.members, member];
+      const created = entries.map((entry) => roomMemberFromLibrary(entry, binding, taken));
+      state.room.members = [...state.room.members, ...created];
+      state.room.rules.planOrder = [
+        ...(state.room.rules.planOrder || state.room.members.map((member) => member.id)),
+        ...created.map((member) => member.id),
+      ].filter((id, index, list) => list.indexOf(id) === index);
       state.room.updatedAt = new Date().toISOString();
       const result = await api.updateRoom(state.room.id, state.room);
       if (result.status !== "success") {
@@ -4000,9 +5103,47 @@
         setStatus(result.summary || "新增成员失败", "error");
         return;
       }
+      const firstId = created[0]?.id;
+      closeOverlays();
       await loadRoom(state.room.id);
-      selectMember(member.id);
-      setStatus("成员已添加", "ok");
+      setStatus(`已添加 ${created.length} 名成员`, "ok");
+      if (firstId) selectMember(firstId);
+    }
+
+    async function addSelectedMembersToRoom() {
+      const entries = state.memberLibrary.filter((member) => state.pickerSelection.has(member.id) && !roomHasLibraryMember(member));
+      if (entries.length === 0) return;
+      $("pickerAdd").disabled = true;
+      await addLibraryEntriesToRoom(entries);
+    }
+
+    async function deleteRoomFlow() {
+      if (!state.room) return;
+      if (state.running || state.runningTaskId) {
+        setStatus("运行中不能删除房间；先停止对话和任务", "error");
+        return;
+      }
+      const room = state.room;
+      if (!window.confirm(`删除房间「${room.name || room.id}」？\n\n会删除对话记录、任务、简报和附件；不会删除工作区文件夹。`)) return;
+      if (!window.confirm("最后确认：任务 worktree 会被清理，未提交改动会丢失。继续删除？")) return;
+      const result = await api.deleteRoom({ roomId: room.id, force: true });
+      if (result.status !== "success") {
+        setStatus(result.summary || "删除房间失败", "error");
+        return;
+      }
+      closeOverlays();
+      closeInspector();
+      state.room = null;
+      state.events = [];
+      state.tasks = [];
+      state.selectedMemberId = null;
+      state.taskDetail = null;
+      state.taskDetailId = "";
+      await refreshWorkspaceData();
+      setView("chat");
+      const next = filteredRooms()[0];
+      if (next) await loadRoom(next.id);
+      setStatus("房间已删除", "ok");
     }
 
     async function deleteCurrentMember() {
@@ -4113,7 +5254,7 @@
         const button = el("button", `member-item${state.selectedMemberId === member.id ? " active" : ""}`);
         button.type = "button";
         button.title = "打开成员配置";
-        const avatar = el("span", "member-avatar", initialOf(member.name));
+        const avatar = el("span", "member-avatar", member.avatar || initialOf(member.name));
         avatar.style.color = memberColor(index);
         avatar.style.borderColor = "rgba(255,255,255,.06)";
         button.appendChild(avatar);
@@ -4138,6 +5279,7 @@
       }
       const changed = state.room?.id !== roomId;
       state.room = result.data;
+      if (changed && state.inspectorOpen) closeInspector();
       if (changed) {
         state.boardQuery = "";
         state.boardOrigin = "all";
@@ -4159,6 +5301,7 @@
       }
       const tasksResult = await api.listTasks(roomId);
       state.tasks = tasksResult.status === "success" ? tasksResult.data || [] : [];
+      updateTaskCosts();
       state.workspaceIsGit = false;
       if (state.room.workspace) {
         const gitResult = await api.inspect({ roomId, sub: "git-status" });
@@ -4234,8 +5377,15 @@
       }, 0);
     }
 
+    function updateTaskCosts() {
+      state.taskCostYuan = state.tasks.reduce((total, task) => total + Number(task.costYuan || 0), 0);
+      state.taskTokens = state.tasks.reduce((total, task) => total + Number(task.usageTokens || 0), 0);
+    }
+
     function renderCost() {
-      $("cost").textContent = `¥${state.costYuan.toFixed(2)} · ${state.totalTokens.toLocaleString()} tok`;
+      const cost = state.costYuan + state.taskCostYuan;
+      const tokens = state.totalTokens + state.taskTokens;
+      $("cost").textContent = `¥${cost.toFixed(2)} · ${tokens.toLocaleString()} tok`;
       const turns = state.events.filter((event) => event.type === "turn_finished");
       let input = 0;
       let output = 0;
@@ -4256,22 +5406,25 @@
           ? `\n最近上下文 ${used.toLocaleString()} / ${window.toLocaleString()}（${((used / window) * 100).toFixed(1)}%）`
           : `\n最近上下文 ${used.toLocaleString()}`;
       }
-      $("cost").title = `输入 ${input.toLocaleString()} · 输出 ${output.toLocaleString()} · 缓存 ${cache.toLocaleString()}${context}\n点击查看用量统计`;
+      $("cost").title = `聊天 ¥${state.costYuan.toFixed(2)} · 任务 ¥${state.taskCostYuan.toFixed(2)}`
+        + `\n输入 ${input.toLocaleString()} · 输出 ${output.toLocaleString()} · 缓存 ${cache.toLocaleString()}${context}`
+        + `\n任务 token ${state.taskTokens.toLocaleString()} · 点击查看用量统计`;
       maybeWarnBudget();
     }
 
     function maybeWarnBudget() {
       const budget = Number(state.room?.rules?.budgetYuan || 0);
       if (!state.room || budget <= 0) return;
-      if (state.costYuan < budget * 0.8) return;
-      const key = `${state.room.id}:${state.costYuan >= budget ? "full" : "warn"}`;
+      const cost = state.costYuan + state.taskCostYuan;
+      if (cost < budget * 0.8) return;
+      const key = `${state.room.id}:${cost >= budget ? "full" : "warn"}`;
       if (state.budgetWarnedRoom === key) return;
       state.budgetWarnedRoom = key;
       setStatus(
-        state.costYuan >= budget
+        cost >= budget
           ? `房间预算 ¥${budget.toFixed(2)} 已用完，下一轮将停止`
-          : `房间预算已用 ${((state.costYuan / budget) * 100).toFixed(0)}%（¥${budget.toFixed(2)}）`,
-        state.costYuan >= budget ? "error" : "busy",
+          : `房间预算已用 ${((cost / budget) * 100).toFixed(0)}%（¥${budget.toFixed(2)}）`,
+        cost >= budget ? "error" : "busy",
       );
     }
 
@@ -4426,7 +5579,7 @@
       const member = memberById(event.memberId);
       const row = el("div", "msg agent");
       row.dataset.messageId = event.id || "";
-      const avatar = el("div", "avatar", initialOf(event.memberName || member?.name));
+      const avatar = el("div", "avatar", member?.avatar || initialOf(event.memberName || member?.name));
       avatar.style.color = memberColor(Math.max(index, 0));
       row.appendChild(avatar);
       const body = el("div", "msg-body");
@@ -4452,6 +5605,7 @@
 
     function selectMember(memberId) {
       state.selectedMemberId = memberId;
+      state.memberEditorTab = "basic";
       renderMembers();
       renderEditor();
       openOverlay("memberDrawer");
@@ -4462,133 +5616,193 @@
       clearNode(editor);
       if (!state.room || !state.selectedMemberId) {
         editor.appendChild(el("div", "hint", "先选择一个房间和成员。"));
+        $("drawerTitle").textContent = "成员配置";
         $("editorHint").textContent = "选择左侧成员";
         return;
       }
       const member = state.room.members.find((item) => item.id === state.selectedMemberId);
       if (!member) return;
-      $("editorHint").textContent = `${member.name} · ${member.id} · ${member.binding.platformId}/${member.binding.modelId}`;
+      if (!["basic", "model", "advanced"].includes(state.memberEditorTab)) state.memberEditorTab = "basic";
+      const librarySource = member.sourceMemberId
+        ? state.memberLibrary.find((entry) => entry.id === member.sourceMemberId)
+        : null;
+      $("drawerTitle").textContent = member.name;
+      $("editorHint").textContent = `${member.role} · ${member.id} · ${member.binding.platformId}/${member.binding.modelId}`;
 
-      const identity = section("身份");
-      identity.appendChild(field("名称", input("name", member.name)));
-      identity.appendChild(field("角色", input("role", member.role)));
-      identity.appendChild(field("系统提示词", textarea("instructions", member.instructions)));
+      const header = el("div", "lib-form-head");
+      header.appendChild(el("div", "lib-avatar", member.avatar || initialOf(member.name)));
+      const headMain = el("div", "lib-main");
+      const headName = el("div", "lib-name");
+      headName.appendChild(el("strong", "", member.name));
+      if (member.sourceMemberId) headName.appendChild(el("span", "mini-badge builtin", "来自成员库"));
+      if (member.permissions?.write) headName.appendChild(el("span", "mini-badge", "可写"));
+      headMain.appendChild(headName);
+      headMain.appendChild(el("div", "lib-role", member.role));
+      if (librarySource) headMain.appendChild(el("div", "hint", `库中角色「${librarySource.name}」的副本；这里修改不会回写成员库。`));
+      header.appendChild(headMain);
+      editor.appendChild(header);
 
-      const binding = section("模型绑定");
-      const platformOptions = state.platforms.map((platform) => ({
-        value: platform.id,
-        label: `${platform.name}${platform.enabled === false ? "（禁用）" : ""}`,
-        disabled: platform.enabled === false,
-      }));
-      if (!state.platforms.some((platform) => platform.id === member.binding.platformId)) {
-        platformOptions.unshift({
-          value: member.binding.platformId,
-          label: `${member.binding.platformId}（不在平台列表）`,
+      const tabs = el("div", "editor-tabs");
+      for (const [id, label] of [["basic", "基本"], ["model", "模型"], ["advanced", "高级"]]) {
+        const button = el("button", state.memberEditorTab === id ? "on" : "", label);
+        button.type = "button";
+        button.addEventListener("click", () => {
+          captureDraft(member);
+          state.memberEditorTab = id;
+          renderEditor();
         });
+        tabs.appendChild(button);
       }
-      const platformSelect = select("platformId", platformOptions, member.binding.platformId);
-      binding.appendChild(field("平台", platformSelect));
-      const modelOptions = modelsFor(member.binding.platformId).map((model) => ({
-        value: model.modelId,
-        label: `${model.displayName} · ${formatContext(model.contextWindow)}`,
-      }));
-      if (!findModel(member.binding.platformId, member.binding.modelId)) {
-        modelOptions.unshift({
-          value: member.binding.modelId,
-          label: `${member.binding.modelId}（模型目录中未找到）`,
+      editor.appendChild(tabs);
+
+      let platformSelect = null;
+      let modelSelect = null;
+      let thinking = null;
+      let caps = null;
+
+      if (state.memberEditorTab === "basic") {
+        const identity = section("身份");
+        const avatarField = field("头像（单个 emoji）", input("avatar", member.avatar || ""));
+        const avatarInput = avatarField.querySelector("input");
+        avatarInput.maxLength = 2;
+        avatarInput.style.maxWidth = "110px";
+        const avatarRow = el("div", "avatar-row");
+        for (const emoji of MEMBER_AVATARS.slice(0, 12)) {
+          const button = el("button", (member.avatar || "") === emoji ? "on" : "", emoji);
+          button.type = "button";
+          button.addEventListener("click", () => {
+            avatarInput.value = emoji;
+            [...avatarRow.children].forEach((node) => node.classList.toggle("on", node === button));
+          });
+          avatarRow.appendChild(button);
+        }
+        avatarField.appendChild(avatarRow);
+        identity.appendChild(avatarField);
+        identity.appendChild(field("名称", input("name", member.name)));
+        identity.appendChild(field("角色", input("role", member.role)));
+        const instructions = textarea("instructions", member.instructions);
+        instructions.style.minHeight = "220px";
+        identity.appendChild(field("系统提示词", instructions));
+        identity.appendChild(el("div", "hint", "写清职责、关注点、输出格式、边界与交接方式；完成时以 DONE 结束。"));
+      } else if (state.memberEditorTab === "model") {
+        const binding = section("模型绑定");
+        const platformOptions = state.platforms.map((platform) => ({
+          value: platform.id,
+          label: `${platform.name}${platform.enabled === false ? "（禁用）" : ""}`,
+          disabled: platform.enabled === false,
+        }));
+        if (!state.platforms.some((platform) => platform.id === member.binding.platformId)) {
+          platformOptions.unshift({
+            value: member.binding.platformId,
+            label: `${member.binding.platformId}（不在平台列表）`,
+          });
+        }
+        platformSelect = select("platformId", platformOptions, member.binding.platformId);
+        binding.appendChild(field("平台", platformSelect));
+        const modelOptions = modelsFor(member.binding.platformId).map((model) => ({
+          value: model.modelId,
+          label: `${model.displayName} · ${formatContext(model.contextWindow)}`,
+        }));
+        if (!findModel(member.binding.platformId, member.binding.modelId)) {
+          modelOptions.unshift({
+            value: member.binding.modelId,
+            label: `${member.binding.modelId}（模型目录中未找到）`,
+          });
+        }
+        modelSelect = select("modelId", modelOptions, member.binding.modelId);
+        let allModelOptions = modelOptions;
+        if (modelsFor(member.binding.platformId).length > 40) {
+          const filter = input("modelFilter", "");
+          filter.placeholder = "输入关键字筛选模型";
+          filter.addEventListener("input", () => {
+            const keyword = filter.value.trim().toLowerCase();
+            const current = modelSelect.value;
+            const matches = allModelOptions.filter((option) =>
+              !keyword || option.value.toLowerCase().includes(keyword) || option.label.toLowerCase().includes(keyword));
+            const visible = matches.slice(0, 80);
+            const currentOption = allModelOptions.find((option) => option.value === current);
+            if (currentOption && !visible.some((option) => option.value === current)) {
+              visible.unshift(currentOption);
+            }
+            clearNode(modelSelect);
+            if (visible.length === 0) {
+              const empty = document.createElement("option");
+              empty.value = "";
+              empty.textContent = "无匹配模型";
+              empty.disabled = true;
+              modelSelect.appendChild(empty);
+              return;
+            }
+            for (const option of visible) {
+              const item = document.createElement("option");
+              item.value = option.value;
+              item.textContent = option.label;
+              modelSelect.appendChild(item);
+            }
+            if (currentOption) modelSelect.value = current;
+            modelSelect.dispatchEvent(new Event("change"));
+          });
+          platformSelect.addEventListener("change", () => {
+            allModelOptions = modelsFor(platformSelect.value).map((model) => ({
+              value: model.modelId,
+              label: `${model.displayName} · ${formatContext(model.contextWindow)}`,
+            }));
+          });
+          binding.appendChild(field("筛选模型", filter));
+        }
+        binding.appendChild(field("模型", modelSelect));
+        thinking = select("thinking", thinkingOptions(member.binding.platformId, member.binding.modelId), member.binding.thinking || "");
+        binding.appendChild(field("思考强度", thinking));
+        caps = el("div", "badges");
+        binding.appendChild(caps);
+        const budgetRow = el("div", "two");
+        budgetRow.appendChild(field("上下文窗口", numberInput("contextWindow", member.binding.contextWindow)));
+        budgetRow.appendChild(field("上下文预算", numberInput("contextBudget", member.binding.contextBudget)));
+        binding.appendChild(budgetRow);
+        binding.appendChild(el("div", "hint", "窗口以模型目录为准；预算建议不超过窗口的 70%。"));
+
+        const fallback = section("备用模型链");
+        const fallbackList = el("div", "fallback-list");
+        renderFallbacks(fallbackList, member);
+        fallback.appendChild(fallbackList);
+        const addFallback = el("button", "", "添加备用模型");
+        addFallback.type = "button";
+        addFallback.addEventListener("click", () => {
+          captureDraft(member);
+          if (!member.binding.fallback) member.binding.fallback = [];
+          member.binding.fallback.push({
+            platformId: member.binding.platformId,
+            modelId: member.binding.modelId,
+            thinking: member.binding.thinking,
+          });
+          renderEditor();
         });
+        fallback.appendChild(addFallback);
+      } else {
+        const behavior = section("参与度与权限");
+        behavior.appendChild(field("发言权重（0 为静默）", numberInput("weight", member.behavior?.weight ?? 1)));
+        behavior.appendChild(check("canInitiate", "可以在没人点名时主动发言", member.behavior?.canInitiate !== false));
+        behavior.appendChild(check("write", "允许写入（仅提示模型，不是强制沙箱）", member.permissions?.write === true));
+
+        const order = section("发言顺序");
+        const orderText = (state.room.rules?.planOrder || state.room.members.map((item) => item.id))
+          .map((id) => memberById(id)?.name || id)
+          .join(" → ");
+        order.appendChild(el("div", "hint", orderText));
+        const orderButtons = el("div", "two");
+        const up = el("button", "", "上移");
+        up.type = "button";
+        up.addEventListener("click", () => moveMember(member.id, -1));
+        const down = el("button", "", "下移");
+        down.type = "button";
+        down.addEventListener("click", () => moveMember(member.id, 1));
+        orderButtons.appendChild(up);
+        orderButtons.appendChild(down);
+        order.appendChild(orderButtons);
+
+        const capabilities = section("技能 / MCP（只读）");
+        capabilities.appendChild(renderManifest(member));
       }
-      const modelSelect = select("modelId", modelOptions, member.binding.modelId);
-      let allModelOptions = modelOptions;
-      if (modelsFor(member.binding.platformId).length > 40) {
-        const filter = input("modelFilter", "");
-        filter.placeholder = "输入关键字筛选模型";
-        filter.addEventListener("input", () => {
-          const keyword = filter.value.trim().toLowerCase();
-          const current = modelSelect.value;
-          const matches = allModelOptions.filter((option) =>
-            !keyword || option.value.toLowerCase().includes(keyword) || option.label.toLowerCase().includes(keyword));
-          const visible = matches.slice(0, 80);
-          const currentOption = allModelOptions.find((option) => option.value === current);
-          if (currentOption && !visible.some((option) => option.value === current)) {
-            visible.unshift(currentOption);
-          }
-          clearNode(modelSelect);
-          if (visible.length === 0) {
-            const empty = document.createElement("option");
-            empty.value = "";
-            empty.textContent = "无匹配模型";
-            empty.disabled = true;
-            modelSelect.appendChild(empty);
-            return;
-          }
-          for (const option of visible) {
-            const item = document.createElement("option");
-            item.value = option.value;
-            item.textContent = option.label;
-            modelSelect.appendChild(item);
-          }
-          if (currentOption) modelSelect.value = current;
-          modelSelect.dispatchEvent(new Event("change"));
-        });
-        platformSelect.addEventListener("change", () => {
-          allModelOptions = modelsFor(platformSelect.value).map((model) => ({
-            value: model.modelId,
-            label: `${model.displayName} · ${formatContext(model.contextWindow)}`,
-          }));
-        });
-        binding.appendChild(field("筛选模型", filter));
-      }
-      binding.appendChild(field("模型", modelSelect));
-      const thinking = select("thinking", thinkingOptions(member.binding.platformId, member.binding.modelId), member.binding.thinking || "");
-      binding.appendChild(field("思考强度", thinking));
-      const caps = el("div", "badges");
-      binding.appendChild(caps);
-      const budgetRow = el("div", "two");
-      budgetRow.appendChild(field("上下文窗口", numberInput("contextWindow", member.binding.contextWindow)));
-      budgetRow.appendChild(field("上下文预算", numberInput("contextBudget", member.binding.contextBudget)));
-      binding.appendChild(budgetRow);
-      binding.appendChild(el("div", "hint", "窗口以模型目录为准；预算建议不超过窗口的 70%。模型目录可在应用设置中同步。"));
-
-      const behavior = section("参与度与权限");
-      behavior.appendChild(field("发言权重（0 为静默）", numberInput("weight", member.behavior?.weight ?? 1)));
-      behavior.appendChild(check("canInitiate", "可以在没人点名时主动发言", member.behavior?.canInitiate !== false));
-      behavior.appendChild(check("write", "允许写入（仅提示模型，不是强制沙箱）", member.permissions?.write === true));
-
-      const fallback = section("备用模型链");
-      const fallbackList = el("div", "fallback-list");
-      renderFallbacks(fallbackList, member);
-      fallback.appendChild(fallbackList);
-      const addFallback = el("button", "", "添加备用模型");
-      addFallback.type = "button";
-      addFallback.addEventListener("click", () => {
-        captureDraft(member);
-        if (!member.binding.fallback) member.binding.fallback = [];
-        member.binding.fallback.push({
-          platformId: member.binding.platformId,
-          modelId: member.binding.modelId,
-          thinking: member.binding.thinking,
-        });
-        renderEditor();
-      });
-      fallback.appendChild(addFallback);
-
-      const order = section("发言顺序");
-      const orderText = (state.room.rules?.planOrder || state.room.members.map((item) => item.id)).join(" → ");
-      order.appendChild(el("div", "hint", orderText));
-      const orderButtons = el("div", "two");
-      const up = el("button", "", "上移");
-      up.type = "button";
-      up.addEventListener("click", () => moveMember(member.id, -1));
-      const down = el("button", "", "下移");
-      down.type = "button";
-      down.addEventListener("click", () => moveMember(member.id, 1));
-      orderButtons.appendChild(up);
-      orderButtons.appendChild(down);
-      order.appendChild(orderButtons);
-
-      const capabilities = section("技能 / MCP（只读）");
-      capabilities.appendChild(renderManifest(member));
 
       const saveBar = el("div", "save-bar");
       const save = el("button", "primary", "保存成员配置");
@@ -4596,13 +5810,15 @@
       save.addEventListener("click", () => saveMember(member.id));
       saveBar.appendChild(save);
       saveBar.appendChild(el("div", "hint", "保存后下一回合生效；运行中换模型不被允许。"));
-      const remove = el("button", "danger drawer-delete", "删除成员");
+      const remove = el("button", "danger drawer-delete", "从房间移除");
       remove.type = "button";
       remove.addEventListener("click", deleteCurrentMember);
       saveBar.appendChild(remove);
       editor.appendChild(saveBar);
 
-      syncBindingControls(platformSelect, modelSelect, thinking, caps, member);
+      if (platformSelect && modelSelect && thinking && caps) {
+        syncBindingControls(platformSelect, modelSelect, thinking, caps, member);
+      }
     }
 
     function section(title) {
@@ -4801,6 +6017,7 @@
       return {
         name: String(value("name") || "").trim(),
         role: String(value("role") || "").trim(),
+        avatar: String(value("avatar") || "").trim(),
         instructions: String(value("instructions") || ""),
         platformId: String(value("platformId") || ""),
         modelId: String(value("modelId") || ""),
@@ -4827,6 +6044,7 @@
       const values = readEditorValues();
       if (values.name) member.name = values.name;
       if (values.role) member.role = values.role;
+      if (values.avatar) member.avatar = values.avatar;
       member.instructions = values.instructions;
       if (values.platformId) member.binding.platformId = values.platformId;
       if (values.modelId) member.binding.modelId = values.modelId;
@@ -4877,6 +6095,7 @@
       }
       member.name = values.name;
       member.role = values.role;
+      member.avatar = values.avatar || member.avatar;
       member.instructions = values.instructions;
       member.binding = {
         ...member.binding,

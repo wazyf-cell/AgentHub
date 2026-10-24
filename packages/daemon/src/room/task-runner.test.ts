@@ -122,3 +122,44 @@ test("task runner pauses when the budget is exceeded", async () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("review runs with an independent member, never the owner itself", async () => {
+  const { root, repo, store, room, owner } = setup();
+  try {
+    room.members.push({
+      id: "reviewer",
+      name: "审查者",
+      role: "审查",
+      instructions: "审查改动并给出结论。",
+      binding: { platformId: "fake", modelId: "fake-reviewer" },
+      behavior: { weight: 1 },
+    });
+    store.writeRoom(room);
+    const seen: string[] = [];
+    const backend: AgentBackend = {
+      id: "test-backend",
+      async runTurn(request) {
+        seen.push(request.member.id);
+        if (request.prompt.includes("你是审查者")) {
+          return { text: "APPROVE", status: "completed" };
+        }
+        if (request.cwd) writeFileSync(join(request.cwd, "out.txt"), "hello\n");
+        return { text: "完成，DONE", status: "completed" };
+      },
+    };
+    const task = createTask(store, room.id, {
+      title: "独立审查",
+      description: "创建 out.txt",
+      acceptance: "out.txt 存在",
+      ownerMemberId: owner,
+    });
+    const result = await runTask({ store, roomId: room.id, taskId: task.id, backend });
+    assert.equal(result.task.status, "merge_ready");
+    assert.ok(seen.includes(`${owner}__task_${task.id}`));
+    assert.ok(seen.includes(`reviewer__review_${task.id}`));
+    assert.equal(result.report?.review?.reviewerMemberId, "reviewer");
+    assert.equal(result.report?.review?.verdict, "approved");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -604,16 +604,169 @@ ipcMain.handle("room:create", (_event, input) => {
   if (input?.copyFromRoomId) {
     args.push("--copy-from", String(input.copyFromRoomId));
   }
+  for (const memberId of Array.isArray(input?.libraryMemberIds) ? input.libraryMemberIds : []) {
+    args.push("--library-member", String(memberId));
+  }
   if (input?.defaultPlatformId && input?.defaultModelId) {
     args.push("--platform", String(input.defaultPlatformId), "--model", String(input.defaultModelId));
   }
   return runRoomJson("create", args);
 });
 
+ipcMain.handle("room:delete", async (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  if (!roomId) return { status: "error", summary: "房间 id 不能为空。" };
+  const args = ["delete", "--room", roomId, "--json"];
+  if (input?.force === true) args.push("--force");
+  const result = await runRoomJson("delete", args);
+  if (result.status === "success") {
+    const safe = roomId.replace(/[^a-zA-Z0-9_-]/g, "");
+    if (safe) fs.rmSync(path.join(ATTACHMENTS_DIR, safe), { recursive: true, force: true });
+  }
+  return result;
+});
+
+function cleanupOrphanAttachments() {
+  const summary = { removedDirs: 0, removedFiles: 0, freedBytes: 0 };
+  if (!fs.existsSync(ATTACHMENTS_DIR)) return summary;
+  const rooms = new Set();
+  if (fs.existsSync(ROOM_DATA_DIR)) {
+    for (const entry of fs.readdirSync(ROOM_DATA_DIR, { withFileTypes: true })) {
+      if (entry.isDirectory() && fs.existsSync(path.join(ROOM_DATA_DIR, entry.name, "room.json"))) {
+        rooms.add(entry.name);
+      }
+    }
+  }
+  const dirSize = (dir) => {
+    let total = 0;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const target = path.join(dir, entry.name);
+      try {
+        total += entry.isDirectory() ? dirSize(target) : fs.statSync(target).size;
+      } catch {
+        // A file may disappear while scanning.
+      }
+    }
+    return total;
+  };
+  for (const entry of fs.readdirSync(ATTACHMENTS_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const dir = path.join(ATTACHMENTS_DIR, entry.name);
+    if (!rooms.has(entry.name)) {
+      summary.freedBytes += dirSize(dir);
+      fs.rmSync(dir, { recursive: true, force: true });
+      summary.removedDirs += 1;
+      continue;
+    }
+    const referenced = new Set();
+    const eventsPath = path.join(ROOM_DATA_DIR, entry.name, "events.jsonl");
+    if (fs.existsSync(eventsPath)) {
+      for (const line of fs.readFileSync(eventsPath, "utf8").split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+          for (const image of Array.isArray(event.images) ? event.images : []) {
+            if (typeof image === "string") referenced.add(path.resolve(image));
+          }
+        } catch {
+          // Ignore a corrupt journal line when deciding what is referenced.
+        }
+      }
+    }
+    for (const file of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!file.isFile()) continue;
+      const target = path.join(dir, file.name);
+      if (referenced.has(path.resolve(target))) continue;
+      try {
+        summary.freedBytes += fs.statSync(target).size;
+        fs.rmSync(target, { force: true });
+        summary.removedFiles += 1;
+      } catch {
+        // Leave files we cannot remove; the next scan will retry.
+      }
+    }
+  }
+  return summary;
+}
+
+ipcMain.handle("room:cleanup-attachments", () => {
+  try {
+    return { status: "success", data: cleanupOrphanAttachments() };
+  } catch (error) {
+    return { status: "error", summary: error.message };
+  }
+});
+
 function roomArgs(roomId) {
   const args = ["--room", String(roomId || "")];
   return args;
 }
+
+ipcMain.handle("room:member-library", () => runRoomJson("member", ["list", "--all", "--json"]));
+
+ipcMain.handle("room:member-add", (_event, input) => {
+  const name = String(input?.name || "").trim();
+  const instructions = String(input?.instructions || "").trim();
+  if (!name || !instructions) {
+    return { status: "error", summary: "成员名称和提示词不能为空。" };
+  }
+  const args = ["add", "--name", name, "--instructions", instructions, "--json"];
+  for (const [key, flag] of [
+    ["role", "--role"],
+    ["category", "--category"],
+    ["avatar", "--avatar"],
+    ["description", "--description"],
+  ]) {
+    if (input?.[key]) args.push(flag, String(input[key]));
+  }
+  for (const tag of Array.isArray(input?.tags) ? input.tags : []) args.push("--tag", String(tag));
+  for (const skill of Array.isArray(input?.skills) ? input.skills : []) args.push("--skill", String(skill));
+  for (const mcp of Array.isArray(input?.mcps) ? input.mcps : []) args.push("--mcp", String(mcp));
+  return runRoomJson("member", args);
+});
+
+ipcMain.handle("room:member-update", (_event, input) => {
+  const id = String(input?.id || "").trim();
+  if (!id) return { status: "error", summary: "成员 id 不能为空。" };
+  const args = ["update", "--id", id, "--json"];
+  for (const [key, flag] of [
+    ["name", "--name"],
+    ["role", "--role"],
+    ["category", "--category"],
+    ["avatar", "--avatar"],
+    ["description", "--description"],
+    ["instructions", "--instructions"],
+  ]) {
+    if (input?.[key] !== undefined) args.push(flag, String(input[key]));
+  }
+  if (Array.isArray(input?.tags)) {
+    if (input.tags.length === 0) args.push("--tag", "");
+    for (const tag of input.tags) args.push("--tag", String(tag));
+  }
+  if (Array.isArray(input?.skills)) {
+    if (input.skills.length === 0) args.push("--skill", "");
+    for (const skill of input.skills) args.push("--skill", String(skill));
+  }
+  if (Array.isArray(input?.mcps)) {
+    if (input.mcps.length === 0) args.push("--mcp", "");
+    for (const mcp of input.mcps) args.push("--mcp", String(mcp));
+  }
+  if (input?.hidden === true) args.push("--hidden");
+  if (input?.hidden === false) args.push("--visible");
+  return runRoomJson("member", args);
+});
+
+ipcMain.handle("room:member-remove", (_event, id) => {
+  const memberId = String(id || "").trim();
+  if (!memberId) return { status: "error", summary: "成员 id 不能为空。" };
+  return runRoomJson("member", ["remove", "--id", memberId, "--json"]);
+});
+
+ipcMain.handle("room:member-restore", (_event, id) => {
+  const memberId = String(id || "").trim();
+  if (!memberId) return { status: "error", summary: "成员 id 不能为空。" };
+  return runRoomJson("member", ["restore", "--id", memberId, "--json"]);
+});
 
 ipcMain.handle("room:draft-show", (_event, input) => {
   const runId = String(input?.runId || "").trim();
@@ -643,7 +796,33 @@ ipcMain.handle("room:draft-list", (_event, input) => {
   return runRoomJson("draft", args);
 });
 
-ipcMain.handle("room:task-list", (_event, roomId) => runRoomJson("task", ["list", "--json", ...roomArgs(roomId)]));
+ipcMain.handle("room:task-list", (_event, input) => {
+  const args = ["list", "--json"];
+  if (input?.all === true) args.push("--all");
+  return runRoomJson("task", [...args, ...roomArgs(input?.roomId)]);
+});
+
+ipcMain.handle("room:task-all", (_event, input) => {
+  const args = ["all", "--json"];
+  if (input?.all === true) args.push("--all");
+  return runRoomJson("task", args);
+});
+
+ipcMain.handle("room:task-cleanup-worktrees", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  if (!roomId) return { status: "error", summary: "房间 id 不能为空。" };
+  const args = ["cleanup-worktrees", "--json", "--room", roomId];
+  if (input?.force === true) args.push("--force");
+  return runRoomJson("task", args);
+});
+
+ipcMain.handle("room:task-archive", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const taskId = String(input?.taskId || "").trim();
+  if (!roomId || !taskId) return { status: "error", summary: "房间和任务 id 不能为空。" };
+  const sub = input?.archived === false ? "restore-archive" : "archive";
+  return runRoomJson("task", [sub, "--task", taskId, "--json", "--room", roomId]);
+});
 
 ipcMain.handle("room:task-show", (_event, input) => {
   const roomId = String(input?.roomId || "").trim();
@@ -1061,10 +1240,6 @@ ipcMain.handle("room:stop", () => {
   }
   activeRoomRun = null;
   return { status: "success", summary: "Stop signal sent." };
-});
-
-ipcMain.handle("room:open-legacy", () => {
-  mainWindow?.loadFile(path.join(__dirname, "local.html"));
 });
 
 ipcMain.handle("room:open-room", () => {

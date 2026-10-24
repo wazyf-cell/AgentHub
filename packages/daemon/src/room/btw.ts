@@ -103,11 +103,12 @@ export async function askBtw(options: {
   if (!member) throw new Error("房间没有成员。");
   const context = formatConversation(options.contextEvents ?? [], 12);
   const prompt = [
-    "这是一次只读侧问（btw），不要调用工具，不要修改任何文件，也不要 @ 其他成员。",
+    "这是一次只读侧问（btw）：可以使用只读工具检索或读取工作区文件，但不要修改文件、不要执行有副作用或破坏性的命令，也不要 @ 其他成员。",
     `房间：${options.room.name}`,
+    options.room.workspace ? `工作区：${options.room.workspace}` : "",
     context ? `最近对话：\n${context}` : "",
     `问题：\n${question}`,
-    "用简洁的中文回答，必要时指出不确定性。",
+    "用简洁的中文回答，引用文件时给相对路径；必要时指出不确定性。",
   ].filter(Boolean).join("\n\n");
   const release = acquireBtwSlot(options.store, options.room.id);
   const startedAt = new Date().toISOString();

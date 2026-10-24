@@ -41,6 +41,8 @@ export interface RoomMember {
   avatar?: string;
   role: string;
   instructions: string;
+  /** 从成员库复制而来时记录来源，仅用于界面标识；库改动不会回写房间。 */
+  sourceMemberId?: string;
   binding: RoleBinding;
   behavior?: {
     weight?: number;
@@ -220,6 +222,16 @@ export type RoomEvent =
       type: "task_report";
       taskId: string;
       path: string;
+      status: string;
+    })
+  | (RoomEventBase & {
+      type: "task_archived";
+      taskId: string;
+      status: string;
+    })
+  | (RoomEventBase & {
+      type: "task_restored";
+      taskId: string;
       status: string;
     })
   | (RoomEventBase & {

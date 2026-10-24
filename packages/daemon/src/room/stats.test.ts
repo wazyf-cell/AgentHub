@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cacheHitRate, computeRoomStats, parseSince } from "./stats.ts";
+import { cacheHitRate, computeRoomStats, parseSince, roomSpent, summarizeTasks } from "./stats.ts";
+import type { RoomTask } from "./tasks.ts";
 import type { RoomConfig, RoomEvent } from "./types.ts";
 
 const NOW = Date.parse("2026-10-24T12:00:00.000Z");
@@ -60,6 +61,40 @@ function turn(
     ...extra,
   } as RoomEvent;
 }
+
+function task(id: string, status: RoomTask["status"], cost: number, usage: number): RoomTask {
+  return {
+    id,
+    title: id,
+    description: "",
+    ownerMemberId: "m1",
+    acceptance: "",
+    dependsOn: [],
+    status,
+    attempt: 1,
+    costYuan: cost,
+    usageTokens: usage,
+    inputTokens: usage - 5,
+    outputTokens: 5,
+    cacheReadTokens: 0,
+    createdAt: new Date(NOW).toISOString(),
+    updatedAt: new Date(NOW).toISOString(),
+  };
+}
+
+test("stats include task costs and tokens in room totals", () => {
+  const events = [turn("1", new Date(NOW).toISOString(), "m1", { input: 100, output: 20 })];
+  const tasks = [task("t1", "done", 1.5, 500), task("t2", "failed", 0.5, 100)];
+  const stats = computeRoomStats(room(), events, [], { now: NOW, tasks });
+  assert.equal(stats.tasks.tasks, 2);
+  assert.equal(stats.tasks.done, 1);
+  assert.equal(stats.tasks.failed, 1);
+  assert.equal(stats.totals.costYuan, 0.1 + 2);
+  assert.equal(stats.totals.totalTokens, 120 + 600);
+  assert.equal(stats.totals.inputTokens, 100 + 590);
+  assert.equal(summarizeTasks(tasks).costYuan, 2);
+  assert.deepEqual(roomSpent(events, tasks), { costYuan: 2.1, totalTokens: 720 });
+});
 
 test("stats aggregate totals, members, models and days", () => {
   const events: RoomEvent[] = [

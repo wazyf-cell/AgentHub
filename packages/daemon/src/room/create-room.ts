@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { basename, resolve } from "node:path";
 import type { RoomStore } from "./store.ts";
+import { buildMembersFromLibrary } from "./member-library.ts";
 import type { RoomConfig, RoomMember, RoomRules } from "./types.ts";
 import { addWorkspace, findWorkspaceByPath, loadWorkspaces } from "./workspaces.ts";
 
@@ -19,6 +20,7 @@ export interface CreateRoomInput {
   noWorkspace?: boolean;
   copyFromRoomId?: string;
   members?: RoomMember[];
+  libraryMemberIds?: string[];
   defaultBinding?: { platformId: string; modelId: string };
 }
 
@@ -135,6 +137,12 @@ export function createRoomFromInput(store: RoomStore, input: CreateRoomInput): R
   let members: RoomMember[];
   if (input.members && input.members.length > 0) {
     members = structuredClone(input.members);
+  } else if (input.libraryMemberIds && input.libraryMemberIds.length > 0) {
+    members = buildMembersFromLibrary(
+      store,
+      input.libraryMemberIds,
+      input.defaultBinding ?? DEFAULT_BINDING,
+    );
   } else if (source) {
     members = structuredClone(source.members);
   } else {

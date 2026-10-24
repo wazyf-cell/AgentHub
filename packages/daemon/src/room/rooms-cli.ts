@@ -25,24 +25,34 @@ import { runRoom } from "./engine.ts";
 import { HealthChecker } from "./health.ts";
 import { detectTools, gitDiff, gitStatus, listFiles, listTree, readWorkspaceFile, searchWorkspace } from "./inspector.ts";
 import { loadPlatforms, savePlatforms, readPlatformNumber, readPlatformString } from "./platforms.ts";
+import {
+  createLibraryMember,
+  loadMemberLibrary,
+  removeLibraryMember,
+  restoreLibraryMember,
+  updateLibraryMember,
+  type LibraryMemberInput,
+} from "./member-library.ts";
 import { createRealRoom } from "./real-room.ts";
 import { SessionStore } from "./sessions.ts";
 import { RoomStore, resolveRoomDataDir } from "./store.ts";
 import { createRoomSummarizer } from "./summary.ts";
-import { computeRoomStats, cacheHitRate } from "./stats.ts";
+import { computeRoomStats, cacheHitRate, roomSpent } from "./stats.ts";
 import {
+  archiveTask,
   createTask,
   findTask,
   loadTasks,
   readTaskEvents,
   readTaskReport,
   recoverRunningTasks,
+  restoreTask,
   setTaskStatus,
   updateTask,
   type CreateTaskInput,
   type TaskStatus,
 } from "./tasks.ts";
-import { discardTask, mergeTask, retryTask, runTask } from "./task-runner.ts";
+import { cleanupTaskWorktrees, discardTask, mergeTask, retryTask, runTask } from "./task-runner.ts";
 import { addWorkspace, findWorkspaceByPath, listWorkspaceSummaries, removeWorkspace, renameWorkspace } from "./workspaces.ts";
 import type { RoomConfig, RoomEvent, RoomMember, RoomRules, StopReason } from "./types.ts";
 
@@ -64,12 +74,20 @@ const HELP = `AgentHub room CLI
   room draft discard --run-id <id>
   room draft cleanup [--days 7]
   room task create --title <标题> --description <描述> --owner <memberId> --acceptance <验收> [--depends-on <taskId> ...] [--verification <命令>] [--allowed-path <相对路径> ...] [--pin <消息文本> ...] [--budget 2] [--auto-merge] [--reviewer <memberId>] [--json]
-  room task list|show [--task <id>] [--json]
+  room task list|all [--all] [--json]
+  room task archive|restore-archive --task <id>
+  room task show [--task <id>] [--json]
   room task update --task <id> [--title ...] [--description ...] [--owner ...] [--acceptance ...] [--depends-on ...] [--verification ...] [--allowed-path ...] [--budget ...] [--auto-merge]
   room task move --task <id> --status ready
   room task run --task <id>
   room task merge|discard|retry|events --task <id> [--force]
   room task recover [--json]
+  room task cleanup-worktrees [--force] [--json]
+  room delete --room <id> [--force] [--json]
+  room member list [--all] [--json]
+  room member add --name <名称> [--role <角色>] [--category <分类>] [--avatar <emoji>] [--description <一句话>] --instructions <提示词> [--tag ...] [--skill ...] [--mcp ...] [--json]
+  room member update --id <id> [--name ...] [--role ...] [--category ...] [--avatar ...] [--description ...] [--instructions ...] [--tag ...] [--hidden|--visible]
+  room member remove --id <id> | room member restore --id <id>
   room inspect tree [--path <相对路径>] [--depth 2] [--json]
   room inspect files [--query <关键字>] [--limit 200] [--json]
   room inspect read --file <相对路径> [--offset 0] [--json]
@@ -105,6 +123,7 @@ const HELP = `AgentHub room CLI
   workspace    管理工作区登记：list / add / rename / remove；remove 不会删除磁盘文件夹。
   draft        沙盒草稿：按工作范围复制原文件，agent 只写草稿目录；应用/丢弃后才落地。
   task         任务：worktree 隔离执行、验证、审查、合并；主工作区不会被 agent 直接写。
+  member       全局成员库：内置 12 个角色，可增改、隐藏、恢复；加入房间时复制，不共享模型绑定。
   inspect      只读检查器：文件树、文本/图片预览、git 状态/diff、ripgrep 查找、外部工具检测。
   graph        可选 codegraph：status / query / impact / sync；不可用时降级。
   btw          只读侧问：不打断主对话，可提升为普通用户消息。
@@ -130,8 +149,19 @@ async function main(): Promise<number> {
       "workspace-id": { type: "string" },
       "no-workspace": { type: "boolean", default: false },
       "copy-from": { type: "string" },
+      "library-member": { type: "string", multiple: true },
       name: { type: "string" },
       id: { type: "string" },
+      role: { type: "string" },
+      avatar: { type: "string" },
+      category: { type: "string" },
+      instructions: { type: "string" },
+      tag: { type: "string", multiple: true },
+      skill: { type: "string", multiple: true },
+      mcp: { type: "string", multiple: true },
+      hidden: { type: "boolean", default: false },
+      visible: { type: "boolean", default: false },
+      all: { type: "boolean", default: false },
       model: { type: "string" },
       real: { type: "boolean", default: false },
       fake: { type: "boolean", default: false },
@@ -235,6 +265,7 @@ async function main(): Promise<number> {
           workspacePath: parsed.values.workspace,
           noWorkspace: parsed.values["no-workspace"] === true,
           copyFromRoomId: parsed.values["copy-from"],
+          libraryMemberIds: parsed.values["library-member"],
           defaultBinding,
         });
         if (parsed.values.json) {
@@ -296,7 +327,10 @@ async function main(): Promise<number> {
     case "stats": {
       try {
         const room = store.readRoom(roomId);
-        const stats = computeRoomStats(room, store.readEvents(roomId), loadModels(store), { since: parsed.values.since });
+        const stats = computeRoomStats(room, store.readEvents(roomId), loadModels(store), {
+          since: parsed.values.since,
+          tasks: loadTasks(store, roomId),
+        });
         if (parsed.values.json) {
           writeJson(stats);
         } else {
@@ -305,7 +339,8 @@ async function main(): Promise<number> {
             `房间 ${room.name} · ${stats.since}\n`
             + `请求 ${stats.totals.requests}（失败 ${stats.totals.failed}）· 输入 ${stats.totals.inputTokens} · 输出 ${stats.totals.outputTokens}`
             + ` · 缓存 ${stats.totals.cacheReadTokens}${rate === undefined ? "" : `（${(rate * 100).toFixed(1)}%）`}`
-            + ` · 合计 ${stats.totals.totalTokens} tok · ¥${stats.totals.costYuan.toFixed(2)}\n`,
+            + ` · 合计 ${stats.totals.totalTokens} tok · ¥${stats.totals.costYuan.toFixed(2)}\n`
+            + `任务 ${stats.tasks.tasks}（完成 ${stats.tasks.done} / 失败 ${stats.tasks.failed}）· 任务费用 ¥${stats.tasks.costYuan.toFixed(2)}\n`,
           );
           for (const bucket of stats.byModel) {
             process.stdout.write(`  ${bucket.label}\t${bucket.requests} 次\t${bucket.inputTokens}/${bucket.outputTokens} tok\t¥${bucket.costYuan.toFixed(2)}\n`);
@@ -347,6 +382,8 @@ async function main(): Promise<number> {
       return draftCommand(store, roomId, parsed.values, parsed.positionals[1] ?? "list");
     case "task":
       return await taskCommand(store, roomId, parsed.values, parsed.positionals[1] ?? "list");
+    case "member":
+      return memberCommand(store, parsed.values, parsed.positionals[1] ?? "list");
     case "inspect":
       return inspectCommand(store, roomId, parsed.values, parsed.positionals[1] ?? "tree");
     case "graph":
@@ -369,6 +406,25 @@ async function main(): Promise<number> {
         process.stdout.write(`${room.id}\t${room.name}\t${room.members.length} 个成员\t${room.updatedAt}\n`);
       }
       return 0;
+    }
+    case "delete": {
+      try {
+        const target = String(parsed.values.room || "").trim();
+        if (!target) throw new Error("缺少 --room <id>。");
+        const room = store.readRoom(target);
+        const running = loadTasks(store, target).filter((task) => task.status === "running");
+        if (running.length > 0 && parsed.values.force !== true) {
+          throw new Error(`房间还有 ${running.length} 个运行中的任务；先停止，或加 --force。`);
+        }
+        const worktrees = cleanupTaskWorktrees(store, target, { force: parsed.values.force === true });
+        store.deleteRoom(target);
+        if (parsed.values.json) writeJson({ deleted: target, name: room.name, worktrees });
+        else process.stdout.write(`房间已删除: ${target}（清理 worktree ${worktrees.removed} 个）\n`);
+        return 0;
+      } catch (error) {
+        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+        return 1;
+      }
     }
     case "show": {
       const room = store.readRoom(roomId);
@@ -577,6 +633,17 @@ interface CliValues {
   kind?: string;
   name?: string;
   id?: string;
+  role?: string;
+  avatar?: string;
+  category?: string;
+  instructions?: string;
+  tag?: string[];
+  skill?: string[];
+  mcp?: string[];
+  hidden?: boolean;
+  visible?: boolean;
+  all?: boolean;
+  "library-member"?: string[];
   "base-url"?: string;
   "api-key-env"?: string;
   harness?: string;
@@ -705,6 +772,85 @@ function draftCommand(store: RoomStore, roomId: string, values: CliValues, sub: 
   }
 }
 
+function memberCommand(store: RoomStore, values: CliValues, sub: string): number {
+  try {
+    if (sub === "list") {
+      const members = loadMemberLibrary(store).filter((member) => values.all === true || !member.hidden);
+      if (values.json) writeJson(members);
+      else if (members.length === 0) process.stdout.write("成员库为空。\n");
+      else {
+        for (const member of members) {
+          const flags = [
+            member.builtin ? "内置" : "自定义",
+            member.hidden ? "已隐藏" : "",
+            member.edited ? "已编辑" : "",
+          ].filter(Boolean).join("/");
+          process.stdout.write(`${member.id}\t${member.category}\t${member.name}\t${member.role}\t${flags}\n`);
+        }
+      }
+      return 0;
+    }
+    if (sub === "add") {
+      const member = createLibraryMember(store, {
+        name: values.name,
+        role: values.role,
+        category: values.category,
+        avatar: values.avatar,
+        description: values.description,
+        instructions: values.instructions,
+        tags: values.tag,
+        skills: values.skill,
+        mcps: values.mcp,
+      });
+      if (values.json) writeJson(member);
+      else process.stdout.write(`成员已加入库: ${member.id}\t${member.name}\t${member.category}\n`);
+      return 0;
+    }
+    if (sub === "update") {
+      if (!values.id) throw new Error("缺少 --id。");
+      const patch: LibraryMemberInput & { hidden?: boolean } = {};
+      for (const key of ["name", "role", "category", "avatar", "description", "instructions"] as const) {
+        if (values[key] !== undefined) patch[key] = String(values[key]);
+      }
+      if (values.tag !== undefined) patch.tags = values.tag;
+      if (values.skill !== undefined) patch.skills = values.skill;
+      if (values.mcp !== undefined) patch.mcps = values.mcp;
+      if (values.hidden === true) patch.hidden = true;
+      if (values.visible === true) patch.hidden = false;
+      const member = updateLibraryMember(store, String(values.id), patch);
+      if (values.json) writeJson(member);
+      else process.stdout.write(`成员已更新: ${member.id}\t${member.name}\n`);
+      return 0;
+    }
+    if (sub === "hide" || sub === "show") {
+      if (!values.id) throw new Error("缺少 --id。");
+      const member = updateLibraryMember(store, String(values.id), { hidden: sub === "hide" });
+      if (values.json) writeJson(member);
+      else process.stdout.write(`成员已${sub === "hide" ? "隐藏" : "显示"}: ${member.id}\n`);
+      return 0;
+    }
+    if (sub === "remove") {
+      if (!values.id) throw new Error("缺少 --id。");
+      const member = removeLibraryMember(store, String(values.id));
+      if (values.json) writeJson({ removed: member.id });
+      else process.stdout.write(`成员已从库中删除: ${member.id}\n`);
+      return 0;
+    }
+    if (sub === "restore") {
+      if (!values.id) throw new Error("缺少 --id。");
+      const member = restoreLibraryMember(store, String(values.id));
+      if (values.json) writeJson(member);
+      else process.stdout.write(`已恢复内置成员: ${member.id}\n`);
+      return 0;
+    }
+    process.stderr.write("member 子命令必须是 list、add、update、hide、show、remove 或 restore。\n");
+    return 2;
+  } catch (error) {
+    process.stderr.write(`${describeError(error)}\n`);
+    return 1;
+  }
+}
+
 async function taskCommand(store: RoomStore, roomId: string, values: CliValues, sub: string): Promise<number> {
   try {
     if (sub === "create") {
@@ -728,11 +874,25 @@ async function taskCommand(store: RoomStore, roomId: string, values: CliValues, 
       else process.stdout.write(`任务已创建: ${task.id}\t${task.title}\t${task.status}\n`);
       return 0;
     }
+    if (sub === "all") {
+      const rows = [];
+      for (const room of store.listRooms()) {
+        for (const task of loadTasks(store, room.id)) {
+          if (values.all !== true && task.archivedAt) continue;
+          rows.push({ ...task, roomId: room.id, roomName: room.name });
+        }
+      }
+      rows.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+      if (values.json) writeJson(rows);
+      else if (rows.length === 0) process.stdout.write("没有任务。\n");
+      else for (const task of rows) process.stdout.write(`${task.roomId}\t${task.id}\t${task.status}\t${task.title}${task.archivedAt ? "\t已归档" : ""}\n`);
+      return 0;
+    }
     if (sub === "list") {
-      const tasks = loadTasks(store, roomId);
+      const tasks = loadTasks(store, roomId).filter((task) => values.all === true || !task.archivedAt);
       if (values.json) writeJson(tasks);
       else if (tasks.length === 0) process.stdout.write("没有任务。\n");
-      else for (const task of tasks) process.stdout.write(`${task.id}\t${task.status}\t${task.title}\t${task.ownerMemberId}\n`);
+      else for (const task of tasks) process.stdout.write(`${task.id}\t${task.status}\t${task.title}\t${task.ownerMemberId}${task.archivedAt ? "\t已归档" : ""}\n`);
       return 0;
     }
     if (sub === "show") {
@@ -781,6 +941,13 @@ async function taskCommand(store: RoomStore, roomId: string, values: CliValues, 
       if (!values.task) throw new Error("缺少 --task。");
       const room = store.readRoom(roomId);
       if (!room.workspace) throw new Error("纯聊天房间不能运行任务。");
+      const priorCost = roomSpent(
+        store.readEvents(roomId),
+        loadTasks(store, roomId).filter((task) => task.id !== values.task),
+      ).costYuan;
+      if (room.rules.budgetYuan !== undefined && priorCost >= room.rules.budgetYuan) {
+        throw new Error(`房间预算已用完（已花费 ¥${priorCost.toFixed(2)} / 预算 ¥${room.rules.budgetYuan.toFixed(2)}）。`);
+      }
       const backend = buildRoomBackend(store, room);
       const controller = new AbortController();
       const onSigint = (): void => controller.abort();
@@ -792,6 +959,8 @@ async function taskCommand(store: RoomStore, roomId: string, values: CliValues, 
           taskId: values.task,
           backend,
           signal: controller.signal,
+          roomBudgetYuan: room.rules.budgetYuan,
+          priorRoomCostYuan: priorCost,
           onProgress: (message) => process.stderr.write(`${message}\n`),
         });
         if (values.json) writeJson(result);
@@ -829,13 +998,32 @@ async function taskCommand(store: RoomStore, roomId: string, values: CliValues, 
       else for (const event of events) process.stdout.write(`${JSON.stringify(event)}\n`);
       return 0;
     }
+    if (sub === "archive" || sub === "restore-archive") {
+      if (!values.task) throw new Error("缺少 --task。");
+      const task = sub === "archive"
+        ? archiveTask(store, roomId, values.task)
+        : restoreTask(store, roomId, values.task);
+      if (values.json) writeJson(task);
+      else process.stdout.write(`任务${sub === "archive" ? "已归档" : "已恢复"}: ${task.id}\n`);
+      return 0;
+    }
+    if (sub === "cleanup-worktrees") {
+      const result = cleanupTaskWorktrees(store, roomId, { force: values.force === true });
+      if (values.json) writeJson(result);
+      else {
+        process.stdout.write(`已清理 ${result.removed} 个 worktree，跳过 ${result.skipped} 个`);
+        if (result.failed.length > 0) process.stdout.write(`，失败 ${result.failed.length} 个：${result.failed.map((item) => `${item.taskId}（${item.error}）`).join("；")}`);
+        process.stdout.write("\n");
+      }
+      return result.failed.length > 0 ? 1 : 0;
+    }
     if (sub === "recover") {
       const recovered = recoverRunningTasks(store, roomId);
       if (values.json) writeJson({ recovered });
       else process.stdout.write(`已恢复 ${recovered} 个中断任务。\n`);
       return 0;
     }
-    process.stderr.write("task 子命令必须是 create、list、show、update、move、run、merge、discard、retry、events 或 recover。\n");
+    process.stderr.write("task 子命令必须是 create、list、all、show、update、move、run、merge、discard、retry、events、archive、restore-archive 或 recover。\n");
     return 2;
   } catch (error) {
     process.stderr.write(`${describeError(error)}\n`);
@@ -1089,6 +1277,16 @@ async function runCommand(
     return 2;
   }
 
+  if (room.rules.budgetYuan !== undefined) {
+    const spent = roomSpent(store.readEvents(roomId), loadTasks(store, roomId)).costYuan;
+    const remaining = room.rules.budgetYuan - spent;
+    if (remaining <= 0) {
+      process.stderr.write(`房间预算已用完（已花费 ¥${spent.toFixed(2)} / 预算 ¥${room.rules.budgetYuan.toFixed(2)}）。\n`);
+      return 2;
+    }
+    rulesOverride.budgetYuan = remaining;
+  }
+
   const platforms = loadPlatforms(store);
   const models = loadModels(store);
   const sessions = new SessionStore(store, roomId);
@@ -1105,7 +1303,7 @@ async function runCommand(
   const allFake = room.members.every((member) => member.binding.platformId === "fake");
   const useFake = values.fake === true || allFake;
   const backend = useFake ? createDemoFakeBackend() : router;
-  const summaryMember = useFake ? undefined : buildSummaryMember(models);
+  const summaryMember = useFake ? undefined : buildSummaryMembers(models)[0];
   const summarizer = summaryMember ? createRoomSummarizer(router, summaryMember) : undefined;
   const fileRefMode = (member: RoomMember): "inline" | "path" => {
     const platform = platforms.find((candidate) => candidate.id === member.binding.platformId);
@@ -1212,26 +1410,34 @@ async function compactCommand(store: RoomStore, roomId: string, values: CliValue
       health,
       fakeBackend: createDemoFakeBackend(),
     });
-    const summaryMember = buildSummaryMember(models);
-    if (!summaryMember) {
-      process.stderr.write("没有可用于压缩上下文的模型（需要 codex-cli 平台）。\n");
+    const summaryMembers = buildSummaryMembers(models);
+    if (summaryMembers.length === 0) {
+      process.stderr.write("没有可用于压缩上下文的模型（先在设置里启用至少一个模型）。\n");
       return 1;
     }
     const events = store.readEvents(roomId);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 90_000);
     let summary;
-    try {
-      summary = await createRoomSummarizer(router, summaryMember, { signal: controller.signal })({
-        room,
-        events,
-        member: summaryMember,
-      });
-    } finally {
-      clearTimeout(timer);
+    let lastError = "";
+    for (const summaryMember of summaryMembers) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 45_000);
+      try {
+        summary = await createRoomSummarizer(router, summaryMember, { signal: controller.signal })({
+          room,
+          events,
+          member: summaryMember,
+        });
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      } finally {
+        clearTimeout(timer);
+      }
+      if (summary?.summary.trim()) break;
+      lastError = lastError || `${summaryMember.binding.platformId}/${summaryMember.binding.modelId} 没有返回摘要`;
+      summary = undefined;
     }
     if (!summary?.summary.trim()) {
-      process.stderr.write("压缩失败：模型没有返回摘要。\n");
+      process.stderr.write(`压缩失败：${lastError || "所有候选模型都没有返回摘要。"}\n`);
       return 1;
     }
     store.writeSummary(roomId, `${summary.summary.trim()}\n`);
@@ -1252,13 +1458,17 @@ async function compactCommand(store: RoomStore, roomId: string, values: CliValue
   }
 }
 
-function buildSummaryMember(models: ReturnType<typeof loadModels>): RoomMember | undefined {
-  const model = findModel(models, "codex-cli", "glm-5.3-flash")
-    ?? models.find((candidate) => candidate.platformId === "codex-cli" && candidate.enabled !== false);
-  if (!model) {
-    return undefined;
+function buildSummaryMembers(models: ReturnType<typeof loadModels>): RoomMember[] {
+  const usable = models.filter((model) => model.enabled !== false && model.platformId !== "fake");
+  const ordered: typeof usable = [];
+  for (const modelId of ["glm-5.3-flash", "deepseek-v4.1-flash", "kimi-k2.6"]) {
+    const match = usable.find((model) => model.modelId === modelId);
+    if (match && !ordered.includes(match)) ordered.push(match);
   }
-  return {
+  for (const model of usable) {
+    if (!ordered.includes(model)) ordered.push(model);
+  }
+  return ordered.slice(0, 3).map((model) => ({
     id: "__summarizer__",
     name: "摘要器",
     role: "摘要",
@@ -1271,7 +1481,7 @@ function buildSummaryMember(models: ReturnType<typeof loadModels>): RoomMember |
       contextBudget: model.contextWindow ? Math.floor(model.contextWindow * 0.7) : undefined,
     },
     behavior: { weight: 0 },
-  };
+  }));
 }
 
 function prettyEvent(event: RoomEvent): void {

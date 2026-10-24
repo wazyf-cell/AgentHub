@@ -1,4 +1,5 @@
 import type { ModelDescriptor, RoomConfig, RoomEvent } from "./types.ts";
+import type { RoomTask } from "./tasks.ts";
 
 export interface StatsTotals {
   requests: number;
@@ -26,12 +27,24 @@ export interface LastTurnStats {
   contextWindow?: number;
 }
 
+export interface TaskStats {
+  tasks: number;
+  done: number;
+  failed: number;
+  costYuan: number;
+  usageTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+}
+
 export interface RoomStats {
   roomId: string;
   generatedAt: string;
   since: string;
   cutoff?: string;
   totals: StatsTotals;
+  tasks: TaskStats;
   byDay: StatsBucket[];
   byMember: StatsBucket[];
   byModel: StatsBucket[];
@@ -96,11 +109,12 @@ export function computeRoomStats(
   room: RoomConfig,
   events: RoomEvent[],
   models: ModelDescriptor[] = [],
-  options: { since?: string; now?: number } = {},
+  options: { since?: string; now?: number; tasks?: RoomTask[] } = {},
 ): RoomStats {
   const now = options.now ?? Date.now();
   const cutoff = parseSince(options.since, now);
   const totals = emptyTotals();
+  const taskSummary = summarizeTasks(options.tasks ?? []);
   const byDay = new Map<string, StatsBucket>();
   const byMember = new Map<string, StatsBucket>();
   const byModel = new Map<string, StatsBucket>();
@@ -138,16 +152,61 @@ export function computeRoomStats(
     [...map.values()].sort((left, right) =>
       byKey ? left.key.localeCompare(right.key) : right.totalTokens - left.totalTokens);
 
+  totals.costYuan += taskSummary.costYuan;
+  totals.totalTokens += taskSummary.usageTokens;
+  totals.inputTokens += taskSummary.inputTokens;
+  totals.outputTokens += taskSummary.outputTokens;
+  totals.cacheReadTokens += taskSummary.cacheReadTokens;
+
   return {
     roomId: room.id,
     generatedAt: new Date(now).toISOString(),
     since: options.since ?? "all",
     cutoff: cutoff === undefined ? undefined : new Date(cutoff).toISOString(),
     totals,
+    tasks: taskSummary,
     byDay: sortBuckets(byDay, true),
     byMember: sortBuckets(byMember, false),
     byModel: sortBuckets(byModel, false),
     lastTurn,
+  };
+}
+
+export function summarizeTasks(tasks: RoomTask[]): TaskStats {
+  const summary: TaskStats = {
+    tasks: tasks.length,
+    done: 0,
+    failed: 0,
+    costYuan: 0,
+    usageTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+  };
+  for (const task of tasks) {
+    if (task.status === "done") summary.done += 1;
+    if (task.status === "failed") summary.failed += 1;
+    summary.costYuan += Number(task.costYuan ?? 0);
+    summary.usageTokens += Number(task.usageTokens ?? 0);
+    summary.inputTokens += Number(task.inputTokens ?? 0);
+    summary.outputTokens += Number(task.outputTokens ?? 0);
+    summary.cacheReadTokens += Number(task.cacheReadTokens ?? 0);
+  }
+  return summary;
+}
+
+export function roomSpent(events: RoomEvent[], tasks: RoomTask[]): { costYuan: number; totalTokens: number } {
+  let costYuan = 0;
+  let totalTokens = 0;
+  for (const event of events) {
+    if (event.type !== "turn_finished") continue;
+    costYuan += Number(event.costYuan ?? 0);
+    totalTokens += Number(event.usage?.totalTokens ?? 0);
+  }
+  const taskSummary = summarizeTasks(tasks);
+  return {
+    costYuan: costYuan + taskSummary.costYuan,
+    totalTokens: totalTokens + taskSummary.usageTokens,
   };
 }
 
