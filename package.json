@@ -19,6 +19,8 @@
     "local:agents": "node --experimental-strip-types packages/daemon/src/local-agent-runner-cli.ts",
     "local:agents:init": "npm run local:agents -- init",
     "local:agents:detect": "npm run local:agents -- detect",
+    "room": "node --experimental-strip-types packages/daemon/src/room/rooms-cli.ts",
+    "test:room": "node --experimental-strip-types --test packages/daemon/src/room/policy.test.ts packages/daemon/src/room/store.test.ts packages/daemon/src/room/engine.test.ts packages/daemon/src/room/transcript.test.ts",
     "daemon:pack": "npm pack ./packages/daemon",
     "setup": "npm --prefix apps/web install --no-audit --no-fund && npm --prefix apps/cli install --no-audit --no-fund && npm --prefix packages/db install --no-audit --no-fund && npm --prefix packages/services install --no-audit --no-fund && npm --prefix packages/daemon install --no-audit --no-fund",
     "typecheck:deps": "npx --prefix apps/web tsc -p ./packages/domain/tsconfig.types.json --incremental false && npx --prefix apps/web tsc -p ./packages/db/tsconfig.types.json --incremental false && npx --prefix apps/web tsc -p ./packages/services/tsconfig.types.json --incremental false && npx --prefix apps/web tsc -p ./packages/sandbox/tsconfig.types.json --incremental false && npx --prefix apps/web tsc -p ./packages/daemon/tsconfig.types.json --incremental false",

@@ -13,6 +13,7 @@ await build({
   entryPoints: {
     "agent-router": resolve(rootDir, "src", "agent-router", "cli.ts"),
     "agent-space-local": resolve(rootDir, "src", "local-agent-runner-cli.ts"),
+    "agent-space-room": resolve(rootDir, "src", "room", "rooms-cli.ts"),
     "agent-space": resolve(rootDir, "..", "..", "apps", "cli", "src", "index.ts"),
     cli: resolve(rootDir, "src", "cli.ts"),
     index: resolve(rootDir, "src", "index.ts"),

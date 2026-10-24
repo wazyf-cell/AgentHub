@@ -13,6 +13,7 @@ test-results
 *.log
 *.tsbuildinfo
 .agentspace-dev/
+.codegraph/
 .agentspace-record/
 .agentspace-record-live/
 .claude/
