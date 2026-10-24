@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { listTree, readWorkspaceFile, searchWorkspace } from "./inspector.ts";
+import { listFiles, listTree, readWorkspaceFile, searchWorkspace } from "./inspector.ts";
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), "agenthub-inspector-"));
@@ -34,6 +34,36 @@ test("inspector lists trees, reads UTF-8 and GBK, and fences paths", () => {
     assert.throws(() => readWorkspaceFile(root, "../outside.txt"), /越界/);
     assert.throws(() => listTree(root, ".."), /越界/);
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("file listing falls back to the directory walk when es is missing", () => {
+  const root = setup();
+  const previous = process.env.ES_BIN;
+  process.env.ES_BIN = join(root, "definitely-not-installed-es.exe");
+  try {
+    const matches = listFiles(root, "app");
+    assert.deepEqual(matches.map((match) => match.path), ["src/app.ts"]);
+  } finally {
+    if (previous === undefined) delete process.env.ES_BIN;
+    else process.env.ES_BIN = previous;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("file listing uses es.exe output when the tool is configured", { skip: process.platform !== "win32" }, () => {
+  const root = setup();
+  const previous = process.env.ES_BIN;
+  const fake = join(root, "fake-es.cmd");
+  writeFileSync(fake, `@echo ${join(root, "src", "app.ts")}\r\n`, "utf8");
+  process.env.ES_BIN = fake;
+  try {
+    const matches = listFiles(root, "zzz");
+    assert.deepEqual(matches.map((match) => match.path), ["src/app.ts"]);
+  } finally {
+    if (previous === undefined) delete process.env.ES_BIN;
+    else process.env.ES_BIN = previous;
     rmSync(root, { recursive: true, force: true });
   }
 });

@@ -389,6 +389,7 @@ env -u ELECTRON_RUN_AS_NODE ./dist-electron-local-out/win-unpacked/AgentSpaceLoc
 - 修复 Windows 下 `.cmd`/`.bat` 不能直接 spawn 的问题：检测与 `inspect` 运行器对批处理统一走 shell，codegraph 的 npm `.cmd` 路径因此能被真正识别（实测 1.6.2）。
 - 探测输出在 Windows 按 GBK 解码，避免命令行中文错误变成乱码。
 - 文案说明 `es.exe` 是 Everything 的独立命令行工具，装主程序不会自带。
+- es.exe 不再只是"检测到"：`inspect files`（`@` 文件名搜索）在 es 可用时先按工作区前缀查 Everything 索引，命中就用；未命中、超时或输出越界时自动回退到原来的目录遍历，结果集保持一致。本机实测（`F:\Code` 大树）首个查询 176ms → 34ms，`engine`/`store` 结果数完全相同。
 
 ### 11.2 模型与能力
 
@@ -410,7 +411,8 @@ env -u ELECTRON_RUN_AS_NODE ./dist-electron-local-out/win-unpacked/AgentSpaceLoc
 
 ### 11.5 验证（2026-10-24）
 
-- `npm run test:room` 80 个测试通过（新增自动压缩回归、摘要回退 2 个）；`npm run typecheck:daemon` 通过。
+- `npm run test:room` 82 个测试通过（新增自动压缩回归、摘要回退 2 个、es 文件名搜索命中与回退 2 个）；`npm run typecheck:daemon` 通过。
+- 本机已放好 `E:\Alltools\Everything\program\Everything\es.exe`（v1.1.0.38，从 DSH 的 dsh-everything-find 插件复制），并通过设置界面「保存并检测」写入 `app-settings.json`：徽标显示"已连通 · 1.1.0.38"，doctor 里 es 变为可用，`@` 文件搜索走 es 分支且结果与目录遍历一致。
 - 打包版 CDP 实测：
   - codegraph 从“未检测到”变为“已连通 · 1.6.2”（`.cmd` 修复）；Everything 显示“未连通/未检测到”。
   - 用假 es 验证：保存成功 → 立即重检为可用并写入设置；保存失败 → 报“未连通，路径未保存”，设置不变；清空 → 恢复自动检测并提示未找到。

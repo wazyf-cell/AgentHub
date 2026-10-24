@@ -123,8 +123,35 @@ export interface FileMatch {
 
 const IGNORED_DIRS = new Set([".git", "node_modules", ".agentspace", "dist", "dist-electron-out", "dist-electron-local-out"]);
 
+function esFileMatches(workspace: string, query: string, limit: number): string[] | undefined {
+  const command = process.env.ES_BIN || "es";
+  const result = run(command, ["-n", String(Math.min(1000, Math.max(20, limit * 5))), `${workspace}\\`, query], workspace, 4_000);
+  if (!result.ok) return undefined;
+  const prefix = `${workspace}\\`.toLowerCase();
+  const matches: string[] = [];
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const absolute = line.trim();
+    if (!absolute || absolute.toLowerCase().slice(0, prefix.length) !== prefix) continue;
+    const relative = absolute.slice(workspace.length + 1).split("\\").join("/");
+    const segments = relative.split("/");
+    if (segments.some((segment) => segment.startsWith(".") || IGNORED_DIRS.has(segment))) continue;
+    if (!existsSync(absolute)) continue;
+    matches.push(relative);
+  }
+  return matches.length > 0 ? matches : undefined;
+}
+
 export function listFiles(root: string, query = "", limit = 200): FileMatch[] {
   const workspace = workspacePath(root);
+  const needle = query.trim().toLowerCase();
+  const accelerated = needle ? esFileMatches(workspace, query.trim(), limit) : undefined;
+  if (accelerated) {
+    return accelerated
+      .map((path) => ({ path, score: fuzzyScore(path.toLowerCase(), needle) ?? 0 }))
+      .sort((left, right) => left.score - right.score || left.path.length - right.path.length)
+      .slice(0, Math.max(1, Math.min(limit, 500)))
+      .map((entry) => ({ path: entry.path, name: entry.path.split("/").pop() ?? entry.path }));
+  }
   const files: string[] = [];
   const walk = (dir: string): void => {
     if (files.length >= 5000) return;
@@ -147,7 +174,6 @@ export function listFiles(root: string, query = "", limit = 200): FileMatch[] {
   };
   walk(workspace);
 
-  const needle = query.trim().toLowerCase();
   const matches = needle
     ? files
       .map((path) => ({ path, score: fuzzyScore(path.toLowerCase(), needle) }))
