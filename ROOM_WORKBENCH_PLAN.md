@@ -1,6 +1,6 @@
 # AgentHub 本地房间 Workbench 实施计划
 
-> 状态：2026-10-24。Slice 0–9 已全部实现并验证；后续按实际使用反馈迭代。
+> 状态：2026-10-24。Slice 0–9 已全部实现并验证；第二轮 UI/统计调整（设置板块、平台表单、codegraph 路径、`/` 命令、`@` 文件、图片附件、用量图表）也已完成。后续按实际使用反馈迭代。
 > 分支：`feature/local-room`；已同步到 `main`。
 > 目的：把已确认的多轮设计固化成可执行计划，避免后续会话丢失上下文。
 
@@ -331,7 +331,21 @@ env -u ELECTRON_RUN_AS_NODE ./dist-electron-local-out/win-unpacked/AgentSpaceLoc
 - `reasonix.toml` 含明文 token，不入库、不提交；GitHub token 在 `F:\Code\Traecncode\Program\API.txt`，只本地使用。
 - 构建会重新生成 `packages/daemon/bin/*.js`；只提交有意义的源文件。
 
-## 9. 决策日志
+## 9. 第二轮 UI / 统计调整（2026-10-24，已完成）
+
+- 设置改为左侧导航七个板块：平台配置、环境与工具、用量统计、模型与能力、工作区、快捷键、关于。
+- 平台表单：`接入方式` 中文选项；harness 仅 CLI 显示并改为下拉；按 harness 显示 sandboxMode / permissionMode；超时按秒显示，默认 600 秒。
+- 环境与工具：codegraph 自动检测 + 自定义路径（存 `app-settings.json`，作为 `CODEGRAPH_BIN` 注入子进程）；不代装。
+- 设置里删除“新建工作区”按钮（创建统一走左侧栏），保留重命名/注销；移除“打开批处理”入口及命令面板项。
+- 图谱页合并重复降级提示，提供“检测 / 设置路径”直达。
+- `/` 命令：`/btw`、`/plan`、`/compact`、`/brief`、`/task`、`/settings`、`/stop`；`/plan` 让指定成员先输出计划且不写文件。
+- `@` 引用工作区文件：模糊文件名搜索，插入相对路径；CLI 成员只给路径，OpenAI 兼容成员自动附带文件内容（单文件 20KB / 合计 60KB，隐藏点文件与 node_modules）。
+- 图片附件：选择或粘贴，存 `%APPDATA%\agent-space-local\attachments\<roomId>`，消息内显示缩略图，随 `--image` 发送给支持视觉的模型。
+- 用量统计：`room stats --json [--since]` 按天/成员/模型聚合；设置内提供数字卡、模型环形图、按天柱状图和明细表；状态栏显示输入/输出/缓存与上下文占用，房间预算 80% 提醒。
+- `room compact` 手动压缩（90 秒超时）与 `room brief show/set` 房间简报。
+- 验证：67 个测试通过、daemon 类型检查通过、打包版 CDP 实测设置导航、平台表单切换、@ 文件、图片渲染、斜杠命令、统计图表，无控制台错误、无页面溢出。
+
+## 10. 决策日志
 
 | 日期 | 决策 | 来源 |
 | --- | --- | --- |
@@ -344,3 +358,7 @@ env -u ELECTRON_RUN_AS_NODE ./dist-electron-local-out/win-unpacked/AgentSpaceLoc
 | 2026-10-24 | 非 git = 沙箱草稿；新建工作区可同时建房间；任务入口 = 任务板 + 消息菜单 | 第三轮 Q11–Q13 |
 | 2026-10-24 | 草稿选范围、放应用数据、整批逐选+hash 冲突、工作区房间默认开、草稿仅聊天产物 | 第四轮 Q14–Q18 |
 | 2026-10-24 | Slice 1.5–9 实现完成：草稿、任务、worktree、执行器、任务板、检查器、codegraph、btw、平台管理 | 本轮实现 |
+| 2026-10-24 | 设置分七板块；平台表单按接入方式/harness 条件显示；超时按秒默认 600 | 第二轮 Q1–Q5 |
+| 2026-10-24 | codegraph 支持自定义路径；设置里移除新建工作区与批处理入口 | 第二轮 Q3/Q4/Q6 |
+| 2026-10-24 | `/` 命令首批 7 个，`/plan` 指定成员先出计划；`@` 引用文件；图片附件 | 第二轮 Q8–Q11 |
+| 2026-10-24 | token 统计扩展到缓存/上下文，并按天/成员/模型聚合出图 | 第二轮 Q12 |

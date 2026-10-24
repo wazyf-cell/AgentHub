@@ -153,6 +153,9 @@ export class CliBackend implements AgentBackend {
 function extractUsage(events: AgentRouterEvent[]): TokenUsage | undefined {
   let inputTokens: number | undefined;
   let outputTokens: number | undefined;
+  let cacheReadTokens: number | undefined;
+  let cacheWriteTokens: number | undefined;
+  let contextTokens: number | undefined;
   for (const event of events) {
     if (event.type !== "tool_output" || event.tool !== "usage" || !event.metadata || typeof event.metadata !== "object") {
       continue;
@@ -160,6 +163,14 @@ function extractUsage(events: AgentRouterEvent[]): TokenUsage | undefined {
     const metadata = event.metadata as Record<string, unknown>;
     inputTokens = numberValue(metadata.input_tokens) ?? inputTokens;
     outputTokens = numberValue(metadata.output_tokens) ?? outputTokens;
+    cacheReadTokens = numberValue(metadata.cached_input_tokens)
+      ?? numberValue(metadata.cache_read_input_tokens)
+      ?? numberValue(metadata.cache_read_tokens)
+      ?? cacheReadTokens;
+    cacheWriteTokens = numberValue(metadata.cache_creation_input_tokens)
+      ?? numberValue(metadata.cache_write_tokens)
+      ?? cacheWriteTokens;
+    contextTokens = numberValue(metadata.context_tokens) ?? contextTokens;
   }
   if (inputTokens === undefined && outputTokens === undefined) {
     return undefined;
@@ -167,6 +178,9 @@ function extractUsage(events: AgentRouterEvent[]): TokenUsage | undefined {
   return {
     inputTokens,
     outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    contextTokens: contextTokens ?? inputTokens,
     totalTokens: (inputTokens ?? 0) + (outputTokens ?? 0),
   };
 }

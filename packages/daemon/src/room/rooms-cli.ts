@@ -23,12 +23,13 @@ import {
 } from "./drafts.ts";
 import { runRoom } from "./engine.ts";
 import { HealthChecker } from "./health.ts";
-import { detectTools, gitDiff, gitStatus, listTree, readWorkspaceFile, searchWorkspace } from "./inspector.ts";
+import { detectTools, gitDiff, gitStatus, listFiles, listTree, readWorkspaceFile, searchWorkspace } from "./inspector.ts";
 import { loadPlatforms, savePlatforms, readPlatformNumber, readPlatformString } from "./platforms.ts";
 import { createRealRoom } from "./real-room.ts";
 import { SessionStore } from "./sessions.ts";
 import { RoomStore, resolveRoomDataDir } from "./store.ts";
 import { createRoomSummarizer } from "./summary.ts";
+import { computeRoomStats, cacheHitRate } from "./stats.ts";
 import {
   createTask,
   findTask,
@@ -70,6 +71,7 @@ const HELP = `AgentHub room CLI
   room task merge|discard|retry|events --task <id> [--force]
   room task recover [--json]
   room inspect tree [--path <相对路径>] [--depth 2] [--json]
+  room inspect files [--query <关键字>] [--limit 200] [--json]
   room inspect read --file <相对路径> [--offset 0] [--json]
   room inspect git-status|git-diff [--file <相对路径>] [--staged] [--json]
   room inspect search --query <关键字> [--limit 200] [--json]
@@ -87,6 +89,9 @@ const HELP = `AgentHub room CLI
   room show [--json] [--room <id>]
   room update --json-file <room.json> [--room <id>]
   room replay [--room <id>] [--json]
+  room stats [--room <id>] [--since 7d] [--json]
+  room compact [--room <id>] [--json]
+  room brief show|set --text "..." [--room <id>] [--json]
   room export --out <dir> [--room <id>]
   room platforms [--json] [--health]
   room models [--json] [--platform <id>]
@@ -106,6 +111,9 @@ const HELP = `AgentHub room CLI
   platform     平台新增/更新/移除；密钥仍走环境变量名，不写明文。
   run          默认自动选择后端：成员全是 fake 时用假后端，否则走平台路由。
   run --image  附带图片；只有声明支持图片的模型会收到图片，其他成员只收到附件说明。
+  stats        按天、成员、模型聚合 token 与费用；--since 支持 24h、7d、all 或 ISO 日期。
+  compact      立即让摘要模型压缩房间上下文，写入 summary.md。
+  brief        查看或保存房间简报（目标、结论、约束）；会随下一轮注入所有成员。
   models sync  从 AIWorkGate 的本地目录导入模型能力（需要 Node 24 的 node:sqlite）。
   capabilities 只读扫描本机 Claude skills、Codex/Claude 的 MCP 服务名，供角色卡参考。
   vision       调用本机 ModLens（需自行安装）把图片转成文字证据，结果按图片+提示词缓存；不随应用打包。
@@ -168,6 +176,8 @@ async function main(): Promise<number> {
       staged: { type: "boolean", default: false },
       limit: { type: "string" },
       btw: { type: "string" },
+      since: { type: "string" },
+      text: { type: "string" },
       question: { type: "string" },
       member: { type: "string" },
       kind: { type: "string" },
@@ -283,6 +293,56 @@ async function main(): Promise<number> {
       return runCommand(store, roomId, {
         ...parsed.values,
       });
+    case "stats": {
+      try {
+        const room = store.readRoom(roomId);
+        const stats = computeRoomStats(room, store.readEvents(roomId), loadModels(store), { since: parsed.values.since });
+        if (parsed.values.json) {
+          writeJson(stats);
+        } else {
+          const rate = cacheHitRate(stats.totals);
+          process.stdout.write(
+            `房间 ${room.name} · ${stats.since}\n`
+            + `请求 ${stats.totals.requests}（失败 ${stats.totals.failed}）· 输入 ${stats.totals.inputTokens} · 输出 ${stats.totals.outputTokens}`
+            + ` · 缓存 ${stats.totals.cacheReadTokens}${rate === undefined ? "" : `（${(rate * 100).toFixed(1)}%）`}`
+            + ` · 合计 ${stats.totals.totalTokens} tok · ¥${stats.totals.costYuan.toFixed(2)}\n`,
+          );
+          for (const bucket of stats.byModel) {
+            process.stdout.write(`  ${bucket.label}\t${bucket.requests} 次\t${bucket.inputTokens}/${bucket.outputTokens} tok\t¥${bucket.costYuan.toFixed(2)}\n`);
+          }
+        }
+        return 0;
+      } catch (error) {
+        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+        return 1;
+      }
+    }
+    case "compact":
+      return await compactCommand(store, roomId, parsed.values);
+    case "brief": {
+      try {
+        const sub = parsed.positionals[1] ?? "show";
+        const room = store.readRoom(roomId);
+        if (sub === "show") {
+          const brief = store.readBrief(roomId);
+          if (parsed.values.json) writeJson({ roomId, brief });
+          else process.stdout.write(brief);
+          return 0;
+        }
+        if (sub === "set") {
+          const text = parsed.values.text ?? "";
+          store.writeBrief(roomId, text.endsWith("\n") || !text ? text : `${text}\n`);
+          if (parsed.values.json) writeJson({ roomId, saved: true });
+          else process.stdout.write(`简报已保存: ${room.name}\n`);
+          return 0;
+        }
+        process.stderr.write("brief 子命令必须是 show 或 set。\n");
+        return 2;
+      } catch (error) {
+        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+        return 1;
+      }
+    }
     case "draft":
       return draftCommand(store, roomId, parsed.values, parsed.positionals[1] ?? "list");
     case "task":
@@ -801,6 +861,12 @@ function inspectCommand(store: RoomStore, roomId: string, values: CliValues, sub
       else for (const entry of entries) process.stdout.write(`${entry.type === "dir" ? "d" : "f"}\t${entry.path}${entry.size !== undefined ? `\t${entry.size}` : ""}\n`);
       return 0;
     }
+    if (sub === "files") {
+      const matches = listFiles(workspace, values.query ?? "", values.limit ? Number(values.limit) : 200);
+      if (values.json) writeJson(matches);
+      else for (const match of matches) process.stdout.write(`${match.path}\n`);
+      return 0;
+    }
     if (sub === "read") {
       const file = values.file?.[0];
       if (!file) throw new Error("缺少 --file。");
@@ -938,8 +1004,8 @@ function platformCommand(store: RoomStore, values: CliValues, sub: string): numb
       if (values.harness) config.harness = values.harness;
       if (values["base-url"]) config.baseUrl = values["base-url"];
       if (values["api-key-env"]) config.apiKeyEnv = values["api-key-env"];
-      if (values["sandbox-mode"]) config.sandboxMode = values["sandbox-mode"];
-      if (values["permission-mode"]) config.permissionMode = values["permission-mode"];
+      if (values["sandbox-mode"] && values["sandbox-mode"] !== "none") config.sandboxMode = values["sandbox-mode"];
+      if (values["permission-mode"] && values["permission-mode"] !== "none") config.permissionMode = values["permission-mode"];
       if (values.timeout) config.timeoutMs = Number(values.timeout);
       platforms.push({ id, name, kind: kind as never, enabled: values.disabled !== true, config });
       savePlatforms(store, platforms);
@@ -957,8 +1023,10 @@ function platformCommand(store: RoomStore, values: CliValues, sub: string): numb
       if (values.harness) platform.config.harness = values.harness;
       if (values["base-url"]) platform.config.baseUrl = values["base-url"];
       if (values["api-key-env"]) platform.config.apiKeyEnv = values["api-key-env"];
-      if (values["sandbox-mode"]) platform.config.sandboxMode = values["sandbox-mode"];
-      if (values["permission-mode"]) platform.config.permissionMode = values["permission-mode"];
+      if (values["sandbox-mode"] === "none") delete platform.config.sandboxMode;
+      else if (values["sandbox-mode"]) platform.config.sandboxMode = values["sandbox-mode"];
+      if (values["permission-mode"] === "none") delete platform.config.permissionMode;
+      else if (values["permission-mode"]) platform.config.permissionMode = values["permission-mode"];
       if (values.timeout) platform.config.timeoutMs = Number(values.timeout);
       if (values.enabled === true) platform.enabled = true;
       if (values.disabled === true) platform.enabled = false;
@@ -1039,6 +1107,10 @@ async function runCommand(
   const backend = useFake ? createDemoFakeBackend() : router;
   const summaryMember = useFake ? undefined : buildSummaryMember(models);
   const summarizer = summaryMember ? createRoomSummarizer(router, summaryMember) : undefined;
+  const fileRefMode = (member: RoomMember): "inline" | "path" => {
+    const platform = platforms.find((candidate) => candidate.id === member.binding.platformId);
+    return platform?.kind === "openai-compatible" ? "inline" : "path";
+  };
 
   let draftInfo: ReturnType<typeof createDraft> | undefined;
   if (values.draft === true) {
@@ -1079,6 +1151,7 @@ async function runCommand(
       cwdOverride: draftInfo ? workDirOf(draftInfo.draftDir) : undefined,
       writeMode: Boolean(draftInfo),
       draftMode: Boolean(draftInfo),
+      fileRefMode,
       onEvent: (event) => {
         if (jsonEvents) {
           process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -1120,6 +1193,62 @@ async function runCommand(
     return result.status === "failed" ? 1 : 0;
   } finally {
     process.removeListener("SIGINT", onSigint);
+  }
+}
+
+async function compactCommand(store: RoomStore, roomId: string, values: CliValues): Promise<number> {
+  try {
+    const room = store.readRoom(roomId);
+    const platforms = loadPlatforms(store);
+    const models = loadModels(store);
+    const sessions = new SessionStore(store, roomId);
+    const health = new HealthChecker();
+    const router = new RoomBackendRouter({
+      store,
+      roomId,
+      platforms,
+      models,
+      sessions,
+      health,
+      fakeBackend: createDemoFakeBackend(),
+    });
+    const summaryMember = buildSummaryMember(models);
+    if (!summaryMember) {
+      process.stderr.write("没有可用于压缩上下文的模型（需要 codex-cli 平台）。\n");
+      return 1;
+    }
+    const events = store.readEvents(roomId);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90_000);
+    let summary;
+    try {
+      summary = await createRoomSummarizer(router, summaryMember, { signal: controller.signal })({
+        room,
+        events,
+        member: summaryMember,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!summary?.summary.trim()) {
+      process.stderr.write("压缩失败：模型没有返回摘要。\n");
+      return 1;
+    }
+    store.writeSummary(roomId, `${summary.summary.trim()}\n`);
+    const event = store.appendEvent(roomId, {
+      type: "summary_updated",
+      path: "summary.md",
+      coveredEventId: summary.coveredEventId,
+    });
+    if (values.json) {
+      writeJson({ status: "success", summary: summary.summary.trim(), event });
+    } else {
+      process.stdout.write(`上下文已压缩（${summary.summary.length} 字），事件 ${event.id}\n`);
+    }
+    return 0;
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
   }
 }
 

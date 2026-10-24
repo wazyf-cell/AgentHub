@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { RoomStore } from "./store.ts";
 import { parseMentions, selectNextSpeaker, type PolicyState } from "./policy.ts";
 import { composeTurnPrompt, estimateTokens } from "./transcript.ts";
+import { buildFileReferenceAppendix } from "./file-refs.ts";
 import type {
   AgentBackend,
   AgentTurnResult,
@@ -39,6 +40,7 @@ export interface RunRoomOptions {
   cwdOverride?: string;
   writeMode?: boolean;
   draftMode?: boolean;
+  fileRefMode?: (member: RoomMember) => "inline" | "path";
 }
 
 export interface RoomRunResult {
@@ -135,10 +137,13 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
     const contextWindow = member.binding.contextWindow;
     const maxInputTokens = member.binding.contextBudget
       ?? (contextWindow ? Math.floor(contextWindow * (room.rules.summarizeAt ?? 0.7)) : undefined);
+    const fileAppendix = options.fileRefMode?.(member) === "inline"
+      ? buildFileReferenceAppendix(room.workspace, options.prompt)
+      : undefined;
     const prompt = composeTurnPrompt({
       room,
       member,
-      userPrompt: options.prompt,
+      userPrompt: fileAppendix ? `${options.prompt}\n\n${fileAppendix}` : options.prompt,
       events: store.readEvents(roomId),
       brief: store.readBrief(roomId),
       summary: store.readSummary(roomId),
@@ -214,6 +219,8 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
         type: "turn_finished",
         turnId,
         memberId: member.id,
+        platformId: (result.usedBinding ?? member.binding).platformId,
+        modelId: (result.usedBinding ?? member.binding).modelId,
         status: "failed",
         usage: result.usage,
         costYuan: result.costYuan,
@@ -260,6 +267,8 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
       type: "turn_finished",
       turnId,
       memberId: member.id,
+      platformId: (result.usedBinding ?? member.binding).platformId,
+      modelId: (result.usedBinding ?? member.binding).modelId,
       status: "completed",
       usage: result.usage,
       costYuan: result.costYuan,
@@ -348,6 +357,8 @@ async function recordAbortedTurn(args: {
     type: "turn_finished",
     turnId,
     memberId: member.id,
+    platformId: (result.usedBinding ?? member.binding).platformId,
+    modelId: (result.usedBinding ?? member.binding).modelId,
     status: "failed",
     usage: result.usage,
     costYuan: result.costYuan,

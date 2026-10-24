@@ -27,8 +27,26 @@ interface ChatCompletionChunk {
     prompt_tokens?: number;
     completion_tokens?: number;
     total_tokens?: number;
+    prompt_tokens_details?: { cached_tokens?: number };
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
   };
   error?: { message?: string; type?: string; code?: string };
+}
+
+function mapUsage(usage: NonNullable<ChatCompletionChunk["usage"]>): TokenUsage {
+  const inputTokens = usage.prompt_tokens ?? 0;
+  const outputTokens = usage.completion_tokens ?? 0;
+  const mapped: TokenUsage = {
+    inputTokens,
+    outputTokens,
+    contextTokens: inputTokens,
+    totalTokens: usage.total_tokens ?? inputTokens + outputTokens,
+  };
+  const cacheRead = usage.prompt_tokens_details?.cached_tokens ?? usage.cache_read_input_tokens;
+  if (cacheRead !== undefined) mapped.cacheReadTokens = cacheRead;
+  if (usage.cache_creation_input_tokens !== undefined) mapped.cacheWriteTokens = usage.cache_creation_input_tokens;
+  return mapped;
 }
 
 export class OpenAiBackend implements AgentBackend {
@@ -200,12 +218,7 @@ async function parseStream(
         request.onDelta?.(piece);
       }
       if (chunk.usage) {
-        usage = {
-          inputTokens: chunk.usage.prompt_tokens ?? 0,
-          outputTokens: chunk.usage.completion_tokens ?? 0,
-          totalTokens: chunk.usage.total_tokens
-            ?? (chunk.usage.prompt_tokens ?? 0) + (chunk.usage.completion_tokens ?? 0),
-        };
+        usage = mapUsage(chunk.usage);
       }
     }
   }
@@ -233,14 +246,7 @@ function parseJsonResponse(value: unknown, model: ModelDescriptor, platform: Pla
   if (!text) {
     return { text: "", status: "failed", error: "API returned an empty response" };
   }
-  const usage = chunk.usage
-    ? {
-      inputTokens: chunk.usage.prompt_tokens ?? 0,
-      outputTokens: chunk.usage.completion_tokens ?? 0,
-      totalTokens: chunk.usage.total_tokens
-        ?? (chunk.usage.prompt_tokens ?? 0) + (chunk.usage.completion_tokens ?? 0),
-    }
-    : undefined;
+  const usage = chunk.usage ? mapUsage(chunk.usage) : undefined;
   return {
     text,
     status: "completed",

@@ -87,7 +87,7 @@ test("openai backend streams deltas and records usage/cost", async () => {
     assert.equal(result.status, "completed");
     assert.equal(result.text, "你好");
     assert.deepEqual(deltas, ["你", "好"]);
-    assert.deepEqual(result.usage, { inputTokens: 10, outputTokens: 2, totalTokens: 12 });
+    assert.deepEqual(result.usage, { inputTokens: 10, outputTokens: 2, contextTokens: 10, totalTokens: 12 });
     assert.equal(Number((result.costYuan ?? 0).toFixed(6)), 0.0012);
     assert.equal(received.model, "m1");
     assert.equal(received.reasoning_effort, "high");

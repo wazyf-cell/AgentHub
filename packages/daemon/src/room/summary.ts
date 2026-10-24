@@ -3,7 +3,11 @@ import type { RoomSummarizer, SummarizerResult } from "./engine.ts";
 import { formatConversation } from "./transcript.ts";
 import type { AgentBackend, RoomMember } from "./types.ts";
 
-export function createRoomSummarizer(backend: AgentBackend, member: RoomMember): RoomSummarizer {
+export function createRoomSummarizer(
+  backend: AgentBackend,
+  member: RoomMember,
+  options: { signal?: AbortSignal } = {},
+): RoomSummarizer {
   return async ({ room, events }): Promise<SummarizerResult | undefined> => {
     const conversation = formatConversation(events, 60);
     if (!conversation.trim()) {
@@ -27,6 +31,7 @@ export function createRoomSummarizer(backend: AgentBackend, member: RoomMember):
       member,
       prompt,
       turnId: `summary-${randomUUID()}`,
+      signal: options.signal,
     });
     if (result.status !== "completed" || !result.text.trim()) {
       return undefined;

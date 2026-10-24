@@ -347,6 +347,7 @@
 
     .composer {
       flex: none;
+      position: relative;
       border-top: 1px solid var(--line);
       background: var(--panel);
       padding: 9px 14px 12px;
@@ -481,6 +482,69 @@
       margin: 0 0 8px; font: 600 10.5px/1.4 var(--font-display);
       letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
     }
+    .settings-shell { display: flex; flex: 1; min-height: 0; }
+    .settings-nav {
+      width: 132px; flex: none; padding: 12px 8px;
+      border-right: 1px solid var(--line); background: #0e1013;
+      display: flex; flex-direction: column; gap: 2px;
+      border-radius: 0 0 0 12px;
+    }
+    .settings-nav button {
+      text-align: left; padding: 7px 10px; border: 0; border-radius: 7px;
+      background: transparent; color: var(--muted); font-size: 11.5px; cursor: pointer;
+    }
+    .settings-nav button:hover { background: rgba(255, 255, 255, .04); color: var(--text); }
+    .settings-nav button.on { background: rgba(245, 166, 35, .12); color: var(--amber); }
+    .settings-body { flex: 1; min-width: 0; max-height: min(70vh, 640px); }
+    .settings-body button { white-space: nowrap; }
+    .settings-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .settings-actions button, .settings-inline-btn {
+      min-height: 26px; padding: 3px 9px; font-size: 10.5px;
+    }
+    .stat-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .stat-card { border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; background: var(--panel-2); }
+    .stat-card .k { font-size: 10px; color: var(--dim); }
+    .stat-card .v { font: 600 16px/1.35 var(--font-mono); margin-top: 3px; }
+    .stat-card .s { font-size: 10px; color: var(--dim); margin-top: 2px; }
+    .usage-chart { display: flex; gap: 16px; align-items: center; margin: 10px 0 14px; }
+    .usage-donut { width: 132px; height: 132px; flex: none; }
+    .usage-legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+    .usage-legend-row { display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--muted); }
+    .usage-legend-row .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+    .usage-legend-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .usage-legend-row .num { font: 10px/1 var(--font-mono); color: var(--dim); }
+    .usage-bars { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 86px; padding: 4px 0 0; border-bottom: 1px solid var(--line); }
+    .usage-bar { flex: 1; min-width: 4px; background: linear-gradient(180deg, rgba(245,166,35,.85), rgba(245,166,35,.28)); border-radius: 3px 3px 0 0; position: relative; }
+    .usage-bar:hover { background: var(--amber); }
+    .usage-bar span { position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%); font: 8.5px/1 var(--font-mono); color: var(--dim); white-space: nowrap; }
+    .usage-axis { display: flex; justify-content: space-between; font: 9px/1 var(--font-mono); color: var(--dim); margin-top: 18px; }
+    .usage-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10.5px; }
+    .usage-table th { text-align: left; font-weight: 500; color: var(--dim); padding: 4px 6px; border-bottom: 1px solid var(--line); }
+    .usage-table td { padding: 4px 6px; border-bottom: 1px solid rgba(36, 40, 47, .55); font-variant-numeric: tabular-nums; }
+    .usage-table td.num, .usage-table th.num { text-align: right; font-family: var(--font-mono); }
+    .budget-track { height: 7px; border-radius: 4px; background: var(--panel-2); overflow: hidden; margin: 6px 0 3px; }
+    .budget-fill { height: 100%; background: var(--amber); border-radius: 4px; }
+    .budget-fill.over { background: var(--danger); }
+    .attach-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; }
+    .attach-chip { position: relative; width: 46px; height: 46px; border-radius: 7px; overflow: hidden; border: 1px solid var(--line); background: var(--panel-2); }
+    .attach-chip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .attach-chip button { position: absolute; right: 1px; top: 1px; width: 15px; height: 15px; min-height: 0; padding: 0; border: 0; border-radius: 50%; background: rgba(0,0,0,.7); color: #fff; font-size: 9px; line-height: 15px; }
+    .composer-tool { background: transparent; border: 0; color: var(--dim); padding: 0 4px; min-height: 22px; font-size: 11px; cursor: pointer; }
+    .composer-tool:hover { color: var(--amber); }
+    .slash-menu {
+      position: absolute; left: 14px; right: 14px; bottom: calc(100% + 6px); z-index: 35;
+      background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px;
+      box-shadow: 0 18px 44px rgba(0,0,0,.45); overflow: hidden; max-height: 240px; overflow-y: auto;
+    }
+    .slash-menu[hidden] { display: none; }
+    .slash-item { display: flex; align-items: baseline; gap: 9px; padding: 7px 11px; cursor: pointer; }
+    .slash-item:hover, .slash-item.on { background: rgba(245, 166, 35, .1); }
+    .slash-item .cmd { font: 11.5px/1.3 var(--font-mono); color: var(--amber); }
+    .slash-item .desc { color: var(--dim); font-size: 10.5px; }
+    .file-menu { max-height: 260px; }
+    .file-menu .slash-item .cmd { color: var(--text); font-size: 10.5px; }
+    .msg-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+    .msg-images img { width: 92px; height: 92px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); }
     .path-row {
       display: flex; align-items: center; gap: 8px;
       padding: 6px 0; border-bottom: 1px solid rgba(36, 40, 47, .6);
@@ -758,9 +822,12 @@
         <div class="scope-row" id="scopeRow" hidden>
           <input id="draftScope" placeholder="草稿工作范围：可选文件/文件夹，逗号分隔；留空只允许新建文件" />
         </div>
-        <textarea id="prompt" placeholder="输入任务。用 @成员名 定向；成员写 @成员名 会自动交接。" aria-label="任务输入"></textarea>
+        <div class="attach-row" id="attachRow" hidden></div>
+        <div class="slash-menu" id="slashMenu" hidden></div>
+        <div class="slash-menu file-menu" id="fileMenu" hidden></div>
+        <textarea id="prompt" placeholder="输入任务。@成员名 定向；/ 命令；@文件 引用工作区文件。" aria-label="任务输入"></textarea>
         <div class="composer-actions">
-          <span class="left-note">Enter 换行 · Ctrl+Enter 运行</span>
+          <span class="left-note"><button class="composer-tool" id="attachImage" type="button" title="添加图片附件">+ 图片</button> Enter 换行 · Ctrl+Enter 运行</span>
           <button class="primary" id="run">运行</button>
         </div>
       </div>
@@ -773,7 +840,7 @@
       </div>
       <div class="sb-right">
         <button class="sb-btn" id="logToggle" title="显示 / 隐藏运行日志">日志</button>
-        <span class="mono" id="cost">¥0.00 · 0 tok</span>
+        <span class="mono" id="cost" role="button" tabindex="0" title="点击查看用量统计">¥0.00 · 0 tok</span>
         <span class="mono" id="modelCount">0 模型</span>
         <span class="mono">Ctrl K</span>
       </div>
@@ -828,6 +895,11 @@
         </div>
       </div>
       <div class="field">
+        <label for="rsBudget">房间预算（元，留空不限）</label>
+        <input id="rsBudget" type="number" min="0" step="0.5" placeholder="例如 20" />
+        <div class="hint">达到 80% 时状态栏提醒；达到预算后本轮停止。</div>
+      </div>
+      <div class="field">
         <label>工作区</label>
         <div class="path-row" style="border-bottom:0;padding:0;">
           <span class="value" id="rsWorkspace">—</span>
@@ -852,20 +924,22 @@
     </div>
   </div>
 
-  <div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" style="width:640px;">
+  <div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" style="width:760px;">
     <div class="modal-head">
       <div>
         <div class="modal-title" id="settingsTitle">应用设置</div>
-        <div class="modal-sub">路径、平台健康、模型目录与本机能力</div>
+        <div class="modal-sub">平台、环境、用量与模型目录</div>
       </div>
       <div class="spacer"></div>
       <button class="icon-btn" id="closeSettings" title="关闭" aria-label="关闭应用设置">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
       </button>
     </div>
-    <div class="modal-body" id="settingsBody"></div>
+    <div class="settings-shell">
+      <nav class="settings-nav" id="settingsNav" aria-label="设置板块"></nav>
+      <div class="modal-body settings-body" id="settingsBody"></div>
+    </div>
     <div class="modal-foot">
-      <button id="settingsLegacy" type="button">打开批处理</button>
       <button class="primary" id="settingsDone" type="button">完成</button>
     </div>
   </div>
@@ -1104,31 +1178,107 @@
       </div>
       <div class="two">
         <div class="field">
-          <label for="pfKind">类型</label>
+          <label for="pfKind">接入方式</label>
           <select id="pfKind">
-            <option value="cli">cli</option>
-            <option value="openai-compatible">openai-compatible</option>
-            <option value="fake">fake</option>
+            <option value="cli">CLI 子进程</option>
+            <option value="openai-compatible">OpenAI 兼容 API</option>
+            <option value="fake">测试用假模型</option>
           </select>
         </div>
-        <div class="field"><label for="pfHarness">harness</label><input id="pfHarness" placeholder="codex / claude" /></div>
+        <div class="field" id="pfHarnessRow">
+          <label for="pfHarness">harness（CLI）</label>
+          <select id="pfHarness">
+            <option value="codex">codex</option>
+            <option value="claude">claude</option>
+            <option value="opencode">opencode</option>
+            <option value="openclaw">openclaw</option>
+            <option value="hermes">hermes</option>
+          </select>
+          <div class="hint">决定实际调用哪个 CLI；id 含同名时会自动选中。</div>
+        </div>
       </div>
-      <div class="two">
+      <div class="two" id="pfApiRow">
         <div class="field"><label for="pfBaseUrl">baseUrl</label><input id="pfBaseUrl" placeholder="http://127.0.0.1:17864/v1" /></div>
         <div class="field"><label for="pfApiKeyEnv">apiKeyEnv</label><input id="pfApiKeyEnv" placeholder="AIWORK_API_KEY" /></div>
       </div>
-      <div class="two">
-        <div class="field"><label for="pfSandbox">sandboxMode</label><input id="pfSandbox" placeholder="read-only / workspace-write" /></div>
-        <div class="field"><label for="pfPermission">permissionMode</label><input id="pfPermission" placeholder="plan / acceptEdits" /></div>
+      <div class="two" id="pfModeRow">
+        <div class="field" id="pfSandboxRow">
+          <label for="pfSandbox">sandboxMode</label>
+          <select id="pfSandbox">
+            <option value="">默认</option>
+            <option value="read-only">read-only</option>
+            <option value="workspace-write">workspace-write</option>
+          </select>
+        </div>
+        <div class="field" id="pfPermissionRow">
+          <label for="pfPermission">permissionMode</label>
+          <select id="pfPermission">
+            <option value="">默认</option>
+            <option value="plan">plan</option>
+            <option value="acceptEdits">acceptEdits</option>
+          </select>
+        </div>
       </div>
       <div class="two">
-        <div class="field"><label for="pfTimeout">超时（毫秒）</label><input id="pfTimeout" type="number" min="1000" step="1000" /></div>
+        <div class="field"><label for="pfTimeout">超时（秒）</label><input id="pfTimeout" type="number" min="1" step="1" placeholder="600" /></div>
         <label class="check" style="align-self:end;"><input type="checkbox" id="pfEnabled" checked /><span>启用</span></label>
       </div>
+      <div class="hint" id="pfHint">CLI 平台用 harness 选择执行器；API 平台只需 baseUrl 和密钥环境变量名。</div>
     </div>
     <div class="modal-foot">
       <button id="cancelPlatformSheet" type="button">取消</button>
       <button class="primary" id="savePlatform" type="button">保存平台</button>
+    </div>
+  </div>
+
+  <div class="modal" id="planModal" role="dialog" aria-modal="true" aria-labelledby="planTitle" style="width:540px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="planTitle">让成员先出计划</div>
+        <div class="modal-sub">只输出计划，不改文件；确认后再建任务或开始实现</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closePlan" title="关闭" aria-label="关闭计划浮层">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="planMember">成员</label>
+        <select id="planMember"></select>
+      </div>
+      <div class="field">
+        <label for="planTask">任务</label>
+        <textarea id="planTask" rows="6" placeholder="描述要实现或评估的内容；计划里会要求列出步骤、涉及文件、风险和验收方式。"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button id="cancelPlan" type="button">取消</button>
+      <button class="primary" id="startPlan" type="button">开始出计划</button>
+    </div>
+  </div>
+
+  <div class="modal" id="briefModal" role="dialog" aria-modal="true" aria-labelledby="briefTitle" style="width:620px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="briefTitle">房间简报</div>
+        <div class="modal-sub">目标、已定结论、未决问题、约束；每轮注入所有成员</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="closeBrief" title="关闭" aria-label="关闭简报浮层">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="briefText">简报内容（Markdown）</label>
+        <textarea id="briefText" rows="14" placeholder="## 目标&#10;…&#10;## 已定结论&#10;…&#10;## 未决问题&#10;…&#10;## 约束与禁止事项&#10;…"></textarea>
+      </div>
+      <div class="hint">保存后下一轮生效；成员不能直接改简报，只能建议。</div>
+    </div>
+    <div class="modal-foot">
+      <button id="cancelBrief" type="button">取消</button>
+      <button class="primary" id="saveBrief" type="button">保存简报</button>
     </div>
   </div>
 
@@ -1187,16 +1337,34 @@
       inspectorOffset: 0,
       draftNoticeShown: false,
       editingPlatformId: "",
+      settingsSection: "platforms",
+      stats: null,
+      statsSince: "all",
+      pendingImages: [],
+      slashIndex: 0,
+      slashItems: [],
+      fileQuery: "",
+      fileMatches: [],
+      fileIndex: 0,
+      planMemberId: "",
+      budgetWarnedRoom: "",
+      fileTimer: null,
     };
     const $ = (id) => document.getElementById(id);
     const AUTONOMY_LABELS = { low: "低自治", medium: "中自治", high: "高自治" };
+    const PLATFORM_KIND_LABELS = {
+      cli: "CLI 子进程",
+      "openai-compatible": "OpenAI 兼容 API",
+      fake: "测试用假模型",
+    };
+    const USAGE_COLORS = ["#f5a623", "#6fb3ff", "#7ad3a1", "#d18cff", "#ff8a80", "#9aa4b2"];
     const TASK_STATUS_LABELS = {
       backlog: "待排期", ready: "就绪", running: "运行中", review: "审查中", merge_ready: "待合并",
       done: "已完成", failed: "失败", blocked: "阻塞", cancelled: "已取消", conflict: "冲突",
       budget_paused: "预算暂停", interrupted: "已中断",
     };
     const ABNORMAL_STATUSES = ["failed", "blocked", "cancelled", "conflict", "budget_paused", "interrupted"];
-    const OVERLAY_IDS = ["memberDrawer", "roomSheet", "settingsModal", "workspaceSheet", "createRoomSheet", "palette", "taskSheet", "btwModal", "inspectorDrawer", "platformSheet"];
+    const OVERLAY_IDS = ["memberDrawer", "roomSheet", "settingsModal", "workspaceSheet", "createRoomSheet", "palette", "taskSheet", "btwModal", "inspectorDrawer", "platformSheet", "planModal", "briefModal"];
     const DISPLAY_EVENT_TYPES = new Set(["user_message", "agent_message", "handoff", "binding_used", "summary_updated", "room_stopped", "error", "draft_created"]);
 
     function setStatus(text, kind = "") {
@@ -1964,7 +2132,7 @@
       });
     }
 
-    function openBtw(memberId) {
+    function openBtw(memberId, question = "") {
       if (!state.room) {
         setStatus("先选择房间", "error");
         return;
@@ -1978,7 +2146,7 @@
         select.appendChild(option);
       }
       select.value = memberId || state.selectedMemberId || state.room.members[0]?.id || "";
-      $("btwQuestion").value = "";
+      $("btwQuestion").value = question;
       $("btwAnswer").textContent = "还没有提问。";
       state.btwLastId = "";
       $("btwPromote").disabled = true;
@@ -2266,16 +2434,30 @@
       const statusResult = await api.graph({ roomId: state.room.id, workspace: state.inspectorWorkspace, sub: "status" });
       const row = el("div", "inspector-row");
       const status = statusResult.status === "success" ? statusResult.data : { available: false, detail: statusResult.summary };
-      row.appendChild(el("span", "hint", status?.available ? `codegraph 可用${status.stale ? " · 索引可能过期" : ""}` : "codegraph 未检测到，图谱功能降级"));
-      row.appendChild(taskAction("同步索引", async () => {
-        setStatus("正在同步 codegraph 索引…", "busy");
-        const result = await api.graph({ roomId: state.room.id, workspace: state.inspectorWorkspace, sub: "sync" });
-        setStatus(result.status === "success" ? "索引已同步" : (result.summary || "同步失败"), result.status === "success" ? "ok" : "error");
-        renderInspector();
-      }));
+      row.appendChild(el("span", "hint", status?.available ? `codegraph 可用${status.stale ? " · 索引可能过期" : ""}` : "codegraph 未检测到 · 图谱降级"));
+      if (status?.available) {
+        row.appendChild(taskAction("同步索引", async () => {
+          setStatus("正在同步 codegraph 索引…", "busy");
+          const result = await api.graph({ roomId: state.room.id, workspace: state.inspectorWorkspace, sub: "sync" });
+          setStatus(result.status === "success" ? "索引已同步" : (result.summary || "同步失败"), result.status === "success" ? "ok" : "error");
+          renderInspector();
+        }));
+      } else {
+        row.appendChild(taskAction("检测", async () => {
+          setStatus("正在检测 codegraph…", "busy");
+          const result = await api.doctor(state.room?.id);
+          if (result.status === "success") state.tools = result.data || [];
+          renderInspector();
+          setStatus("检测完成", "ok");
+        }));
+        row.appendChild(taskAction("设置路径", () => {
+          closeOverlays();
+          openSettings({ section: "environment" });
+        }));
+      }
       body.appendChild(row);
       if (!status?.available) {
-        body.appendChild(el("div", "hint", "安装 codegraph 后可查询符号与影响范围；不影响聊天与任务。"));
+        body.appendChild(el("div", "hint", "可在 设置 → 环境与工具 填写 codegraph 可执行文件路径，或安装后重新检测；不影响聊天与任务。"));
         return;
       }
       const queryRow = el("div", "inspector-row");
@@ -2299,6 +2481,22 @@
       body.appendChild(resultBox);
     }
 
+    function inferHarness(id) {
+      const lower = String(id || "").toLowerCase();
+      return ["claude", "codex", "opencode", "openclaw", "hermes"].find((harness) => lower.includes(harness)) || "codex";
+    }
+
+    function syncPlatformFields() {
+      const kind = $("pfKind").value;
+      const harness = $("pfHarness").value;
+      $("pfHarnessRow").hidden = kind !== "cli";
+      $("pfApiRow").hidden = kind !== "openai-compatible";
+      const cliModes = kind === "cli" && (harness === "codex" || harness === "claude");
+      $("pfModeRow").hidden = !cliModes;
+      $("pfSandboxRow").hidden = !(kind === "cli" && harness === "codex");
+      $("pfPermissionRow").hidden = !(kind === "cli" && harness === "claude");
+    }
+
     function openPlatformSheet(platform = null) {
       state.editingPlatformId = platform?.id || "";
       $("platformSheetTitle").textContent = platform ? "编辑平台" : "新增平台";
@@ -2306,29 +2504,37 @@
       $("pfId").disabled = Boolean(platform);
       $("pfName").value = platform?.name || "";
       $("pfKind").value = platform?.kind || "cli";
-      $("pfHarness").value = platform?.config?.harness || "";
+      $("pfHarness").value = platform?.config?.harness || inferHarness(platform?.id || "");
       $("pfBaseUrl").value = platform?.config?.baseUrl || "";
       $("pfApiKeyEnv").value = platform?.config?.apiKeyEnv || "";
       $("pfSandbox").value = platform?.config?.sandboxMode || "";
       $("pfPermission").value = platform?.config?.permissionMode || "";
-      $("pfTimeout").value = platform?.config?.timeoutMs || "";
+      $("pfTimeout").value = platform ? Math.round(Number(platform.config?.timeoutMs || 600_000) / 1000) : 600;
       $("pfEnabled").checked = platform ? platform.enabled !== false : true;
+      syncPlatformFields();
       openOverlay("platformSheet");
     }
 
     async function savePlatformFlow() {
+      const kind = $("pfKind").value;
+      const harness = $("pfHarness").value;
+      const timeoutSeconds = Math.max(1, Math.floor(Number($("pfTimeout").value) || 600));
       const payload = {
         id: $("pfId").value.trim(),
         name: $("pfName").value.trim(),
-        kind: $("pfKind").value,
-        harness: $("pfHarness").value.trim(),
-        baseUrl: $("pfBaseUrl").value.trim(),
-        apiKeyEnv: $("pfApiKeyEnv").value.trim(),
-        sandboxMode: $("pfSandbox").value.trim(),
-        permissionMode: $("pfPermission").value.trim(),
-        timeoutMs: $("pfTimeout").value.trim(),
+        kind,
+        timeoutMs: String(timeoutSeconds * 1000),
         enabled: $("pfEnabled").checked,
       };
+      if (kind === "cli") {
+        payload.harness = harness;
+        if (harness === "codex") payload.sandboxMode = $("pfSandbox").value || "none";
+        if (harness === "claude") payload.permissionMode = $("pfPermission").value || "none";
+      }
+      if (kind === "openai-compatible") {
+        payload.baseUrl = $("pfBaseUrl").value.trim();
+        payload.apiKeyEnv = $("pfApiKeyEnv").value.trim();
+      }
       if (!payload.name || (!state.editingPlatformId && !payload.id)) {
         setStatus("平台 id 和名称不能为空", "error");
         return;
@@ -2343,8 +2549,7 @@
       closeOverlays();
       const platforms = await api.platforms();
       if (platforms.status === "success") state.platforms = platforms.data || [];
-      renderSettings();
-      openSettings();
+      openSettings({ section: "platforms" });
       setStatus("平台已保存", "ok");
     }
 
@@ -2482,6 +2687,10 @@
       $("openSettings").addEventListener("click", openSettings);
       $("openPalette").addEventListener("click", openPalette);
       $("replay").addEventListener("click", replayRoom);
+      $("cost").addEventListener("click", () => openSettings({ section: "usage" }));
+      $("cost").addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") openSettings({ section: "usage" });
+      });
       $("stop").addEventListener("click", stopRoom);
       $("run").addEventListener("click", runRoom);
       $("logToggle").addEventListener("click", () => {
@@ -2492,7 +2701,83 @@
         if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
           event.preventDefault();
           runRoom();
+          return;
         }
+        const slashOpen = !$("slashMenu").hidden;
+        const fileOpen = !$("fileMenu").hidden;
+        if (slashOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+          event.preventDefault();
+          const delta = event.key === "ArrowDown" ? 1 : -1;
+          state.slashIndex = (state.slashIndex + delta + state.slashItems.length) % state.slashItems.length;
+          renderSlashMenu();
+          return;
+        }
+        if (fileOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+          event.preventDefault();
+          const delta = event.key === "ArrowDown" ? 1 : -1;
+          state.fileIndex = (state.fileIndex + delta + state.fileMatches.length) % Math.max(1, state.fileMatches.length);
+          renderFileMenu();
+          return;
+        }
+        if (event.key === "Escape" && (slashOpen || fileOpen)) {
+          event.preventDefault();
+          hideComposerMenus();
+          return;
+        }
+        if (event.key === "Enter" && !event.shiftKey && !event.altKey) {
+          if (slashOpen) {
+            event.preventDefault();
+            const command = state.slashItems[state.slashIndex];
+            if (command) executeSlashCommand(command, "");
+            return;
+          }
+          if (fileOpen) {
+            event.preventDefault();
+            const match = state.fileMatches[state.fileIndex];
+            if (match) insertFileRef(match);
+            return;
+          }
+          const value = $("prompt").value.trim();
+          if (value.startsWith("/") && handleSlashBeforeSend()) {
+            event.preventDefault();
+            return;
+          }
+        }
+      });
+      $("prompt").addEventListener("input", () => {
+        state.slashIndex = 0;
+        renderSlashMenu();
+        const hit = fileQueryAtCursor();
+        if (!hit) {
+          $("fileMenu").hidden = true;
+          state.fileMatches = [];
+        } else {
+          clearTimeout(state.fileTimer);
+          state.fileTimer = setTimeout(() => {
+            refreshFileMenu().catch(() => {});
+          }, 140);
+        }
+      });
+      $("prompt").addEventListener("paste", (event) => {
+        handlePasteImage(event).catch(() => {});
+      });
+      $("attachImage").addEventListener("click", () => {
+        pickImageFiles().catch(() => {});
+      });
+      $("closePlan").addEventListener("click", closeOverlays);
+      $("cancelPlan").addEventListener("click", closeOverlays);
+      $("startPlan").addEventListener("click", () => {
+        startPlanFlow().catch((error) => setStatus(error.message || String(error), "error"));
+      });
+      $("closeBrief").addEventListener("click", closeOverlays);
+      $("cancelBrief").addEventListener("click", closeOverlays);
+      $("saveBrief").addEventListener("click", () => {
+        saveBriefFlow().catch((error) => setStatus(error.message || String(error), "error"));
+      });
+      document.addEventListener("pointerdown", (event) => {
+        if (event.target === $("prompt")) return;
+        if ($("slashMenu").contains(event.target) || $("fileMenu").contains(event.target)) return;
+        hideComposerMenus();
       });
       $("scrim").addEventListener("click", closeOverlays);
       $("closeMember").addEventListener("click", closeOverlays);
@@ -2500,7 +2785,6 @@
       $("cancelRoomSheet").addEventListener("click", closeOverlays);
       $("closeSettings").addEventListener("click", closeOverlays);
       $("settingsDone").addEventListener("click", closeOverlays);
-      $("settingsLegacy").addEventListener("click", () => api.openLegacy());
       $("saveRoomSheet").addEventListener("click", saveRoomSettings);
       $("rsOpenWorkspace").addEventListener("click", () => {
         if (state.room) api.openPath(state.room.workspace);
@@ -2522,6 +2806,13 @@
       $("closePlatformSheet").addEventListener("click", closeOverlays);
       $("cancelPlatformSheet").addEventListener("click", closeOverlays);
       $("savePlatform").addEventListener("click", savePlatformFlow);
+      $("pfKind").addEventListener("change", syncPlatformFields);
+      $("pfHarness").addEventListener("change", syncPlatformFields);
+      $("pfId").addEventListener("input", () => {
+        if (state.editingPlatformId) return;
+        const harness = inferHarness($("pfId").value);
+        if ($("pfId").value.toLowerCase().includes(harness)) $("pfHarness").value = harness;
+      });
       $("draftScope").addEventListener("input", () => {
         if (state.room) localStorage.setItem(`agenthub.draftScope.${state.room.id}`, $("draftScope").value);
       });
@@ -2625,7 +2916,6 @@
         { id: "sync-models", label: "同步模型目录", hint: "模型", run: async () => { closeOverlays(); await syncModels(); } },
         { id: "refresh-capabilities", label: "刷新本机技能 / MCP", hint: "能力", run: async () => { closeOverlays(); await refreshCapabilities(); } },
         { id: "toggle-left", label: ($("shell").classList.contains("left-collapsed") ? "展开" : "折叠") + "侧栏", hint: "布局", run: () => { closeOverlays(); toggleLeft(); } },
-        { id: "legacy", label: "打开批处理", hint: "高级", run: () => { closeOverlays(); api.openLegacy(); } },
       ];
       for (const workspace of state.workspaces) {
         actions.push({
@@ -2700,97 +2990,77 @@
       item.run();
     }
 
-    async function openSettings(options = {}) {
+    const SETTINGS_SECTIONS = [
+      ["platforms", "平台配置"],
+      ["environment", "环境与工具"],
+      ["usage", "用量统计"],
+      ["models", "模型与能力"],
+      ["workspaces", "工作区"],
+      ["shortcuts", "快捷键"],
+      ["about", "关于"],
+    ];
+
+    function openSettings(options = {}) {
+      if (options.section) state.settingsSection = options.section;
+      else if (options.focusWorkspaces) state.settingsSection = "workspaces";
+      else state.settingsSection = "platforms";
       renderSettings();
       openOverlay("settingsModal");
-      if (options.focusWorkspaces) {
-        requestAnimationFrame(() => $("settingsWorkspaces")?.scrollIntoView({ block: "start" }));
-      }
     }
 
     function renderSettings() {
+      const nav = $("settingsNav");
+      clearNode(nav);
       const body = $("settingsBody");
       clearNode(body);
-      const settings = state.settings || {};
+      for (const [id, label] of SETTINGS_SECTIONS) {
+        const button = el("button", state.settingsSection === id ? "on" : "", label);
+        button.type = "button";
+        button.addEventListener("click", () => {
+          state.settingsSection = id;
+          renderSettings();
+        });
+        nav.appendChild(button);
+      }
+      if (state.settingsSection === "platforms") renderPlatformsSettings(body);
+      else if (state.settingsSection === "environment") renderEnvironmentSettings(body);
+      else if (state.settingsSection === "usage") renderUsageSettings(body);
+      else if (state.settingsSection === "models") renderModelsSettings(body);
+      else if (state.settingsSection === "workspaces") renderWorkspacesSettings(body);
+      else if (state.settingsSection === "shortcuts") renderShortcutsSettings(body);
+      else renderAboutSettings(body);
+    }
 
-      const paths = el("section", "settings-group");
-      paths.appendChild(el("h4", "", "运行环境"));
-      const rows = [
-        ["数据目录", settings.dataDir],
-        ["应用目录", settings.appRoot],
-        ["用户目录", settings.homeDir],
-      ];
-      for (const [label, value] of rows) {
-        if (!value) continue;
-        const row = el("div", "path-row");
-        row.appendChild(el("span", "label", label));
-        const text = el("span", "value", value);
-        text.title = value;
-        row.appendChild(text);
+    function settingsGroup(title) {
+      const section = el("section", "settings-group");
+      section.appendChild(el("h4", "", title));
+      return section;
+    }
+
+    function settingsPathRow(label, value, canOpen = true) {
+      const row = el("div", "path-row");
+      row.appendChild(el("span", "label", label));
+      const text = el("span", "value", value || "—");
+      text.title = value || "";
+      row.appendChild(text);
+      if (value && canOpen) {
         const open = el("button", "", "打开");
         open.type = "button";
         open.addEventListener("click", () => api.openPath(value));
         row.appendChild(open);
-        paths.appendChild(row);
       }
-      const logRow = el("div", "path-row");
-      logRow.appendChild(el("span", "label", "日志文件"));
-      const logText = el("span", "value", settings.logFile || "—");
-      logText.title = settings.logFile || "";
-      logRow.appendChild(logText);
-      if (settings.logFile) {
-        const openLog = el("button", "", "打开");
-        openLog.type = "button";
-        openLog.addEventListener("click", () => api.openPath(settings.logFile));
-        logRow.appendChild(openLog);
-      }
-      paths.appendChild(logRow);
-      body.appendChild(paths);
+      return row;
+    }
 
-      const workspacesSection = el("section", "settings-group");
-      workspacesSection.id = "settingsWorkspaces";
-      workspacesSection.appendChild(el("h4", "", "工作区"));
-      if (state.workspaces.length === 0) {
-        workspacesSection.appendChild(el("div", "form-hint", "还没有登记工作区。"));
-      }
-      for (const workspace of state.workspaces) {
-        const row = el("div", "ws-settings-row");
-        const name = el("span", "ws-setting-name", workspace.name);
-        name.title = workspace.name;
-        row.appendChild(name);
-        const path = el("span", "ws-setting-path", workspace.available ? workspace.path : `${workspace.path}（目录缺失）`);
-        path.title = workspace.path;
-        row.appendChild(path);
-        const rename = el("button", "", "重命名");
-        rename.type = "button";
-        rename.addEventListener("click", () => renameWorkspaceFlow(workspace));
-        row.appendChild(rename);
-        const remove = el("button", "danger", "注销");
-        remove.type = "button";
-        remove.title = "只移除登记，不删除磁盘文件夹";
-        remove.addEventListener("click", () => removeWorkspaceFlow(workspace));
-        row.appendChild(remove);
-        workspacesSection.appendChild(row);
-      }
-      const addWorkspaceButton = el("button", "", "新建工作区");
-      addWorkspaceButton.type = "button";
-      addWorkspaceButton.style.marginTop = "8px";
-      addWorkspaceButton.addEventListener("click", () => {
-        closeOverlays();
-        openWorkspaceSheet();
-      });
-      workspacesSection.appendChild(addWorkspaceButton);
-      body.appendChild(workspacesSection);
-
-      const platformsSection = el("section", "settings-group");
-      platformsSection.appendChild(el("h4", "", "平台健康"));
+    function renderPlatformsSettings(body) {
+      const platformsSection = settingsGroup("平台");
       for (const platform of state.platforms) {
         const row = el("div", "platform-row");
         const health = platform.health || {};
         const status = platform.enabled === false ? "error" : (health.status || "unknown");
         row.appendChild(el("span", `platform-dot ${status}`, ""));
         row.appendChild(el("span", "platform-name", platform.name));
-        row.appendChild(el("span", "platform-kind", platform.kind));
+        row.appendChild(el("span", "platform-kind", PLATFORM_KIND_LABELS[platform.kind] || platform.kind));
         const detail = el("span", "platform-detail", platform.enabled === false ? "已禁用" : (health.detail || "未检查"));
         detail.title = detail.textContent;
         row.appendChild(detail);
@@ -2810,20 +3080,33 @@
       addPlatform.style.marginTop = "8px";
       addPlatform.addEventListener("click", () => openPlatformSheet());
       platformsSection.appendChild(addPlatform);
+      platformsSection.appendChild(el("div", "hint", "接入方式决定调用方式；密钥只填环境变量名，不写入配置文件。"));
       body.appendChild(platformsSection);
+    }
 
-      const toolsSection = el("section", "settings-group");
-      toolsSection.appendChild(el("h4", "", "本机工具"));
+    function renderEnvironmentSettings(body) {
+      const settings = state.settings || {};
+      const paths = settingsGroup("运行环境");
+      paths.appendChild(settingsPathRow("数据目录", settings.dataDir));
+      paths.appendChild(settingsPathRow("应用目录", settings.appRoot));
+      paths.appendChild(settingsPathRow("用户目录", settings.homeDir));
+      paths.appendChild(settingsPathRow("附件目录", settings.attachmentsDir));
+      paths.appendChild(settingsPathRow("日志文件", settings.logFile));
+      body.appendChild(paths);
+
+      const toolsSection = settingsGroup("本机工具");
       const doctorRow = el("div", "stat-row");
       doctorRow.appendChild(el("span", "", "git / ripgrep / codegraph / Everything"));
       doctorRow.appendChild(el("span", "spacer", ""));
       const doctor = el("button", "", "检测");
       doctor.type = "button";
       doctor.addEventListener("click", async () => {
+        setStatus("正在检测本机工具…", "busy");
         const result = await api.doctor(state.room?.id);
         if (result.status === "success") {
           state.tools = result.data || [];
           renderSettings();
+          setStatus("工具检测完成", "ok");
         } else {
           setStatus(result.summary || "检测失败", "error");
         }
@@ -2841,8 +3124,223 @@
       }
       body.appendChild(toolsSection);
 
-      const modelsSection = el("section", "settings-group");
-      modelsSection.appendChild(el("h4", "", "模型目录"));
+      const graphSection = settingsGroup("codegraph（可选）");
+      const graphRow = el("div", "path-input-row");
+      const graphInput = document.createElement("input");
+      graphInput.value = settings.codegraphPath || "";
+      graphInput.placeholder = "留空自动检测；或填写 codegraph 可执行文件完整路径";
+      graphRow.appendChild(graphInput);
+      const saveGraph = el("button", "", "保存");
+      saveGraph.type = "button";
+      saveGraph.addEventListener("click", async () => {
+        const result = await api.setToolPath({ tool: "codegraph", path: graphInput.value.trim() });
+        if (result.status !== "success") {
+          setStatus(result.summary || "保存失败", "error");
+          return;
+        }
+        state.settings = await api.settings();
+        const tools = await api.doctor(state.room?.id);
+        if (tools.status === "success") state.tools = tools.data || [];
+        renderSettings();
+        setStatus(result.summary || "已保存", "ok");
+      });
+      graphRow.appendChild(saveGraph);
+      graphSection.appendChild(graphRow);
+      graphSection.appendChild(el("div", "hint", "保存后对新启动的检查器、任务和图谱查询生效。安装：npm i -g codegraph（需联网，本应用不代装）。"));
+      body.appendChild(graphSection);
+    }
+
+    function renderUsageSettings(body) {
+      const group = settingsGroup("用量统计");
+      body.appendChild(group);
+      if (!state.room) {
+        group.appendChild(el("div", "hint", "先在左侧选择一个房间。"));
+        return;
+      }
+      const controls = el("div", "stat-row");
+      const select = document.createElement("select");
+      for (const [value, label] of [["all", "全部"], ["24h", "24 小时"], ["7d", "7 天"], ["30d", "30 天"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        select.appendChild(option);
+      }
+      select.value = state.statsSince;
+      select.addEventListener("change", () => {
+        state.statsSince = select.value;
+        renderSettings();
+      });
+      controls.appendChild(select);
+      controls.appendChild(el("span", "spacer", ""));
+      const refresh = el("button", "", "刷新");
+      refresh.type = "button";
+      refresh.addEventListener("click", () => renderSettings());
+      controls.appendChild(refresh);
+      group.appendChild(controls);
+
+      const content = el("div", "");
+      group.appendChild(content);
+      content.appendChild(el("div", "hint", "加载中…"));
+      api.stats({ roomId: state.room.id, since: state.statsSince }).then((result) => {
+        if (!content.isConnected) return;
+        clearNode(content);
+        if (result.status !== "success") {
+          content.appendChild(el("div", "hint", result.summary || "统计失败"));
+          return;
+        }
+        renderStatsContent(content, result.data || {});
+      });
+    }
+
+    function renderStatsContent(container, stats) {
+      const totals = stats.totals || {};
+      const rate = totals.inputTokens > 0 && totals.cacheReadTokens > 0
+        ? `${((totals.cacheReadTokens / totals.inputTokens) * 100).toFixed(1)}%`
+        : "—";
+      const cards = el("div", "stat-cards");
+      const card = (key, value, sub) => {
+        const node = el("div", "stat-card");
+        node.appendChild(el("div", "k", key));
+        node.appendChild(el("div", "v", value));
+        if (sub) node.appendChild(el("div", "s", sub));
+        cards.appendChild(node);
+      };
+      card("请求", String(totals.requests || 0), `失败 ${totals.failed || 0}`);
+      card("Token", Number(totals.totalTokens || 0).toLocaleString(), `入 ${Number(totals.inputTokens || 0).toLocaleString()} · 出 ${Number(totals.outputTokens || 0).toLocaleString()}`);
+      card("缓存命中", rate, `缓存读 ${Number(totals.cacheReadTokens || 0).toLocaleString()}`);
+      card("费用", `¥${Number(totals.costYuan || 0).toFixed(2)}`, "按模型价格估算");
+      container.appendChild(cards);
+
+      const budget = Number(state.room?.rules?.budgetYuan || 0);
+      if (budget > 0) {
+        const ratio = Math.min(1, Number(totals.costYuan || 0) / budget);
+        const row = el("div", "");
+        row.appendChild(el("div", "hint", `房间预算 ¥${budget.toFixed(2)} · 已用 ${(ratio * 100).toFixed(1)}%`));
+        const track = el("div", "budget-track");
+        const fill = el("div", `budget-fill${ratio >= 1 ? " over" : ""}`);
+        fill.style.width = `${ratio * 100}%`;
+        track.appendChild(fill);
+        row.appendChild(track);
+        container.appendChild(row);
+      }
+
+      if (stats.lastTurn) {
+        const last = stats.lastTurn;
+        const context = last.contextWindow
+          ? `上下文 ${Number(last.inputTokens).toLocaleString()} / ${Number(last.contextWindow).toLocaleString()}（${((last.inputTokens / last.contextWindow) * 100).toFixed(1)}%）`
+          : `上下文 ${Number(last.inputTokens).toLocaleString()}`;
+        container.appendChild(el("div", "hint", `最近一轮：${last.memberName} · ${last.platformId} / ${last.modelId} · ${context}`));
+      }
+
+      const models = stats.byModel || [];
+      const totalTokens = Number(totals.totalTokens || 0);
+      if (models.length > 0) {
+        container.appendChild(el("div", "hint", "按模型"));
+        const chart = el("div", "usage-chart");
+        chart.appendChild(usageDonut(models, totalTokens));
+        const legend = el("div", "usage-legend");
+        models.forEach((bucket, index) => {
+          const row = el("div", "usage-legend-row");
+          const dot = el("span", "dot", "");
+          dot.style.background = USAGE_COLORS[index % USAGE_COLORS.length];
+          row.appendChild(dot);
+          const name = el("span", "name", bucket.label);
+          name.title = bucket.label;
+          row.appendChild(name);
+          const share = totalTokens > 0 ? ((bucket.totalTokens / totalTokens) * 100).toFixed(1) : "0.0";
+          row.appendChild(el("span", "num", `${share}% · ¥${bucket.costYuan.toFixed(2)}`));
+          legend.appendChild(row);
+        });
+        chart.appendChild(legend);
+        container.appendChild(chart);
+      }
+
+      const days = (stats.byDay || []).slice(-14);
+      if (days.length > 0) {
+        container.appendChild(el("div", "hint", "按天（Token）"));
+        const bars = el("div", "usage-bars");
+        const max = Math.max(...days.map((day) => Number(day.totalTokens || 0)), 1);
+        days.forEach((day) => {
+          const bar = el("div", "usage-bar");
+          bar.style.height = `${Math.max(3, (Number(day.totalTokens || 0) / max) * 100)}%`;
+          if (days.length === 1) bar.style.maxWidth = "64px";
+          bar.title = `${day.key}：${day.requests} 次 · ${Number(day.totalTokens || 0).toLocaleString()} tok · ¥${Number(day.costYuan || 0).toFixed(2)}`;
+          bars.appendChild(bar);
+        });
+        container.appendChild(bars);
+        const axis = el("div", "usage-axis");
+        axis.appendChild(el("span", "", days[0].key.slice(5)));
+        axis.appendChild(el("span", "", days[days.length - 1].key.slice(5)));
+        container.appendChild(axis);
+      }
+
+      if ((stats.byMember || []).length > 0) container.appendChild(statsTable("按成员", stats.byMember));
+      if (models.length > 0) container.appendChild(statsTable("按模型明细", models));
+    }
+
+    function statsTable(title, buckets) {
+      const wrap = el("div", "");
+      wrap.appendChild(el("div", "hint", title));
+      const table = el("table", "usage-table");
+      const head = el("tr", "");
+      for (const [label, numeric] of [["名称", false], ["请求", true], ["输入", true], ["输出", true], ["缓存", true], ["费用", true]]) {
+        const cell = el("th", numeric ? "num" : "", label);
+        head.appendChild(cell);
+      }
+      table.appendChild(head);
+      for (const bucket of buckets) {
+        const row = el("tr", "");
+        row.appendChild(el("td", "", bucket.label));
+        row.appendChild(el("td", "num", String(bucket.requests)));
+        row.appendChild(el("td", "num", Number(bucket.inputTokens || 0).toLocaleString()));
+        row.appendChild(el("td", "num", Number(bucket.outputTokens || 0).toLocaleString()));
+        row.appendChild(el("td", "num", Number(bucket.cacheReadTokens || 0).toLocaleString()));
+        row.appendChild(el("td", "num", `¥${Number(bucket.costYuan || 0).toFixed(2)}`));
+        table.appendChild(row);
+      }
+      wrap.appendChild(table);
+      return wrap;
+    }
+
+    function usageDonut(buckets, total) {
+      const ns = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(ns, "svg");
+      svg.setAttribute("viewBox", "0 0 42 42");
+      svg.setAttribute("class", "usage-donut");
+      svg.setAttribute("aria-label", "按模型 token 占比");
+      const base = document.createElementNS(ns, "circle");
+      base.setAttribute("cx", "21");
+      base.setAttribute("cy", "21");
+      base.setAttribute("r", "15.9155");
+      base.setAttribute("fill", "none");
+      base.setAttribute("stroke", "rgba(255,255,255,.07)");
+      base.setAttribute("stroke-width", "6");
+      svg.appendChild(base);
+      let offset = 0;
+      buckets.forEach((bucket, index) => {
+        const share = total > 0 ? (Number(bucket.totalTokens || 0) / total) * 100 : 0;
+        if (share <= 0) return;
+        const circle = document.createElementNS(ns, "circle");
+        circle.setAttribute("cx", "21");
+        circle.setAttribute("cy", "21");
+        circle.setAttribute("r", "15.9155");
+        circle.setAttribute("fill", "none");
+        circle.setAttribute("stroke", USAGE_COLORS[index % USAGE_COLORS.length]);
+        circle.setAttribute("stroke-width", "6");
+        circle.setAttribute("stroke-dasharray", `${share} ${100 - share}`);
+        circle.setAttribute("stroke-dashoffset", String(-offset));
+        circle.setAttribute("transform", "rotate(-90 21 21)");
+        const tip = document.createElementNS(ns, "title");
+        tip.textContent = `${bucket.label}：${share.toFixed(1)}%`;
+        circle.appendChild(tip);
+        svg.appendChild(circle);
+        offset += share;
+      });
+      return svg;
+    }
+
+    function renderModelsSettings(body) {
+      const modelsSection = settingsGroup("模型目录");
       const modelRow = el("div", "stat-row");
       modelRow.appendChild(el("span", "num", String(state.models.length)));
       modelRow.appendChild(el("span", "", "个模型"));
@@ -2855,8 +3353,7 @@
       modelsSection.appendChild(el("div", "hint", "同步会更新本机模型目录；成员绑定不会自动改变。"));
       body.appendChild(modelsSection);
 
-      const capabilitiesSection = el("section", "settings-group");
-      capabilitiesSection.appendChild(el("h4", "", "本机能力（只读扫描）"));
+      const capabilitiesSection = settingsGroup("本机能力（只读扫描）");
       const skillRow = el("div", "stat-row");
       skillRow.appendChild(el("span", "num", String(state.capabilities.skills.length)));
       skillRow.appendChild(el("span", "", "个技能"));
@@ -2878,14 +3375,45 @@
       if (chips.childElementCount === 0) chips.appendChild(el("span", "hint", "未发现本机技能或 MCP 清单"));
       capabilitiesSection.appendChild(chips);
       body.appendChild(capabilitiesSection);
+    }
 
-      const misc = el("section", "settings-group");
-      misc.appendChild(el("h4", "", "快捷键"));
+    function renderWorkspacesSettings(body) {
+      const workspacesSection = settingsGroup("工作区");
+      if (state.workspaces.length === 0) {
+        workspacesSection.appendChild(el("div", "form-hint", "还没有登记工作区。在左侧栏点 + 新建。"));
+      }
+      for (const workspace of state.workspaces) {
+        const row = el("div", "ws-settings-row");
+        const name = el("span", "ws-setting-name", workspace.name);
+        name.title = workspace.name;
+        row.appendChild(name);
+        const path = el("span", "ws-setting-path", workspace.available ? workspace.path : `${workspace.path}（目录缺失）`);
+        path.title = workspace.path;
+        row.appendChild(path);
+        const rename = el("button", "", "重命名");
+        rename.type = "button";
+        rename.addEventListener("click", () => renameWorkspaceFlow(workspace));
+        row.appendChild(rename);
+        const remove = el("button", "danger", "注销");
+        remove.type = "button";
+        remove.title = "只移除登记，不删除磁盘文件夹";
+        remove.addEventListener("click", () => removeWorkspaceFlow(workspace));
+        row.appendChild(remove);
+        workspacesSection.appendChild(row);
+      }
+      workspacesSection.appendChild(el("div", "hint", "新建工作区请用左侧栏的 +；这里只做重命名和注销。"));
+      body.appendChild(workspacesSection);
+    }
+
+    function renderShortcutsSettings(body) {
+      const misc = settingsGroup("快捷键");
       const shortcuts = [
         ["命令面板", "Ctrl K"],
         ["折叠侧栏", "Ctrl B"],
         ["运行任务", "Ctrl Enter"],
         ["关闭浮层", "Esc"],
+        ["斜杠命令", "/"],
+        ["引用文件", "@"],
       ];
       for (const [label, keys] of shortcuts) {
         const row = el("div", "shortcut-row");
@@ -2894,6 +3422,17 @@
         misc.appendChild(row);
       }
       body.appendChild(misc);
+    }
+
+    function renderAboutSettings(body) {
+      const settings = state.settings || {};
+      const about = settingsGroup("关于");
+      about.appendChild(settingsPathRow("版本", settings.appVersion ? `AgentHub ${settings.appVersion}` : "—", false));
+      about.appendChild(settingsPathRow("数据目录", settings.dataDir));
+      about.appendChild(settingsPathRow("附件目录", settings.attachmentsDir));
+      about.appendChild(settingsPathRow("日志文件", settings.logFile));
+      about.appendChild(el("div", "hint", "AgentHub 本地房间：对话、草稿、任务与检查器都只在本机运行。"));
+      body.appendChild(about);
     }
 
     function renameWorkspaceFlow(workspace) {
@@ -3609,6 +4148,43 @@
 
     function renderCost() {
       $("cost").textContent = `¥${state.costYuan.toFixed(2)} · ${state.totalTokens.toLocaleString()} tok`;
+      const turns = state.events.filter((event) => event.type === "turn_finished");
+      let input = 0;
+      let output = 0;
+      let cache = 0;
+      for (const turn of turns) {
+        input += Number(turn.usage?.inputTokens || 0);
+        output += Number(turn.usage?.outputTokens || 0);
+        cache += Number(turn.usage?.cacheReadTokens || 0);
+      }
+      const last = [...turns].reverse().find((turn) => turn.usage);
+      let context = "";
+      if (last) {
+        const used = Number(last.usage?.contextTokens ?? last.usage?.inputTokens ?? 0);
+        const descriptor = state.models.find((model) => model.modelId === last.modelId);
+        const window = descriptor?.contextWindow
+          || state.room?.members.find((member) => member.id === last.memberId)?.binding?.contextWindow;
+        context = window
+          ? `\n最近上下文 ${used.toLocaleString()} / ${window.toLocaleString()}（${((used / window) * 100).toFixed(1)}%）`
+          : `\n最近上下文 ${used.toLocaleString()}`;
+      }
+      $("cost").title = `输入 ${input.toLocaleString()} · 输出 ${output.toLocaleString()} · 缓存 ${cache.toLocaleString()}${context}\n点击查看用量统计`;
+      maybeWarnBudget();
+    }
+
+    function maybeWarnBudget() {
+      const budget = Number(state.room?.rules?.budgetYuan || 0);
+      if (!state.room || budget <= 0) return;
+      if (state.costYuan < budget * 0.8) return;
+      const key = `${state.room.id}:${state.costYuan >= budget ? "full" : "warn"}`;
+      if (state.budgetWarnedRoom === key) return;
+      state.budgetWarnedRoom = key;
+      setStatus(
+        state.costYuan >= budget
+          ? `房间预算 ¥${budget.toFixed(2)} 已用完，下一轮将停止`
+          : `房间预算已用 ${((state.costYuan / budget) * 100).toFixed(0)}%（¥${budget.toFixed(2)}）`,
+        state.costYuan >= budget ? "error" : "busy",
+      );
     }
 
     function renderModelCount() {
@@ -3739,6 +4315,19 @@
       head.appendChild(el("span", "time", formatTime(event.ts)));
       body.appendChild(head);
       body.appendChild(el("div", "msg-text", event.text));
+      const images = Array.isArray(event.images) ? event.images : [];
+      if (images.length > 0) {
+        const gallery = el("div", "msg-images");
+        for (const imagePath of images) {
+          const img = document.createElement("img");
+          img.src = fileUrl(imagePath);
+          img.alt = String(imagePath).split(/[\\/]/).pop() || "图片附件";
+          img.title = imagePath;
+          img.loading = "lazy";
+          gallery.appendChild(img);
+        }
+        body.appendChild(gallery);
+      }
       body.appendChild(messageActions(event));
       row.appendChild(body);
       return row;
@@ -4257,6 +4846,7 @@
       $("rsAutonomy").value = rules.autonomy || "medium";
       $("rsMaxHandoffs").value = rules.maxHandoffs || 6;
       $("rsStopToken").value = rules.stopToken || "DONE";
+      $("rsBudget").value = rules.budgetYuan !== undefined ? rules.budgetYuan : "";
       const draftMode = $("rsDraftMode");
       draftMode.value = state.room.workspace && rules.draftMode !== "read-only" ? "drafts" : "read-only";
       draftMode.disabled = !state.room.workspace;
@@ -4278,6 +4868,8 @@
       const autonomy = $("rsAutonomy").value;
       const maxHandoffs = Math.min(20, Math.max(1, Math.floor(Number($("rsMaxHandoffs").value) || 6)));
       const stopToken = $("rsStopToken").value.trim() || "DONE";
+      const budgetValue = $("rsBudget").value.trim();
+      const budgetYuan = budgetValue === "" ? undefined : Math.max(0, Number(budgetValue));
       state.room.rules = {
         ...(state.room.rules || {}),
         autonomy,
@@ -4286,6 +4878,7 @@
         draftMode: state.room.workspace ? $("rsDraftMode").value : "read-only",
         allowTaskWrites: state.room.workspace ? $("rsAllowTaskWrites").checked : false,
         allowAutoMerge: $("rsAllowAutoMerge").checked,
+        budgetYuan,
       };
       state.room.updatedAt = new Date().toISOString();
       const result = await api.updateRoom(state.room.id, state.room);
@@ -4363,7 +4956,288 @@
       chat.scrollTop = chat.scrollHeight;
     }
 
-    async function runRoom() {
+    const SLASH_COMMANDS = [
+      { name: "btw", usage: "/btw 问题", hint: "只读旁问，不打断房间", run: (rest) => openBtw(null, rest) },
+      { name: "plan", usage: "/plan", hint: "让指定成员先输出计划", run: (rest) => openPlanSheet(rest) },
+      { name: "compact", usage: "/compact", hint: "立即压缩房间上下文", run: () => compactRoom() },
+      { name: "brief", usage: "/brief", hint: "编辑房间目标与约束", run: () => openBriefSheet() },
+      { name: "task", usage: "/task", hint: "新建任务", run: () => openTaskSheet() },
+      { name: "settings", usage: "/settings 用量", hint: "打开设置板块", run: (rest) => openSettingsByArg(rest) },
+      { name: "stop", usage: "/stop", hint: "停止当前运行", run: () => stopRoom() },
+    ];
+
+    function hideComposerMenus() {
+      $("slashMenu").hidden = true;
+      $("fileMenu").hidden = true;
+    }
+
+    function slashQueryValue() {
+      const match = /^\/([^\s]*)$/.exec($("prompt").value);
+      return match ? match[1] : null;
+    }
+
+    function renderSlashMenu() {
+      const menu = $("slashMenu");
+      const query = slashQueryValue();
+      if (query === null || state.running || !state.room) {
+        menu.hidden = true;
+        state.slashItems = [];
+        return;
+      }
+      const items = SLASH_COMMANDS.filter((command) => command.name.startsWith(query.toLowerCase()));
+      state.slashItems = items;
+      if (items.length === 0) {
+        menu.hidden = true;
+        return;
+      }
+      state.slashIndex = Math.max(0, Math.min(state.slashIndex, items.length - 1));
+      clearNode(menu);
+      items.forEach((command, index) => {
+        const row = el("div", `slash-item${index === state.slashIndex ? " on" : ""}`);
+        row.appendChild(el("span", "cmd", command.usage));
+        row.appendChild(el("span", "desc", command.hint));
+        row.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          executeSlashCommand(command, "");
+        });
+        menu.appendChild(row);
+      });
+      menu.hidden = false;
+    }
+
+    function executeSlashCommand(command, rest) {
+      $("prompt").value = "";
+      hideComposerMenus();
+      command.run(rest);
+    }
+
+    function handleSlashBeforeSend() {
+      const value = $("prompt").value.trim();
+      if (!value.startsWith("/")) return false;
+      const [token, ...rest] = value.split(/\s+/);
+      const command = SLASH_COMMANDS.find((candidate) => `/${candidate.name}` === token);
+      if (!command) return false;
+      executeSlashCommand(command, rest.join(" "));
+      return true;
+    }
+
+    function openSettingsByArg(argument) {
+      const key = String(argument || "").trim().toLowerCase();
+      const map = {
+        平台: "platforms", platform: "platforms",
+        环境: "environment", 工具: "environment", env: "environment",
+        用量: "usage", 统计: "usage", usage: "usage", stats: "usage",
+        模型: "models", 能力: "models", model: "models",
+        工作区: "workspaces", workspace: "workspaces",
+        快捷键: "shortcuts", 关于: "about", about: "about",
+      };
+      openSettings({ section: map[key] || "platforms" });
+    }
+
+    function openPlanSheet(prefill = "") {
+      if (!state.room) {
+        setStatus("先选择房间", "error");
+        return;
+      }
+      const select = $("planMember");
+      clearNode(select);
+      for (const member of state.room.members) {
+        const option = document.createElement("option");
+        option.value = member.id;
+        option.textContent = `${member.name} · ${member.role}`;
+        select.appendChild(option);
+      }
+      select.value = state.selectedMemberId || state.room.members[0]?.id || "";
+      $("planTask").value = prefill || "";
+      openOverlay("planModal");
+      requestAnimationFrame(() => (prefill ? $("planMember") : $("planTask")).focus());
+    }
+
+    async function startPlanFlow() {
+      const member = memberById($("planMember").value);
+      const task = $("planTask").value.trim();
+      if (!member) {
+        setStatus("请选择成员", "error");
+        return;
+      }
+      if (!task) {
+        setStatus("请填写任务", "error");
+        return;
+      }
+      closeOverlays();
+      $("prompt").value = `@${member.name} 请先只输出实施计划（步骤、涉及文件、风险、验收方式），不要修改任何文件。\n\n${task}`;
+      await runRoom({ readOnly: true });
+    }
+
+    async function openBriefSheet() {
+      if (!state.room) {
+        setStatus("先选择房间", "error");
+        return;
+      }
+      const result = await api.briefShow(state.room.id);
+      $("briefText").value = result.status === "success" ? (result.data?.brief || "") : "";
+      openOverlay("briefModal");
+      requestAnimationFrame(() => $("briefText").focus());
+    }
+
+    async function saveBriefFlow() {
+      if (!state.room) return;
+      const text = $("briefText").value;
+      setStatus("正在保存简报…", "busy");
+      const result = await api.briefSet({ roomId: state.room.id, text });
+      if (result.status !== "success") {
+        setStatus(result.summary || "简报保存失败", "error");
+        return;
+      }
+      closeOverlays();
+      setStatus("简报已保存，下一轮生效", "ok");
+    }
+
+    async function compactRoom() {
+      if (!state.room) {
+        setStatus("先选择房间", "error");
+        return;
+      }
+      if (state.running) {
+        setStatus("运行中不能压缩，先停止", "error");
+        return;
+      }
+      setStatus("正在压缩上下文…", "busy");
+      const result = await api.compact(state.room.id);
+      if (result.status !== "success") {
+        setStatus(result.summary || "压缩失败", "error");
+        return;
+      }
+      await loadRoom(state.room.id);
+      setStatus("上下文已压缩", "ok");
+    }
+
+    function fileQueryAtCursor() {
+      const input = $("prompt");
+      const before = input.value.slice(0, input.selectionStart ?? 0);
+      const match = /@([^\s@]*)$/.exec(before);
+      if (!match) return null;
+      return { query: match[1], start: before.length - match[0].length };
+    }
+
+    function renderFileMenu() {
+      const menu = $("fileMenu");
+      clearNode(menu);
+      if (state.fileMatches.length === 0) {
+        menu.hidden = true;
+        return;
+      }
+      state.fileMatches.forEach((match, index) => {
+        const row = el("div", `slash-item${index === state.fileIndex ? " on" : ""}`);
+        row.appendChild(el("span", "cmd", match.path));
+        row.appendChild(el("span", "desc", match.name === match.path ? "" : match.name));
+        row.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          insertFileRef(match);
+        });
+        menu.appendChild(row);
+      });
+      menu.hidden = false;
+    }
+
+    async function refreshFileMenu() {
+      const hit = fileQueryAtCursor();
+      if (!hit || !state.room?.workspace || state.running) {
+        $("fileMenu").hidden = true;
+        return;
+      }
+      if (hit.query && state.room.members.some((member) => member.name.startsWith(hit.query))) {
+        $("fileMenu").hidden = true;
+        return;
+      }
+      const result = await api.files({ roomId: state.room.id, query: hit.query, limit: 30 });
+      state.fileMatches = result.status === "success" ? (result.data || []) : [];
+      state.fileIndex = 0;
+      renderFileMenu();
+    }
+
+    function insertFileRef(match) {
+      const input = $("prompt");
+      const hit = fileQueryAtCursor();
+      if (!hit) return;
+      const after = input.value.slice(input.selectionStart ?? input.value.length);
+      const inserted = /\s/.test(match.path) ? `@"${match.path}" ` : `@${match.path} `;
+      input.value = `${input.value.slice(0, hit.start)}${inserted}${after}`;
+      const caret = hit.start + inserted.length;
+      input.selectionStart = caret;
+      input.selectionEnd = caret;
+      input.focus();
+      hideComposerMenus();
+    }
+
+    function fileUrl(target) {
+      const normalized = String(target).replace(/\\/g, "/");
+      const parts = normalized.split("/");
+      return `file:///${parts.map((part, index) => (index === 0 ? part : encodeURIComponent(part))).join("/")}`;
+    }
+
+    function renderAttachments() {
+      const row = $("attachRow");
+      clearNode(row);
+      row.hidden = state.pendingImages.length === 0;
+      state.pendingImages.forEach((image, index) => {
+        const chip = el("div", "attach-chip");
+        const img = document.createElement("img");
+        img.src = image.dataUrl;
+        img.alt = image.name || "附件";
+        img.title = image.name || "";
+        chip.appendChild(img);
+        const remove = el("button", "", "×");
+        remove.type = "button";
+        remove.title = "移除附件";
+        remove.addEventListener("click", () => {
+          state.pendingImages.splice(index, 1);
+          renderAttachments();
+        });
+        chip.appendChild(remove);
+        row.appendChild(chip);
+      });
+    }
+
+    async function pickImageFiles() {
+      if (!state.room) {
+        setStatus("先选择房间", "error");
+        return;
+      }
+      const result = await api.pickImages({ roomId: state.room.id });
+      if (result.status === "success") {
+        state.pendingImages.push(...(result.data || []));
+        renderAttachments();
+      } else if (result.status !== "warning") {
+        setStatus(result.summary || "添加图片失败", "error");
+      }
+    }
+
+    async function handlePasteImage(event) {
+      if (!state.room) return;
+      const items = [...(event.clipboardData?.items || [])];
+      const imageItem = items.find((item) => String(item.type || "").startsWith("image/"));
+      if (!imageItem) return;
+      event.preventDefault();
+      const file = imageItem.getAsFile();
+      if (!file) return;
+      const dataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => resolve("");
+        reader.readAsDataURL(file);
+      });
+      if (!dataUrl) return;
+      const result = await api.saveImage({ roomId: state.room.id, dataUrl });
+      if (result.status === "success" && result.data) {
+        state.pendingImages.push(result.data);
+        renderAttachments();
+      } else {
+        setStatus(result.summary || "图片保存失败", "error");
+      }
+    }
+
+    async function runRoom(options = {}) {
       if (!state.room) {
         setStatus("先创建或选择一个房间", "error");
         return;
@@ -4376,6 +5250,7 @@
         return;
       }
       const rules = state.room.rules || {};
+      const useDraft = options.readOnly === true ? false : draftEnabled();
       state.running = true;
       state.stopping = false;
       state.costYuan = 0;
@@ -4385,7 +5260,7 @@
       state.events = [];
       renderChat();
       renderCost();
-      $("draftBadge").hidden = !draftEnabled();
+      $("draftBadge").hidden = !useDraft;
       $("run").disabled = true;
       $("stop").disabled = false;
       setStatus("运行中…", "busy");
@@ -4394,9 +5269,12 @@
         prompt,
         autonomy: rules.autonomy || "medium",
         maxHandoffs: Number(rules.maxHandoffs) || 6,
-        draft: draftEnabled(),
-        scope: draftEnabled() ? parseScopeInput($("draftScope").value) : [],
+        draft: useDraft,
+        scope: useDraft ? parseScopeInput($("draftScope").value) : [],
+        images: state.pendingImages.map((image) => image.path),
       });
+      state.pendingImages = [];
+      renderAttachments();
       $("draftBadge").hidden = true;
       state.running = false;
       $("run").disabled = false;

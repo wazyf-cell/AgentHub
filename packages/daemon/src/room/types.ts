@@ -83,6 +83,9 @@ export interface RoomConfig {
 export interface TokenUsage {
   inputTokens?: number;
   outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  contextTokens?: number;
   totalTokens?: number;
 }
 
@@ -163,6 +166,8 @@ export type RoomEvent =
       type: "turn_finished";
       turnId: string;
       memberId: string;
+      platformId?: string;
+      modelId?: string;
       status: "completed" | "failed";
       usage?: TokenUsage;
       costYuan?: number;

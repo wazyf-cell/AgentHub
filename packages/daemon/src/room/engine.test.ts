@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -7,7 +7,7 @@ import { FakeBackend, createDemoFakeBackend } from "./backends/fake.ts";
 import { createDemoRoom } from "./demo.ts";
 import { runRoom } from "./engine.ts";
 import { RoomStore } from "./store.ts";
-import type { RoomEvent } from "./types.ts";
+import type { AgentBackend, RoomEvent } from "./types.ts";
 
 function createStore(): { dataDir: string; store: RoomStore; cleanup: () => void } {
   const dataDir = mkdtempSync(join(tmpdir(), "agenthub-room-engine-"));
@@ -56,6 +56,46 @@ test("demo room runs planner -> implementer -> reviewer -> DONE", async () => {
     assert.equal(readdirSync(join(store.roomDir("demo"), "runs")).length, 3);
   } finally {
     cleanup();
+  }
+});
+
+test("inline file references are appended only for API-style members", async () => {
+  const root = mkdtempSync(join(tmpdir(), "agenthub-engine-refs-"));
+  const store = new RoomStore(join(root, "data"));
+  createDemoRoom(store, root);
+  writeFileSync(join(root, "note.md"), "引用内容 42\n");
+  const prompts: string[] = [];
+  const backend: AgentBackend = {
+    id: "capture",
+    async runTurn(request) {
+      prompts.push(request.prompt);
+      return { text: "DONE", status: "completed", usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } };
+    },
+  };
+  try {
+    const inline = await runRoom({
+      store,
+      roomId: "demo",
+      prompt: "看看 @note.md",
+      backend,
+      fileRefMode: () => "inline",
+    });
+    assert.equal(inline.stopReason, "done");
+    assert.ok(prompts[0].includes("## 引用文件"));
+    assert.ok(prompts[0].includes("引用内容 42"));
+
+    prompts.length = 0;
+    await runRoom({
+      store,
+      roomId: "demo",
+      prompt: "再看一次 @note.md",
+      backend,
+      fileRefMode: () => "path",
+    });
+    assert.ok(!prompts[0].includes("引用内容 42"));
+    assert.ok(prompts[0].includes("@note.md"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
 

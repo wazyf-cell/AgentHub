@@ -3,6 +3,7 @@ const { spawn } = require("node:child_process");
 const os = require("node:os");
 const fs = require("node:fs");
 const path = require("node:path");
+const { randomUUID } = require("node:crypto");
 
 const APP_ROOT = app.isPackaged ? app.getAppPath() : path.resolve(__dirname, "..");
 const USER_DATA_DIR = app.getPath("userData");
@@ -10,6 +11,33 @@ const LOCAL_CONFIG_PATH = path.join(USER_DATA_DIR, "agentspace.local.json");
 const LOCAL_OUTPUT_DIR = path.join(USER_DATA_DIR, "runs");
 const LOG_FILE = path.join(USER_DATA_DIR, "agent-space-local-desktop.log");
 const ROOM_DATA_DIR = path.join(USER_DATA_DIR, "rooms");
+const APP_SETTINGS_PATH = path.join(USER_DATA_DIR, "app-settings.json");
+const ATTACHMENTS_DIR = path.join(USER_DATA_DIR, "attachments");
+
+function readAppSettings() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(APP_SETTINGS_PATH, "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAppSettings(patch) {
+  const settings = { ...readAppSettings(), ...patch };
+  fs.mkdirSync(path.dirname(APP_SETTINGS_PATH), { recursive: true });
+  fs.writeFileSync(APP_SETTINGS_PATH, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  return settings;
+}
+
+function roomEnv() {
+  const env = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
+  const settings = readAppSettings();
+  if (typeof settings.codegraphPath === "string" && settings.codegraphPath.trim()) {
+    env.CODEGRAPH_BIN = settings.codegraphPath.trim();
+  }
+  return env;
+}
 
 let mainWindow = null;
 let activeRun = null;
@@ -110,10 +138,7 @@ function spawnRoomCli(command, args = [], options = {}) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, buildRoomCliArgs(command, args), {
       cwd: APP_ROOT,
-      env: {
-        ...process.env,
-        ELECTRON_RUN_AS_NODE: "1",
-      },
+      env: roomEnv(),
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -361,7 +386,140 @@ ipcMain.handle("room:settings", () => ({
   appRoot: APP_ROOT,
   homeDir: os.homedir(),
   logFile: LOG_FILE,
+  appVersion: app.getVersion(),
+  attachmentsDir: ATTACHMENTS_DIR,
+  codegraphPath: readAppSettings().codegraphPath || "",
 }));
+
+ipcMain.handle("room:set-tool", (_event, input) => {
+  const tool = String(input?.tool || "").trim();
+  const target = String(input?.path || "").trim();
+  if (tool !== "codegraph") {
+    return { status: "error", summary: "不支持的工具。当前只支持 codegraph。" };
+  }
+  if (target && !fs.existsSync(target)) {
+    return { status: "error", summary: `路径不存在：${target}` };
+  }
+  writeAppSettings({ codegraphPath: target });
+  return { status: "success", summary: target ? "codegraph 路径已保存" : "已恢复为自动检测", codegraphPath: target };
+});
+
+function attachmentRoomDir(roomId) {
+  const safe = String(roomId || "").replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!safe) throw new Error("Room id is required.");
+  const dir = path.join(ATTACHMENTS_DIR, safe);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function imagePayload(filePath) {
+  const data = fs.readFileSync(filePath);
+  const extension = path.extname(filePath).toLowerCase();
+  const mime = extension === ".jpg" || extension === ".jpeg"
+    ? "image/jpeg"
+    : extension === ".webp"
+      ? "image/webp"
+      : extension === ".gif"
+        ? "image/gif"
+        : extension === ".bmp"
+          ? "image/bmp"
+          : "image/png";
+  return {
+    path: filePath,
+    name: path.basename(filePath),
+    dataUrl: `data:${mime};base64,${data.toString("base64")}`,
+  };
+}
+
+ipcMain.handle("room:pick-images", async (_event, input) => {
+  let roomId;
+  try {
+    roomId = attachmentRoomDir(input?.roomId);
+  } catch (error) {
+    return { status: "error", summary: error.message };
+  }
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "选择图片附件",
+    properties: ["openFile", "multiSelections"],
+    filters: [{ name: "图片", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return { status: "warning", summary: "未选择图片" };
+  }
+  try {
+    const images = [];
+    for (const source of result.filePaths) {
+      if (fs.statSync(source).size > 15 * 1024 * 1024) {
+        return { status: "error", summary: `${path.basename(source)} 超过 15MB，未添加` };
+      }
+      const target = path.join(roomId, `${randomUUID()}${path.extname(source).toLowerCase() || ".png"}`);
+      fs.copyFileSync(source, target);
+      images.push(imagePayload(target));
+    }
+    return { status: "success", data: images };
+  } catch (error) {
+    return { status: "error", summary: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle("room:save-image", (_event, input) => {
+  try {
+    const dir = attachmentRoomDir(input?.roomId);
+    const dataUrl = String(input?.dataUrl || "");
+    const match = /^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(dataUrl);
+    if (!match) {
+      return { status: "error", summary: "粘贴内容不是图片。" };
+    }
+    const extension = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
+    const buffer = Buffer.from(match[2], "base64");
+    if (buffer.length > 15 * 1024 * 1024) {
+      return { status: "error", summary: "图片超过 15MB。" };
+    }
+    const target = path.join(dir, `${randomUUID()}.${extension}`);
+    fs.writeFileSync(target, buffer);
+    return { status: "success", data: imagePayload(target) };
+  } catch (error) {
+    return { status: "error", summary: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle("room:stats", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  if (!roomId) return { status: "error", summary: "Room id is required." };
+  const args = ["--json", "--room", roomId];
+  if (input?.since) args.push("--since", String(input.since));
+  return runRoomJson("stats", args);
+});
+
+ipcMain.handle("room:compact", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  if (!roomId) return { status: "error", summary: "Room id is required." };
+  return runRoomJson("compact", ["--json", "--room", roomId]);
+});
+
+ipcMain.handle("room:brief-show", (_event, roomId) => {
+  const id = String(roomId || "").trim();
+  if (!id) return { status: "error", summary: "Room id is required." };
+  return runRoomJson("brief", ["show", "--json", "--room", id]);
+});
+
+ipcMain.handle("room:brief-set", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  const text = String(input?.text ?? "");
+  if (!roomId) return { status: "error", summary: "Room id is required." };
+  if (text.length > 40_000) return { status: "error", summary: "简报过长（上限 40000 字）。" };
+  return runRoomJson("brief", ["set", "--json", "--room", roomId, "--text", text]);
+});
+
+ipcMain.handle("room:files", (_event, input) => {
+  const roomId = String(input?.roomId || "").trim();
+  if (!roomId) return { status: "error", summary: "Room id is required." };
+  const args = ["files", "--json", "--room", roomId];
+  if (input?.query) args.push("--query", String(input.query));
+  if (input?.limit) args.push("--limit", String(input.limit));
+  if (input?.workspace) args.push("--workspace", String(input.workspace));
+  return runRoomJson("inspect", args);
+});
 
 ipcMain.handle("room:pick-workspace", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -827,6 +985,9 @@ ipcMain.handle("room:run", async (_event, input) => {
   }
   if (input?.fake === true) {
     args.push("--fake");
+  }
+  for (const image of Array.isArray(input?.images) ? input.images : []) {
+    args.push("--image", String(image));
   }
   if (input?.draft === true) {
     args.push("--draft");

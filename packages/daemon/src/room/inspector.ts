@@ -114,6 +114,62 @@ export function listTree(root: string, relativePath = "", maxDepth = 2): Inspect
   return entries;
 }
 
+export interface FileMatch {
+  path: string;
+  name: string;
+}
+
+const IGNORED_DIRS = new Set([".git", "node_modules", ".agentspace", "dist", "dist-electron-out", "dist-electron-local-out"]);
+
+export function listFiles(root: string, query = "", limit = 200): FileMatch[] {
+  const workspace = workspacePath(root);
+  const files: string[] = [];
+  const walk = (dir: string): void => {
+    if (files.length >= 5000) return;
+    let children;
+    try {
+      children = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const child of children) {
+      if (files.length >= 5000) return;
+      if (child.name.startsWith(".")) continue;
+      if (child.isDirectory()) {
+        if (IGNORED_DIRS.has(child.name)) continue;
+        walk(join(dir, child.name));
+      } else if (child.isFile()) {
+        files.push(join(dir, child.name).slice(workspace.length + 1).split("\\").join("/"));
+      }
+    }
+  };
+  walk(workspace);
+
+  const needle = query.trim().toLowerCase();
+  const matches = needle
+    ? files
+      .map((path) => ({ path, score: fuzzyScore(path.toLowerCase(), needle) }))
+      .filter((entry) => entry.score !== undefined)
+      .sort((left, right) => (left.score ?? 0) - (right.score ?? 0) || left.path.length - right.path.length)
+      .map((entry) => entry.path)
+    : files.sort((left, right) => left.localeCompare(right, "zh-CN"));
+  return matches.slice(0, Math.max(1, Math.min(limit, 500))).map((path) => ({
+    path,
+    name: path.split("/").pop() ?? path,
+  }));
+}
+
+function fuzzyScore(path: string, needle: string): number | undefined {
+  const direct = path.indexOf(needle);
+  if (direct >= 0) return direct;
+  let cursor = 0;
+  for (const char of path) {
+    if (char === needle[cursor]) cursor += 1;
+    if (cursor === needle.length) return 1_000 + path.length;
+  }
+  return undefined;
+}
+
 function decodeBuffer(buffer: Buffer, filePath: string): { text: string; encoding: string } {
   if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
     return { text: new TextDecoder("utf-16le").decode(buffer.subarray(2)), encoding: "UTF-16LE" };
