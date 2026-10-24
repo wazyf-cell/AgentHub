@@ -14,6 +14,7 @@ export * from "./channel-documents.ts";
 export * from "./google-workspace-readiness.ts";
 export * from "./openclaw-health.ts";
 export * from "./agent-router/index.ts";
+export * from "./local-agent-runner.ts";
 export * from "./provider-runtime.ts";
 export * from "./runtime-output-manifests.ts";
 export * from "./state.ts";

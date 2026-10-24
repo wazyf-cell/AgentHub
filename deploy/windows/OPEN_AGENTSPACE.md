@@ -1,5 +1,45 @@
 # 如何在 Windows 打开 AgentSpace
 
+## 优先推荐：单人本地轻量模式
+
+如果你当前只想单人本地运行多 agent、多 provider，不想启动 PostgreSQL、团队 workspace 或完整 Web 平台，优先双击：
+
+```text
+deploy\windows\AgentSpaceLocal.cmd
+```
+
+如果你想打开图形界面版的本地轻量模式，双击：
+
+```text
+deploy\windows\AgentSpaceLocalDesktop.cmd
+```
+
+或者打包本地轻量 exe：
+
+```powershell
+npm run desktop:local:dir
+```
+
+然后打开：
+
+```text
+dist-electron-local-out\win-unpacked\AgentSpaceLocal.exe
+```
+
+注意：不要只单独复制这个 exe；它需要和 `win-unpacked` 目录里的 DLL、resources 一起使用。
+
+它会进入交互菜单：
+
+- 初始化 `agentspace.local.json`
+- 检测 `codex` / `claude` 等 provider CLI
+- 输入任务并运行本地多 Agent
+
+运行结果会写入：
+
+```text
+.agentspace\runs\*.json
+```
+
 当前最稳定的本机打开方式是使用 P5-A 的 Windows 启动器。真正的 `AgentSpace.exe` 桌面包已经有构建入口，但当前环境在下载 Electron/GitHub 打包二进制时超时，所以 exe 还没有成功产出。
 
 ## 方式一：双击启动 Web 版

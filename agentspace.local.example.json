@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "cwd": ".",
+  "outputDir": ".agentspace/runs",
+  "agents": [
+    {
+      "id": "planner",
+      "name": "Planner",
+      "harness": "codex",
+      "role": "Break down the task, identify risks, and produce a short implementation plan."
+    },
+    {
+      "id": "implementer",
+      "name": "Implementer",
+      "harness": "codex",
+      "role": "Use the plan and prior output to implement or explain the concrete change."
+    },
+    {
+      "id": "reviewer",
+      "name": "Reviewer",
+      "harness": "claude",
+      "role": "Review the result for bugs, missing verification, and next steps."
+    }
+  ]
+}

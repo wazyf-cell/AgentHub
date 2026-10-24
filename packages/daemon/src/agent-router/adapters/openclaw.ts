@@ -19,6 +19,7 @@ import type {
 } from "../types.ts";
 import { mapOpenClawNativeEvent } from "../events.ts";
 import { buildCapabilityEnv, buildCapabilityPathDirs } from "../capabilities.ts";
+import { shouldUseWindowsShellForExecutable } from "../../process-launch.ts";
 import {
   buildBaseEnv,
   buildRedactions,
@@ -221,6 +222,7 @@ function cleanupEphemeralAgent(plan: HarnessLaunchPlan, observer: AgentRouterObs
     cwd: plan.cwd,
     env: plan.env,
     encoding: "utf8",
+    shell: shouldUseWindowsShellForExecutable(plan.executable, plan.env),
   });
   if (result.error || result.status !== 0) {
     observer.emit({

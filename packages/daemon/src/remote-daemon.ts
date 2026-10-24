@@ -34,6 +34,7 @@ import {
   resolveDefaultDaemonStateDir,
 } from "./state.ts";
 import { parseTaskInputJson, resolveConversationThreadId } from "./task-context.ts";
+import { shouldUseWindowsShellForExecutable } from "./process-launch.ts";
 import { executeRuntimeAppPlan, parseRuntimeAppInstallPlan, tailAndRedact } from "./runtime-apps.ts";
 
 export interface RemoteDaemonConfig {
@@ -292,6 +293,7 @@ async function runRemoteDaemonStart(args: string[]): Promise<number> {
     detached: true,
     stdio: ["ignore", logFd, logFd],
     env: process.env,
+    shell: shouldUseWindowsShellForExecutable(relaunch.command),
   });
 
   child.unref();

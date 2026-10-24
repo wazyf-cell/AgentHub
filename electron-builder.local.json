@@ -1,0 +1,28 @@
+{
+  "appId": "com.agentspace.local",
+  "productName": "AgentSpace Local",
+  "asar": false,
+  "directories": {
+    "output": "dist-electron-local-out"
+  },
+  "files": [
+    "electron/**/*",
+    "packages/daemon/dist/**/*",
+    "packages/daemon/bin/agent-space-local.js",
+    "packages/daemon/package.json",
+    "package.json",
+    "agentspace.local.example.json",
+    "LOCAL_AGENT_RUNNER.md",
+    "README.md",
+    "README_ZH.md"
+  ],
+  "extraMetadata": {
+    "main": "electron/local-main.js"
+  },
+  "win": {
+    "target": "portable"
+  },
+  "portable": {
+    "artifactName": "AgentSpaceLocal.exe"
+  }
+}

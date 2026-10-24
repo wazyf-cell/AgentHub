@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentSpace Local</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #121923;
+      --panel-2: #182231;
+      --line: #2a3547;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #f0b429;
+      --accent-2: #45c4b0;
+      --danger: #ff6b6b;
+      --ok: #72e06a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(240, 180, 41, 0.14), transparent 30%),
+        radial-gradient(circle at 86% 18%, rgba(69, 196, 176, 0.10), transparent 28%),
+        linear-gradient(135deg, #0d1117 0%, #0b0f16 100%);
+      color: var(--text);
+      font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+      min-height: 100vh;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 390px 1fr;
+      gap: 18px;
+      padding: 22px;
+      min-height: 100vh;
+    }
+
+    .card {
+      background: rgba(18, 25, 35, 0.88);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+
+    .left, .right { display: flex; flex-direction: column; min-height: calc(100vh - 44px); }
+
+    header {
+      padding: 22px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(135deg, rgba(240, 180, 41, 0.12), rgba(69, 196, 176, 0.04));
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 8px 0 6px;
+      font-size: 28px;
+      line-height: 1.1;
+    }
+
+    .sub { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+    .section { padding: 18px 22px; border-bottom: 1px solid var(--line); }
+    .section:last-child { border-bottom: none; }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 7px;
+    }
+
+    textarea, input, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #0b111a;
+      color: var(--text);
+      padding: 12px;
+      outline: none;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 160px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    textarea:focus, input:focus, select:focus {
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 3px rgba(69, 196, 176, 0.12);
+    }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px 13px;
+      cursor: pointer;
+      font-weight: 650;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, var(--accent), #d9951d);
+      color: #161000;
+      border-color: transparent;
+    }
+
+    button.danger { color: #ffd6d6; border-color: rgba(255, 107, 107, 0.45); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: var(--muted);
+    }
+
+    .dot.running { background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+    .dot.ok { background: var(--ok); }
+    .dot.error { background: var(--danger); }
+
+    .mono {
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .paths {
+      color: var(--muted);
+      line-height: 1.7;
+      word-break: break-all;
+    }
+
+    .right header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .output {
+      display: grid;
+      grid-template-rows: 220px 1fr;
+      min-height: 0;
+      flex: 1;
+    }
+
+    .log, .result {
+      padding: 18px 22px;
+      overflow: auto;
+      white-space: pre-wrap;
+      line-height: 1.55;
+    }
+
+    .log {
+      border-bottom: 1px solid var(--line);
+      color: #b7c1cc;
+      background: rgba(8, 12, 18, 0.45);
+    }
+
+    .result { color: var(--text); }
+    .empty { color: var(--muted); }
+
+    .provider-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .provider {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 9px 11px;
+      background: #0b111a;
+    }
+
+    .provider strong { font-size: 13px; }
+    .badge { color: var(--muted); font-size: 12px; }
+    .badge.available { color: var(--ok); }
+    .badge.missing { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="card left">
+      <header>
+        <div class="eyebrow">LOCAL CONTROL</div>
+        <h1>AgentSpace Local</h1>
+        <p class="sub">单人本地多 Agent、多 provider 入口。不启动 PostgreSQL，不进入团队平台。</p>
+      </header>
+
+      <div class="section">
+        <label for="prompt">任务</label>
+        <textarea id="prompt" placeholder="例如：请分析这个项目下一步开发计划，并给出优先级。"></textarea>
+      </div>
+
+      <div class="section">
+        <div class="row">
+          <div>
+            <label for="cwd">工作目录</label>
+            <input id="cwd" />
+          </div>
+          <div>
+            <label for="agents">只运行这些 agent，可空</label>
+            <input id="agents" placeholder="planner,reviewer" />
+          </div>
+        </div>
+        <div style="margin-top: 10px;">
+          <label for="mode">任务模式</label>
+          <select id="mode">
+            <option value="auto">自动判断</option>
+            <option value="smoke-test">模型测试 / 打招呼</option>
+            <option value="analysis">分析 / 报告</option>
+            <option value="development">开发 / 修复代码</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="buttons">
+          <button class="primary" id="run">运行多 Agent</button>
+          <button id="detect">检测 provider</button>
+          <button id="init">初始化配置</button>
+          <button class="danger" id="cancel">停止</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="status"><span id="dot" class="dot"></span><span id="status">待命</span></div>
+      </div>
+
+      <div class="section paths mono" id="paths"></div>
+    </section>
+
+    <section class="card right">
+      <header>
+        <div>
+          <div class="eyebrow">RUN OUTPUT</div>
+          <h1>日志与结果</h1>
+        </div>
+        <button id="openArtifact" disabled>打开结果文件</button>
+      </header>
+
+      <div class="output">
+        <div id="log" class="log empty">等待运行。</div>
+        <div id="result" class="result empty">结果会显示在这里。</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = {
+      running: false,
+      artifactPath: "",
+      settings: null,
+      resultChunks: [],
+    };
+
+    function setStatus(text, kind = "") {
+      $("status").textContent = text;
+      $("dot").className = `dot ${kind}`;
+    }
+
+    function setRunning(running) {
+      state.running = running;
+      $("run").disabled = running;
+      $("detect").disabled = running;
+      $("init").disabled = running;
+      $("cancel").disabled = !running;
+    }
+
+    function appendLog(line) {
+      const log = $("log");
+      if (log.classList.contains("empty")) {
+        log.textContent = "";
+        log.classList.remove("empty");
+      }
+      log.textContent += `${line}\n`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function renderResult(text) {
+      const result = $("result");
+      result.classList.remove("empty");
+      result.textContent = text || "没有文本结果。";
+      result.scrollTop = 0;
+    }
+
+    function renderProviders(data) {
+      const providers = data?.harnesses || [];
+      renderResult(providers.map((item) =>
+        `${item.id.padEnd(10)} ${item.status}${item.path ? `  ${item.path}` : ""}${item.version ? `  ${item.version}` : ""}`
+      ).join("\n"));
+    }
+
+    function extractFinalText(result) {
+      const agents = result?.result?.agents || result?.agents || [];
+      if (!Array.isArray(agents) || agents.length === 0) {
+        return "";
+      }
+      return agents.map((step) => {
+        const name = step.agent?.name || step.agent?.id || "agent";
+        const status = step.status || "unknown";
+        const output = step.outputText || "";
+        const diagnostics = (step.diagnostics || []).map((item) => `[${item.severity}] ${item.code}: ${item.message}`).join("\n");
+        return `## ${name} (${status})\n${output || diagnostics || "(empty)"}`;
+      }).join("\n\n");
+    }
+
+    window.agentSpaceLocal.onRunLog((line) => appendLog(line));
+    window.agentSpaceLocal.onRunEvent((event) => {
+      if (event.type === "run_started") {
+        appendLog(`Run started: ${event.runId}`);
+      } else if (event.type === "agent_started") {
+        appendLog(`Agent started: ${event.agentId} (${event.harness})`);
+      } else if (event.type === "agent_finished") {
+        appendLog(`Agent finished: ${event.agentId} -> ${event.status}`);
+      } else if (event.type === "run_finished") {
+        state.artifactPath = event.artifactPath || "";
+        $("openArtifact").disabled = !state.artifactPath;
+        appendLog(`Run finished: ${event.status}`);
+        appendLog(`Artifact: ${state.artifactPath}`);
+      } else if (event.type === "result") {
+        state.artifactPath = event.artifactPath || state.artifactPath;
+        $("openArtifact").disabled = !state.artifactPath;
+        renderResult(extractFinalText(event));
+      } else if (event.type === "agent_event" && event.event?.type === "text_delta") {
+        state.resultChunks.push(event.event.text);
+        renderResult(state.resultChunks.join(""));
+      }
+    });
+
+    async function boot() {
+      state.settings = await window.agentSpaceLocal.settings();
+      $("cwd").value = state.settings.defaultCwd;
+      $("paths").textContent =
+        `Config: ${state.settings.configPath}\n`
+        + `Runs: ${state.settings.outputDir}\n`
+        + `Log: ${state.settings.logFile}`;
+      $("cancel").disabled = true;
+      setStatus("待命");
+    }
+
+    $("init").addEventListener("click", async () => {
+      setStatus("初始化中", "running");
+      const response = await window.agentSpaceLocal.init();
+      appendLog(response.summary);
+      setStatus(response.status === "success" ? "配置就绪" : "初始化失败", response.status === "success" ? "ok" : "error");
+    });
+
+    $("detect").addEventListener("click", async () => {
+      setStatus("检测 provider", "running");
+      const response = await window.agentSpaceLocal.detect();
+      appendLog(response.summary);
+      if (response.data) {
+        renderProviders(response.data);
+      } else {
+        renderResult(JSON.stringify(response, null, 2));
+      }
+      setStatus(response.status === "success" ? "检测完成" : "检测异常", response.status === "success" ? "ok" : "error");
+    });
+
+    $("run").addEventListener("click", async () => {
+      const prompt = $("prompt").value.trim();
+      if (!prompt) {
+        setStatus("请先输入任务", "error");
+        return;
+      }
+      $("log").textContent = "";
+      $("log").classList.remove("empty");
+      $("result").textContent = "";
+      $("result").classList.remove("empty");
+      state.resultChunks = [];
+      state.artifactPath = "";
+      $("openArtifact").disabled = true;
+      setRunning(true);
+      setStatus("运行中", "running");
+      const response = await window.agentSpaceLocal.run({
+        prompt,
+        cwd: $("cwd").value,
+        agents: $("agents").value,
+        mode: $("mode").value,
+      });
+      if (response.result) {
+        renderResult(extractFinalText(response.result));
+      } else if (response.raw?.stderr || response.raw?.stdout) {
+        renderResult(`${response.raw.stderr || ""}\n${response.raw.stdout || ""}`.trim());
+      }
+      setRunning(false);
+      setStatus(response.status === "success" ? "完成" : "失败", response.status === "success" ? "ok" : "error");
+    });
+
+    $("cancel").addEventListener("click", async () => {
+      const response = await window.agentSpaceLocal.cancel();
+      appendLog(response.summary);
+      setRunning(false);
+      setStatus("已请求停止", "error");
+    });
+
+    $("openArtifact").addEventListener("click", async () => {
+      if (state.artifactPath) {
+        await window.agentSpaceLocal.openPath(state.artifactPath);
+      }
+    });
+
+    boot().catch((error) => {
+      setStatus("启动失败", "error");
+      renderResult(error.stack || String(error));
+    });
+  </script>
+</body>
+</html>

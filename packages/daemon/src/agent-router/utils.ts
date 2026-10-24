@@ -54,11 +54,15 @@ export function buildBaseEnv(
     }
   }
 
-  const currentPath = extra?.PATH ?? env.PATH ?? "";
-  env.PATH = ensureExecutablePath(currentPath, executablePath, pathDirs);
+  const currentPath = readEnvPathValue(extra) || readEnvPathValue(env);
+  setEnvPathValue(env, ensureExecutablePath(currentPath, executablePath, pathDirs));
   if (extra) {
     for (const [key, value] of Object.entries(extra)) {
-      env[key] = key === "PATH" ? ensureExecutablePath(value, executablePath, pathDirs) : value;
+      if (isEnvPathKey(key)) {
+        setEnvPathValue(env, ensureExecutablePath(value, executablePath, pathDirs));
+        continue;
+      }
+      env[key] = value;
     }
   }
   return env;
@@ -313,6 +317,28 @@ function ensureExecutablePath(pathValue: string, executablePath: string, pathDir
     "/sbin",
     "/bin",
   ]);
+}
+
+function readEnvPathValue(environment: Record<string, string> | undefined): string {
+  if (!environment) {
+    return "";
+  }
+  const key = Object.keys(environment).find((candidate) => isEnvPathKey(candidate));
+  return key ? environment[key] ?? "" : "";
+}
+
+function setEnvPathValue(environment: Record<string, string>, value: string): void {
+  const existingKey = Object.keys(environment).find((candidate) => isEnvPathKey(candidate)) ?? "PATH";
+  for (const key of Object.keys(environment)) {
+    if (isEnvPathKey(key) && key !== existingKey) {
+      delete environment[key];
+    }
+  }
+  environment[existingKey] = value;
+}
+
+function isEnvPathKey(key: string): boolean {
+  return key.toLowerCase() === "path";
 }
 
 function isPathLike(value: string): boolean {

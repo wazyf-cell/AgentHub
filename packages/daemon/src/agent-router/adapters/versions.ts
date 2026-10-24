@@ -1,11 +1,19 @@
 import { spawn } from "node:child_process";
+import { buildWindowsShellCommandLine } from "../../process-launch.ts";
 
 export async function runVersionCommand(executable: string, args: string[]): Promise<string> {
   return await new Promise<string>((resolve) => {
-    const child = spawn(executable, args, {
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const shellCommandLine = buildWindowsShellCommandLine(executable, args);
+    const child = shellCommandLine
+      ? spawn(shellCommandLine, {
+        env: process.env,
+        stdio: ["ignore", "pipe", "pipe"],
+        shell: true,
+      })
+      : spawn(executable, args, {
+        env: process.env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
     let output = "";
     child.stdout.on("data", (chunk) => {
       output += String(chunk);

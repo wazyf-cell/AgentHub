@@ -3,6 +3,7 @@ import type { ChildProcess } from "node:child_process";
 import type { ExecController } from "@agent-space/sandbox";
 import type { AgentRouterEvent, AgentRouterObserver, HarnessLaunchPlan } from "./types.ts";
 import { normalizeSignal, redactText } from "./utils.ts";
+import { buildWindowsShellCommandLine } from "../process-launch.ts";
 
 const KILL_GRACE_PERIOD_MS = 5_000;
 
@@ -28,11 +29,19 @@ export async function runLaunchPlan(
 ): Promise<SubprocessRunResult> {
   let child: ChildProcess;
   try {
-    child = spawn(plan.executable, plan.args, {
-      cwd: plan.cwd,
-      env: plan.env,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    const shellCommandLine = buildWindowsShellCommandLine(plan.executable, plan.args, plan.env);
+    child = shellCommandLine
+      ? spawn(shellCommandLine, {
+        cwd: plan.cwd,
+        env: plan.env,
+        stdio: ["pipe", "pipe", "pipe"],
+        shell: true,
+      })
+      : spawn(plan.executable, plan.args, {
+        cwd: plan.cwd,
+        env: plan.env,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
   } catch (error) {
     return Promise.reject(error);
   }

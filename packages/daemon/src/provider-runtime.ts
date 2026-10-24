@@ -16,6 +16,7 @@ import {
 import { clearTaskOutputArtifacts } from "./bundle.ts";
 import { readGoogleWorkspaceReadiness } from "./google-workspace-readiness.ts";
 import { buildOpenClawProviderHealthSnapshot, inspectOpenClawDaemonAuthHealth } from "./openclaw-health.ts";
+import { shouldUseWindowsShellForExecutable } from "./process-launch.ts";
 import { readCliHubReadiness } from "./runtime-apps.ts";
 
 export interface ProviderRuntimeRecord {
@@ -932,6 +933,7 @@ function detectProviderVersion(executablePath: string, versionArgs: string[][] =
     const result = spawnSync(executablePath, args, {
       env: process.env,
       encoding: "utf8",
+      shell: shouldUseWindowsShellForExecutable(executablePath),
     });
     if (result.error || result.status !== 0) {
       continue;
@@ -1871,14 +1873,18 @@ function truncateToolOutput(value: string): string {
 
 function buildProviderEnv(runtime: ProviderRuntimeRecord, extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
-  const currentPath = extra?.PATH ?? env.PATH ?? "";
-  env.PATH = ensureProviderPath(currentPath, runtime);
+  const currentPath = readEnvPathValue(extra) || readEnvPathValue(env);
+  setEnvPathValue(env, ensureProviderPath(currentPath, runtime));
   if (extra) {
     for (const [key, value] of Object.entries(extra)) {
       if (typeof value !== "string") {
         continue;
       }
-      env[key] = key === "PATH" ? ensureProviderPath(value, runtime) : value;
+      if (isEnvPathKey(key)) {
+        setEnvPathValue(env, ensureProviderPath(value, runtime));
+        continue;
+      }
+      env[key] = value;
     }
   }
   return env;
@@ -1904,6 +1910,28 @@ function ensureProviderPath(pathValue: string, runtime: ProviderRuntimeRecord): 
   const parts = pathValue.split(delimiter).filter(Boolean);
   const existing = parts.filter((part) => !runtimeBinDirs.includes(part));
   return [...runtimeBinDirs, ...existing].filter(Boolean).join(delimiter);
+}
+
+function readEnvPathValue(environment: NodeJS.ProcessEnv | undefined): string {
+  if (!environment) {
+    return "";
+  }
+  const key = Object.keys(environment).find((candidate) => isEnvPathKey(candidate));
+  return key ? environment[key] ?? "" : "";
+}
+
+function setEnvPathValue(environment: NodeJS.ProcessEnv, value: string): void {
+  const existingKey = Object.keys(environment).find((candidate) => isEnvPathKey(candidate)) ?? "PATH";
+  for (const key of Object.keys(environment)) {
+    if (isEnvPathKey(key) && key !== existingKey) {
+      delete environment[key];
+    }
+  }
+  environment[existingKey] = value;
+}
+
+function isEnvPathKey(key: string): boolean {
+  return key.toLowerCase() === "path";
 }
 
 async function execProviderCommand(

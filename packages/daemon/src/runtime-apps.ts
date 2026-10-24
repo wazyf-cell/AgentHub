@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { spawnSync } from "node:child_process";
 import type { RuntimeAppCommandPlanItem, RuntimeAppInstallPlan } from "@agent-space/domain";
+import { shouldUseWindowsShellForExecutable } from "./process-launch.ts";
 
 const MAX_TAIL_CHARS = 8_000;
 const SECRET_PATTERNS = [
@@ -76,6 +77,7 @@ function checkCommand(command: string, args: string[]): RuntimeAppReadinessItem 
   const result = spawnSync(command, args, {
     env: process.env,
     encoding: "utf8",
+    shell: shouldUseWindowsShellForExecutable(command),
     timeout: 5_000,
   });
   if (result.error) {
@@ -102,6 +104,7 @@ function execCommand(command: RuntimeAppCommandPlanItem): Promise<{ stdout: stri
         ...(command.env ?? {}),
       },
       stdio: ["ignore", "pipe", "pipe"],
+      shell: shouldUseWindowsShellForExecutable(command.executable),
     });
     let stdout = "";
     let stderr = "";

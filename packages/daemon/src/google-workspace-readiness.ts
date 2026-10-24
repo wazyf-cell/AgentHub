@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { shouldUseWindowsShellForExecutable } from "./process-launch.ts";
 
 const GOOGLE_WORKSPACE_EXECUTOR_ENV = "AGENT_SPACE_GOOGLE_WORKSPACE_EXECUTOR";
 
@@ -99,6 +100,7 @@ function run(command: string, args: string[], environment: NodeJS.ProcessEnv): {
   const result = spawnSync(command, args, {
     env: environment,
     encoding: "utf8",
+    shell: shouldUseWindowsShellForExecutable(command, environment),
     timeout: 5_000,
   });
   if (result.error) {

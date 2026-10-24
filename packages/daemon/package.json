@@ -5,6 +5,7 @@
   "type": "module",
   "bin": {
     "agent-router": "./bin/agent-router.js",
+    "agent-space-local": "./bin/agent-space-local.js",
     "agent-space": "./bin/agent-space.js",
     "agent-space-daemon": "./bin/agent-space-daemon.js"
   },
