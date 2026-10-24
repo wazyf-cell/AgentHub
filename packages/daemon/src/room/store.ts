@@ -37,6 +37,10 @@ export class RoomStore {
     this.dataDir = resolve(dataDir);
   }
 
+  get profilesDir(): string {
+    return join(this.dataDir, ".profiles");
+  }
+
   roomDir(roomId: string): string {
     assertRoomId(roomId);
     return join(this.dataDir, roomId);

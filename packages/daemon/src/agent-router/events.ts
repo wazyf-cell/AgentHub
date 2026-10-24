@@ -14,6 +14,9 @@ export function mapClaudeNativeEvent(event: Record<string, unknown>): AgentRoute
         metadata: {
           input_tokens: usage.input_tokens ?? usage.inputTokens,
           output_tokens: usage.output_tokens ?? usage.outputTokens,
+          cache_creation_input_tokens: usage.cache_creation_input_tokens,
+          cache_read_input_tokens: usage.cache_read_input_tokens,
+          cost_usd: typeof event.total_cost_usd === "number" ? event.total_cost_usd : undefined,
         },
       });
     }
@@ -116,7 +119,34 @@ export function mapCodexNativeEvent(event: Record<string, unknown>): AgentRouter
     return sessionId ? [{ type: "session_updated", sessionId }] : [];
   }
 
+  if (type === "turn.completed" && event.usage && typeof event.usage === "object") {
+    const usage = event.usage as Record<string, unknown>;
+    return [{
+      type: "tool_output",
+      tool: "usage",
+      metadata: {
+        input_tokens: usage.input_tokens,
+        output_tokens: usage.output_tokens,
+        cached_input_tokens: usage.cached_input_tokens,
+        reasoning_output_tokens: usage.reasoning_output_tokens,
+      },
+    }];
+  }
+
   return [];
+}
+
+export function extractCodexErrorMessage(event: Record<string, unknown>): string | undefined {
+  if (typeof event.message === "string" && event.type === "error") {
+    return event.message;
+  }
+  if (event.type === "turn.failed" && event.error && typeof event.error === "object") {
+    const error = event.error as Record<string, unknown>;
+    if (typeof error.message === "string") {
+      return error.message;
+    }
+  }
+  return undefined;
 }
 
 export function mapOpenClawNativeEvent(event: Record<string, unknown>): AgentRouterEvent[] {

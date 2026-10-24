@@ -31,6 +31,7 @@ export interface RoleBinding {
   modelId: string;
   thinking?: string;
   contextBudget?: number;
+  contextWindow?: number;
   fallback?: Array<{ platformId: string; modelId: string; thinking?: string }>;
 }
 
@@ -95,6 +96,7 @@ export type StopReason =
   | "autonomy_low"
   | "max_handoffs"
   | "budget"
+  | "context_limit"
   | "no_eligible_speaker"
   | "human_stop"
   | "error";
@@ -162,6 +164,19 @@ export type RoomEvent =
       error?: string;
     })
   | (RoomEventBase & {
+      type: "binding_used";
+      turnId: string;
+      memberId: string;
+      requested: { platformId: string; modelId: string };
+      used: { platformId: string; modelId: string };
+      fallbacks: Array<{ platformId: string; modelId: string; error: string }>;
+    })
+  | (RoomEventBase & {
+      type: "summary_updated";
+      path: string;
+      coveredEventId?: string;
+    })
+  | (RoomEventBase & {
       type: "room_stopped";
       reason: StopReason;
       detail?: string;
@@ -192,6 +207,8 @@ export interface AgentTurnResult {
   costYuan?: number;
   error?: string;
   sessionId?: string;
+  usedBinding?: { platformId: string; modelId: string };
+  fallbacks?: Array<{ platformId: string; modelId: string; error: string }>;
 }
 
 export interface AgentBackend {

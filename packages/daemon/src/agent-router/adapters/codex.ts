@@ -10,7 +10,7 @@ import type {
   HarnessErrorContext,
   HarnessLaunchPlan,
 } from "../types.ts";
-import { extractCodexFinalText, mapCodexNativeEvent } from "../events.ts";
+import { extractCodexErrorMessage, extractCodexFinalText, mapCodexNativeEvent } from "../events.ts";
 import { buildCapabilityEnv, buildCapabilityPathDirs } from "../capabilities.ts";
 import {
   buildBaseEnv,
@@ -66,6 +66,15 @@ async function buildCodexLaunch(input: AgentRouterRunRequest): Promise<HarnessLa
   if (input.model) {
     baseArgs.push("--model", input.model);
   }
+  if (input.reasoningEffort) {
+    baseArgs.push("-c", `model_reasoning_effort="${input.reasoningEffort}"`);
+  }
+  for (const [key, value] of Object.entries(input.configOverrides ?? {})) {
+    baseArgs.push("-c", `${key}=${JSON.stringify(value)}`);
+  }
+  for (const imagePath of input.imagePaths ?? []) {
+    baseArgs.push("--image", imagePath);
+  }
   if (input.mode) {
     baseArgs.push("--sandbox", input.mode);
   }
@@ -114,6 +123,14 @@ async function runCodex(
         for (const event of parsed.events) {
           for (const mapped of mapCodexNativeEvent(event)) {
             runObserver.emit(mapped);
+          }
+          const errorMessage = extractCodexErrorMessage(event);
+          if (errorMessage) {
+            diagnostics.push(createDiagnostic("harness.unknown_failure", errorMessage, {
+              severity: "error",
+              rawProviderMessage: errorMessage,
+              stderrTail: tailText(stderr),
+            }));
           }
           const finalText = extractCodexFinalText(event);
           if (finalText) {

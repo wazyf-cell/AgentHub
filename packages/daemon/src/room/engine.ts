@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { RoomStore } from "./store.ts";
 import { parseMentions, selectNextSpeaker, type PolicyState } from "./policy.ts";
-import { composeTurnPrompt } from "./transcript.ts";
+import { composeTurnPrompt, estimateTokens } from "./transcript.ts";
 import type {
   AgentBackend,
   AgentTurnResult,
@@ -13,6 +13,19 @@ import type {
   StopReason,
 } from "./types.ts";
 
+export interface SummarizerInput {
+  room: RoomConfig;
+  events: RoomEvent[];
+  member: RoomMember;
+}
+
+export interface SummarizerResult {
+  summary: string;
+  coveredEventId?: string;
+}
+
+export type RoomSummarizer = (input: SummarizerInput) => Promise<SummarizerResult | undefined>;
+
 export interface RunRoomOptions {
   store: RoomStore;
   roomId: string;
@@ -21,6 +34,7 @@ export interface RunRoomOptions {
   rulesOverride?: Partial<RoomRules>;
   signal?: AbortSignal;
   onEvent?: (event: RoomEvent) => void;
+  summarizer?: RoomSummarizer;
 }
 
 export interface RoomRunResult {
@@ -112,6 +126,28 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
       break;
     }
 
+    const turnId = `turn-${randomUUID()}`;
+    const contextWindow = member.binding.contextWindow;
+    const maxInputTokens = member.binding.contextBudget
+      ?? (contextWindow ? Math.floor(contextWindow * (room.rules.summarizeAt ?? 0.7)) : undefined);
+    const prompt = composeTurnPrompt({
+      room,
+      member,
+      userPrompt: options.prompt,
+      events: store.readEvents(roomId),
+      brief: store.readBrief(roomId),
+      summary: store.readSummary(roomId),
+      maxInputTokens,
+    });
+    const promptTokens = estimateTokens(prompt);
+    if (contextWindow && promptTokens > contextWindow * (room.rules.hardStopAt ?? 0.85)) {
+      stopReason = "context_limit";
+      detail = `prompt uses ${promptTokens}/${contextWindow} tokens; start a new room or pick a larger-context model`;
+      status = "stopped";
+      append({ type: "room_stopped", reason: stopReason, detail });
+      break;
+    }
+
     if (state.lastSpeakerId && state.lastSpeakerId !== member.id) {
       append({
         type: "handoff",
@@ -121,7 +157,6 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
       });
     }
 
-    const turnId = `turn-${randomUUID()}`;
     append({
       type: "turn_started",
       turnId,
@@ -130,16 +165,6 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
       reason: selection.reason,
       platformId: member.binding.platformId,
       modelId: member.binding.modelId,
-    });
-
-    const prompt = composeTurnPrompt({
-      room,
-      member,
-      userPrompt: options.prompt,
-      events: store.readEvents(roomId),
-      brief: store.readBrief(roomId),
-      summary: store.readSummary(roomId),
-      maxInputTokens: member.binding.contextBudget,
     });
 
     let result: AgentTurnResult;
@@ -193,6 +218,24 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
       break;
     }
 
+    if (
+      result.usedBinding
+      && (result.usedBinding.platformId !== member.binding.platformId
+        || result.usedBinding.modelId !== member.binding.modelId)
+    ) {
+      append({
+        type: "binding_used",
+        turnId,
+        memberId: member.id,
+        requested: {
+          platformId: member.binding.platformId,
+          modelId: member.binding.modelId,
+        },
+        used: result.usedBinding,
+        fallbacks: result.fallbacks ?? [],
+      });
+    }
+
     const parsed = parseMentions(result.text, room.members, room.rules.stopToken);
     append({
       type: "agent_message",
@@ -237,6 +280,33 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
     state.mentionQueueSource = "agent";
     state.mentionsHuman = parsed.mentionsHuman;
     state.toldDone = parsed.done;
+
+    if (
+      options.summarizer
+      && contextWindow
+      && promptTokens > contextWindow * (room.rules.summarizeAt ?? 0.7)
+    ) {
+      try {
+        const summary = await options.summarizer({
+          room,
+          events: store.readEvents(roomId),
+          member,
+        });
+        if (summary?.summary.trim()) {
+          store.writeSummary(roomId, `${summary.summary.trim()}\n`);
+          append({
+            type: "summary_updated",
+            path: "summary.md",
+            coveredEventId: summary.coveredEventId,
+          });
+        }
+      } catch (error) {
+        append({
+          type: "error",
+          message: `summary failed: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    }
   }
 
   if (status === "failed" && stopReason === "error" && !detail) {

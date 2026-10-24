@@ -15,8 +15,12 @@ export interface AgentRouterRunRequest {
   executablePath?: string;
   model?: string;
   mode?: string;
+  reasoningEffort?: string;
   sessionId?: string;
   env?: Record<string, string>;
+  imagePaths?: string[];
+  claudeMcpConfigPaths?: string[];
+  configOverrides?: Record<string, string>;
   timeoutMs?: number;
   outputFormat?: AgentRouterOutputFormat;
   maxTurns?: number;

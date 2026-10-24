@@ -81,6 +81,12 @@ async function buildClaudeLaunch(input: AgentRouterRunRequest): Promise<HarnessL
   if (input.model) {
     args.push("--model", input.model);
   }
+  if (input.reasoningEffort) {
+    args.push("--effort", input.reasoningEffort);
+  }
+  if (input.claudeMcpConfigPaths?.length) {
+    args.push("--mcp-config", ...input.claudeMcpConfigPaths, "--strict-mcp-config");
+  }
   const permissionMode = input.permissionMode ?? input.mode;
   if (permissionMode) {
     args.push("--permission-mode", permissionMode);
@@ -202,6 +208,15 @@ async function runClaude(
           runObserver.emit(mapped);
         }
         diagnostics.push(...buildClaudePermissionDenialDiagnostics(event));
+        if (event.type === "result" && (event.is_error === true || typeof event.error === "string")) {
+          diagnostics.push(createDiagnostic(
+            "harness.unknown_failure",
+            typeof event.result === "string" && event.result.trim()
+              ? event.result.trim()
+              : "Claude Code reported an error.",
+            { severity: "error", stderrTail: tailText(stderr) },
+          ));
+        }
         const text = extractClaudeFallbackText(event);
         if (text) {
           outputText = appendOutputText(outputText, text);

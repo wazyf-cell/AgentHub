@@ -173,6 +173,61 @@ test("a user mention targets the first speaker", async () => {
   }
 });
 
+test("a prompt over the hard context limit stops before a turn", async () => {
+  const { store, cleanup } = createStore();
+  try {
+    const room = store.readRoom("demo");
+    room.members[0].binding.contextWindow = 100;
+    room.members[0].binding.contextBudget = 90;
+    store.writeRoom(room);
+    store.writeBrief("demo", "很长的简报。".repeat(120));
+
+    const result = await runRoom({
+      store,
+      roomId: "demo",
+      prompt: "做点什么",
+      backend: createDemoFakeBackend(),
+      rulesOverride: { planOrder: ["planner"] },
+    });
+    assert.equal(result.status, "stopped");
+    assert.equal(result.stopReason, "context_limit");
+    assert.equal(result.agentTurns, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test("the summarizer runs once the prompt crosses the summarize threshold", async () => {
+  const { store, cleanup } = createStore();
+  try {
+    const room = store.readRoom("demo");
+    room.members[0].binding.contextWindow = 2_000;
+    room.members[0].binding.contextBudget = 2_000;
+    store.writeRoom(room);
+    store.writeBrief("demo", "简报内容。".repeat(300));
+
+    let calls = 0;
+    const result = await runRoom({
+      store,
+      roomId: "demo",
+      prompt: "给一个简短方案",
+      backend: createDemoFakeBackend(),
+      rulesOverride: { maxHandoffs: 1, planOrder: ["planner"], hardStopAt: 0.95 },
+      summarizer: async () => {
+        calls += 1;
+        return { summary: "压缩后的摘要" };
+      },
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.stopReason, "max_handoffs");
+    assert.match(store.readSummary("demo"), /压缩后的摘要/);
+    assert.ok(result.events.some((event) => event.type === "summary_updated"));
+  } finally {
+    cleanup();
+  }
+});
+
 test("an abort before the first turn records a human stop", async () => {
   const { store, cleanup } = createStore();
   try {
