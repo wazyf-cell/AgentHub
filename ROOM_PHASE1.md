@@ -56,8 +56,10 @@ dist-electron-local-out\win-unpacked\AgentSpaceLocal.exe
 - `summary.ts`：跨阈值后用最便宜成员做滚动摘要。
 - `capabilities.ts`：只读扫描 270+ Claude/skill-library 技能与 Codex/Claude MCP 名称，不读取 env/密钥。
 - `vision.ts`：可选 ModLens 桥，按「图片 + 提示词」哈希缓存。
-- Electron：房间列表、成员角色卡编辑、598 模型筛选、思考档、备用链、上下文预算、计划顺序、
-  流式气泡、交接/摘要/换模型提示、费用/ token、停止、回放、本机技能/MCP 清单。
+- Electron（五区壳层）：顶栏 + 房间/成员侧栏 + 对话区 + 状态栏；成员角色卡在右侧抽屉，
+  房间规则（自治/回合数/完成标记）在规则浮层，应用设置统一管理路径、平台健康、模型同步与技能/MCP。
+  `Ctrl K` 命令面板、`Ctrl B` 折叠侧栏。支持模型筛选、思考档、备用链、上下文预算、计划顺序、
+  流式消息、交接/摘要/换模型提示、费用/token、停止、回放。
 - 39 个单元/集成测试。
 
 ## 数据格式
