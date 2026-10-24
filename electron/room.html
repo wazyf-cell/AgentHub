@@ -640,9 +640,15 @@
     .view-tabs .spacer { flex: 1; }
     .view-tabs .count { color: var(--dim); font: 10.5px var(--font-mono); margin-left: 4px; }
     .board { flex: 1; overflow: auto; padding: 14px 16px 22px; }
-    .board-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .board-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
     .board-head h2 { font: 600 15px var(--font-display); margin: 0; }
-    .board-head .hint { flex: 1; }
+    .board-head .hint { flex: 1; min-width: 160px; }
+    .board-tools { display: flex; align-items: center; gap: 6px; }
+    .board-tools input, .board-tools select { min-height: 28px; font-size: 11px; }
+    .board-tools input { width: 190px; }
+    .board-summary { font: 10.5px var(--font-mono); color: var(--dim); white-space: nowrap; }
+    .task-card[hidden] { display: none; }
+    .board-empty[hidden] { display: none; }
     .board-errors { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
     .board-columns { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 10px; align-items: start; min-width: 840px; }
     .board-col { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px; min-height: 120px; transition: border-color .12s ease, background .12s ease; }
@@ -1349,6 +1355,8 @@
       planMemberId: "",
       budgetWarnedRoom: "",
       fileTimer: null,
+      boardQuery: "",
+      boardOrigin: "all",
     };
     const $ = (id) => document.getElementById(id);
     const AUTONOMY_LABELS = { low: "低自治", medium: "中自治", high: "高自治" };
@@ -1359,7 +1367,7 @@
     };
     const USAGE_COLORS = ["#f5a623", "#6fb3ff", "#7ad3a1", "#d18cff", "#ff8a80", "#9aa4b2"];
     const TASK_STATUS_LABELS = {
-      backlog: "待排期", ready: "就绪", running: "运行中", review: "审查中", merge_ready: "待合并",
+      backlog: "待规划", ready: "待办", running: "进行中", review: "审查中", merge_ready: "待合并",
       done: "已完成", failed: "失败", blocked: "阻塞", cancelled: "已取消", conflict: "冲突",
       budget_paused: "预算暂停", interrupted: "已中断",
     };
@@ -1439,6 +1447,13 @@
       return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
     }
 
+    function formatDate(ts) {
+      if (!ts) return "";
+      const date = new Date(ts);
+      if (Number.isNaN(date.getTime())) return "";
+      return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+
     function initialOf(name) {
       return String(name || "?").trim().slice(0, 1).toUpperCase();
     }
@@ -1503,6 +1518,7 @@
     function renderTaskCount() {
       const active = state.tasks.filter((task) => !["done", "cancelled"].includes(task.status)).length;
       $("taskCount").textContent = state.tasks.length > 0 ? String(active) : "";
+      $("boardTab").title = state.tasks.length > 0 ? `未完成 ${active} / 共 ${state.tasks.length}` : "任务板";
     }
 
     async function refreshTasks() {
@@ -1528,9 +1544,36 @@
       head.appendChild(el("h2", "", "任务板"));
       const hint = el("span", "hint",
         state.workspaceIsGit
-          ? "任务写入独立 worktree；只有 backlog / ready 可拖动。"
+          ? "任务写入独立 worktree；只有 待规划 / 待办 可拖动。"
           : "这个工作区不是 git 仓库根目录；任务不可用，聊天仍可继续。");
       head.appendChild(hint);
+      const tools = el("div", "board-tools");
+      const search = document.createElement("input");
+      search.type = "search";
+      search.placeholder = "搜索任务 / 成员 / id";
+      search.value = state.boardQuery;
+      search.addEventListener("input", () => {
+        state.boardQuery = search.value.toLowerCase();
+        applyBoardFilter();
+      });
+      tools.appendChild(search);
+      const origin = document.createElement("select");
+      for (const [value, label] of [["all", "全部来源"], ["manual", "我创建的"], ["chat", "对话创建的"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        origin.appendChild(option);
+      }
+      origin.value = state.boardOrigin;
+      origin.addEventListener("change", () => {
+        state.boardOrigin = origin.value;
+        applyBoardFilter();
+      });
+      tools.appendChild(origin);
+      head.appendChild(tools);
+      const running = state.tasks.filter((task) => task.status === "running").length;
+      const done = state.tasks.filter((task) => task.status === "done").length;
+      head.appendChild(el("span", "board-summary", `共 ${state.tasks.length} · 进行中 ${running} · 已完成 ${done}`));
       const create = el("button", "primary", "+ 新建任务");
       create.type = "button";
       create.disabled = !state.workspaceIsGit;
@@ -1547,9 +1590,9 @@
 
       const columns = el("div", "board-columns");
       const groups = [
-        ["backlog", "待排期"],
-        ["ready", "就绪"],
-        ["running", "运行中"],
+        ["backlog", "待规划"],
+        ["ready", "待办"],
+        ["running", "进行中"],
         ["review", "审查 / 待合并"],
         ["done", "已完成"],
       ];
@@ -1563,9 +1606,7 @@
           : task.status === status);
         header.appendChild(el("span", "count", String(tasks.length)));
         column.appendChild(header);
-        if (tasks.length === 0) {
-          column.appendChild(el("div", "board-empty", "—"));
-        }
+        column.appendChild(el("div", "board-empty", "—"));
         for (const task of tasks) column.appendChild(taskCard(task));
         if (status === "backlog" || status === "ready") {
           column.addEventListener("dragover", (event) => {
@@ -1595,10 +1636,48 @@
         columns.appendChild(column);
       }
       board.appendChild(columns);
+      applyBoardFilter();
+    }
+
+    function applyBoardFilter() {
+      const query = state.boardQuery.trim();
+      const origin = state.boardOrigin;
+      const visible = (card) => {
+        if (origin !== "all" && card.dataset.origin !== origin) return false;
+        if (query && !String(card.dataset.search || "").includes(query)) return false;
+        return true;
+      };
+      for (const column of document.querySelectorAll("#board .board-col")) {
+        let count = 0;
+        for (const card of column.querySelectorAll(".task-card")) {
+          const show = visible(card);
+          card.hidden = !show;
+          if (show) count += 1;
+        }
+        const countNode = column.querySelector(".col-head .count");
+        if (countNode) countNode.textContent = String(count);
+        const empty = column.querySelector(".board-empty");
+        if (empty) empty.hidden = count > 0;
+      }
+      for (const card of document.querySelectorAll("#board .board-errors .task-card")) {
+        card.hidden = !visible(card);
+      }
+      const errors = document.querySelector("#board .board-errors");
+      if (errors) {
+        errors.hidden = [...errors.querySelectorAll(".task-card")].every((card) => card.hidden);
+      }
     }
 
     function taskCard(task) {
       const card = el("div", `task-card${task.status === "running" ? " running" : ""}`);
+      card.dataset.origin = task.sourceMessageId ? "chat" : "manual";
+      card.dataset.search = [
+        task.title,
+        task.description,
+        task.id,
+        memberLabel(task.ownerMemberId),
+        task.sourceMessageId ? "对话创建" : "手动创建",
+      ].join(" ").toLowerCase();
       card.draggable = ["backlog", "ready"].includes(task.status);
       card.addEventListener("dragstart", (event) => {
         event.dataTransfer.setData("text/task", task.id);
@@ -1609,7 +1688,11 @@
       card.appendChild(el("div", "task-title", task.title));
       const meta = el("div", "task-meta");
       meta.appendChild(el("span", "", memberLabel(task.ownerMemberId)));
+      meta.appendChild(el("span", `task-badge${task.sourceMessageId ? " warn" : ""}`, task.sourceMessageId ? "对话创建" : "手动创建"));
+      const created = formatDate(task.createdAt);
+      if (created) meta.appendChild(el("span", "", created));
       if (task.status === "merge_ready") meta.appendChild(taskStatusBadge("merge_ready"));
+      if (ABNORMAL_STATUSES.includes(task.status)) meta.appendChild(taskStatusBadge(task.status));
       if (task.attempt > 0) meta.appendChild(el("span", "task-badge", `#${task.attempt}`));
       if (task.dependsOn.length > 0) meta.appendChild(el("span", "task-badge", `依赖 ${task.dependsOn.length}`));
       if (task.autoMerge) meta.appendChild(el("span", "task-badge warn", "自动合并"));
@@ -1673,7 +1756,7 @@
 
       const actions = el("div", "td-actions");
       if (task.status === "backlog") {
-        actions.appendChild(taskAction("移到就绪", () => taskMoveFlow(task.id, "ready"), "primary"));
+        actions.appendChild(taskAction("移到待办", () => taskMoveFlow(task.id, "ready"), "primary"));
       }
       if (task.status === "ready") {
         actions.appendChild(taskAction(state.runningTaskId === task.id ? "运行中…" : "运行任务", () => runTaskFlow(task.id), "primary"));
@@ -1719,7 +1802,7 @@
         ["允许路径", task.allowedPaths?.length ? task.allowedPaths.join("、") : "整个 worktree"],
         ["预算", task.budgetYuan !== undefined ? `¥${task.budgetYuan}` : "默认 ¥2"],
         ["自动合并", task.autoMerge ? "是" : "否"],
-        ["来源消息", task.sourceMessageId || "—"],
+        ["来源消息", task.sourceMessageId ? `对话创建 · ${task.sourceMessageId}` : "手动创建"],
       ];
       if (task.lastError) rows.push(["最近错误", task.lastError]);
       for (const [key, value] of rows) {
@@ -4053,7 +4136,12 @@
         setStatus(result.summary || "加载房间失败", "error");
         return;
       }
+      const changed = state.room?.id !== roomId;
       state.room = result.data;
+      if (changed) {
+        state.boardQuery = "";
+        state.boardOrigin = "all";
+      }
       if (!state.selectedMemberId || !state.room.members.some((member) => member.id === state.selectedMemberId)) {
         state.selectedMemberId = state.room.members[0]?.id || null;
       }
