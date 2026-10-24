@@ -202,65 +202,21 @@
     }
     #shell.left-collapsed #left { opacity: 0; pointer-events: none; }
     .left-scroll { flex: 1; overflow: auto; min-height: 0; padding: 10px 8px 12px; }
-    .workspace-card {
-      margin: 0 2px 12px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: linear-gradient(180deg, #13161b, #101216);
-      overflow: hidden;
-      width: calc(100% - 4px);
-    }
-    .ws-main {
-      display: flex; align-items: center; gap: 8px;
-      width: 100%; padding: 8px 9px;
-      background: transparent; border: 0; border-radius: 0;
-      text-align: left; min-height: 0;
-    }
-    .ws-main:hover { background: var(--panel-2); border-color: transparent; }
-    .ws-icon { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 6px; background: var(--amber-soft); color: var(--amber); }
-    .ws-icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    .ws-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
-    .ws-label { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
-    .ws-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ws-path { font: 10.5px/1.35 var(--font-mono); color: #a9aeb4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ws-actions { display: flex; gap: 4px; padding: 5px 6px 6px; border-top: 1px solid var(--line); }
-    .ws-actions button {
-      flex: 1; min-height: 22px; padding: 2px 4px; font-size: 10.5px;
-      background: transparent; border-color: transparent; color: var(--muted);
-    }
-    .ws-actions button:hover { background: var(--panel-3); color: var(--text); }
-
-    .workspace-menu {
-      position: fixed; z-index: 60; width: 296px;
-      padding: 6px;
-      background: #111318;
-      border: 1px solid var(--line-2);
-      border-radius: 10px;
-      box-shadow: 0 18px 44px rgba(0, 0, 0, .5);
-    }
-    .workspace-menu[hidden] { display: none; }
-    .ws-menu-head {
-      padding: 5px 8px 6px;
-      color: var(--dim); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
-    }
-    .ws-menu-body { max-height: 42vh; overflow: auto; }
-    .ws-menu-item {
-      width: 100%; display: flex; align-items: center; gap: 8px;
-      padding: 7px 8px; min-height: 0;
-      background: transparent; border: 1px solid transparent; border-radius: 7px;
-      text-align: left;
-    }
-    .ws-menu-item:hover { background: var(--panel-2); border-color: transparent; }
-    .ws-menu-item.active { background: var(--amber-soft); border-color: rgba(227, 163, 85, .24); }
-    .ws-menu-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex: none; }
-    .ws-menu-dot.missing { background: var(--danger); }
-    .ws-menu-text { min-width: 0; flex: 1; display: flex; flex-direction: column; }
-    .ws-menu-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ws-menu-path { font: 10px/1.35 var(--font-mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ws-menu-meta { font: 10px/1 var(--font-mono); color: var(--dim); flex: none; }
-    .ws-menu-sep { height: 1px; background: var(--line); margin: 5px 3px; }
-    .ws-menu-foot { display: flex; gap: 6px; padding: 6px 3px 2px; border-top: 1px solid var(--line); margin-top: 5px; }
-    .ws-menu-foot button { flex: 1; min-height: 26px; font-size: 11px; padding: 3px 6px; }
+    .ws-list { display: flex; flex-direction: column; gap: 2px; margin: 0 2px 12px; max-height: 34vh; overflow-y: auto; }
+    .ws-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 7px; border: 1px solid transparent; cursor: pointer; }
+    .ws-row:hover { background: var(--panel-2); }
+    .ws-row.active { background: var(--amber-soft); border-color: rgba(227, 163, 85, .24); }
+    .ws-row:focus-visible { outline: 1px solid var(--amber); outline-offset: -1px; }
+    .ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex: none; }
+    .ws-dot.missing { background: var(--danger); }
+    .ws-row-text { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+    .ws-row-name { font-size: 11.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ws-row-path { font: 9.5px/1.35 var(--font-mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ws-row-count { font: 10px/1 var(--font-mono); color: var(--dim); flex: none; }
+    .ws-row-btn { flex: none; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--dim); cursor: pointer; }
+    .ws-row-btn:hover { background: var(--panel-3); color: var(--text); }
+    .ws-row-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .ws-row-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
     .path-popover {
       position: fixed; z-index: 80; width: min(390px, 90vw);
@@ -505,6 +461,27 @@
     .chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
     .chip { border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; font-size: 10.5px; color: #b8bdc3; background: var(--panel-2); }
     .cap-field { min-width: 0; }
+    details.adv { border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; margin: 8px 0; background: rgba(255, 255, 255, .015); }
+    details.adv > summary { cursor: pointer; font-size: 11.5px; color: var(--muted); list-style: none; }
+    details.adv > summary::before { content: "› "; color: var(--dim); }
+    details.adv[open] > summary::before { content: "⌄ "; }
+    details.adv[hidden] { display: none; }
+    .pull-bar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+    .pull-bar button { min-height: 28px; padding: 3px 10px; font-size: 11.5px; }
+    .pull-bar .hint { flex: 1; min-width: 200px; }
+    .pull-list { margin-top: 7px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; background: var(--panel-2); }
+    .pull-list[hidden] { display: none; }
+    .pull-head { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+    .pull-head .spacer { flex: 1; }
+    .pull-head button { min-height: 24px; padding: 2px 8px; font-size: 10.5px; }
+    .pull-list input[type=search] { width: 100%; margin-bottom: 5px; }
+    .pull-items { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+    .pull-item { display: flex; align-items: center; gap: 7px; padding: 3px 4px; border-radius: 5px; font-size: 11px; }
+    .pull-item:hover { background: rgba(255, 255, 255, .04); }
+    .pull-id { flex: 1; min-width: 0; font: 10.5px/1.4 var(--font-mono); color: #b9bec4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; }
+    .pull-default { min-height: 22px; padding: 1px 7px; font-size: 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--dim); cursor: pointer; }
+    .pull-default:hover { color: var(--text); }
+    .pull-default.on { color: var(--amber-strong); border-color: rgba(227, 163, 85, .5); background: var(--amber-soft); }
     .cap-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
     .cap-head label { margin: 0; }
     .cap-count { margin-left: auto; color: var(--dim); font: 10px/1 var(--font-mono); }
@@ -958,22 +935,14 @@
 
     <aside id="left" aria-label="房间与成员">
       <div class="left-scroll">
-        <div class="workspace-card">
-          <button class="ws-main" id="workspaceSwitcher" aria-haspopup="menu" aria-expanded="false" title="切换工作区">
-            <span class="ws-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
-            </span>
-            <span class="ws-text">
-              <span class="ws-label" id="workspaceLabel">当前工作区</span>
-              <span class="ws-name" id="workspaceName">未选择</span>
-              <span class="ws-path" id="workspacePath">未选择</span>
-            </span>
-          </button>
-          <div class="ws-actions">
-            <button id="viewWorkspacePath" type="button" title="在鼠标附近查看完整路径">查看</button>
-            <button id="openWorkspace" type="button" title="打开工作区文件夹">打开文件夹</button>
-          </div>
+        <div class="section-head">
+          <span>工作区</span>
+          <span class="head-actions">
+            <span class="count" id="wsCount"></span>
+            <button class="ghost" id="newWorkspace" type="button" title="新建工作区" aria-label="新建工作区">+</button>
+          </span>
         </div>
+        <div class="ws-list" id="wsList" aria-label="工作区列表"></div>
 
         <div class="section-head">
           <span>房间</span>
@@ -1337,28 +1306,6 @@
     </div>
   </div>
 
-  <div class="workspace-menu" id="workspaceMenu" role="menu" aria-label="切换工作区" hidden>
-    <div class="ws-menu-head">切换工作区</div>
-    <div class="ws-menu-body">
-      <button class="ws-menu-item" data-filter="all" type="button">
-        <span class="ws-menu-dot"></span>
-        <span class="ws-menu-text"><span class="ws-menu-name">全部房间</span><span class="ws-menu-path">显示所有工作区与纯聊天</span></span>
-        <span class="ws-menu-meta" id="wsAllCount"></span>
-      </button>
-      <button class="ws-menu-item" data-filter="chat" type="button">
-        <span class="ws-menu-dot"></span>
-        <span class="ws-menu-text"><span class="ws-menu-name">纯聊天</span><span class="ws-menu-path">没有绑定工作区的房间</span></span>
-        <span class="ws-menu-meta" id="wsChatCount"></span>
-      </button>
-      <div class="ws-menu-sep"></div>
-      <div id="workspaceMenuList"></div>
-    </div>
-    <div class="ws-menu-foot">
-      <button class="primary" id="newWorkspace" type="button">+ 新建工作区</button>
-      <button id="manageWorkspaces" type="button">管理</button>
-    </div>
-  </div>
-
   <div class="path-popover" id="pathPopover" hidden>
     <button class="path-value" id="pathPopoverValue" type="button"></button>
     <div class="path-actions">
@@ -1467,7 +1414,7 @@
     <div class="modal-head">
       <div>
         <div class="modal-title" id="platformSheetTitle">新增平台</div>
-        <div class="modal-sub">密钥用环境变量名，不写入配置文件</div>
+        <div class="modal-sub">API 平台可直接拉取模型；密钥可选环境变量或本机加密保存</div>
       </div>
       <div class="spacer"></div>
       <button class="icon-btn" id="closePlatformSheet" title="关闭" aria-label="关闭平台表单">
@@ -1476,57 +1423,93 @@
     </div>
     <div class="modal-body">
       <div class="two">
-        <div class="field"><label for="pfId">id</label><input id="pfId" placeholder="my-cli" /></div>
-        <div class="field"><label for="pfName">名称</label><input id="pfName" placeholder="我的 CLI" /></div>
+        <div class="field"><label for="pfId">id</label><input id="pfId" placeholder="deepseek" /></div>
+        <div class="field"><label for="pfName">名称</label><input id="pfName" placeholder="DeepSeek 官方 API" /></div>
       </div>
-      <div class="two">
-        <div class="field">
-          <label for="pfKind">接入方式</label>
-          <select id="pfKind">
-            <option value="cli">CLI 子进程</option>
-            <option value="openai-compatible">OpenAI 兼容 API</option>
-            <option value="fake">测试用假模型</option>
-          </select>
-        </div>
-        <div class="field" id="pfHarnessRow">
-          <label for="pfHarness">harness（CLI）</label>
-          <select id="pfHarness">
-            <option value="codex">codex</option>
-            <option value="claude">claude</option>
-            <option value="opencode">opencode</option>
-            <option value="openclaw">openclaw</option>
-            <option value="hermes">hermes</option>
-          </select>
-          <div class="hint">决定实际调用哪个 CLI；id 含同名时会自动选中。</div>
-        </div>
+      <div class="field">
+        <label for="pfKind">接入方式</label>
+        <select id="pfKind">
+          <option value="openai-compatible">OpenAI 兼容 API（DeepSeek / Kimi / OpenRouter 等）</option>
+          <option value="cli">CLI 子进程（codex / claude / 自定义命令）</option>
+          <option value="fake">测试用假模型</option>
+        </select>
+        <div class="hint" id="pfAutoHint">—</div>
       </div>
       <div class="two" id="pfApiRow">
-        <div class="field"><label for="pfBaseUrl">baseUrl</label><input id="pfBaseUrl" placeholder="http://127.0.0.1:17864/v1" /></div>
-        <div class="field"><label for="pfApiKeyEnv">apiKeyEnv</label><input id="pfApiKeyEnv" placeholder="AIWORK_API_KEY" /></div>
+        <div class="field">
+          <label for="pfBaseUrl">baseUrl</label>
+          <input id="pfBaseUrl" placeholder="https://api.deepseek.com/v1" />
+        </div>
+        <div class="field">
+          <label for="pfKeyMode">密钥来源</label>
+          <select id="pfKeyMode">
+            <option value="env">环境变量名（不保存密钥）</option>
+            <option value="local">本机加密保存（Windows 登录用户绑定）</option>
+          </select>
+        </div>
       </div>
-      <div class="two" id="pfModeRow">
-        <div class="field" id="pfSandboxRow">
-          <label for="pfSandbox">sandboxMode</label>
-          <select id="pfSandbox">
-            <option value="">默认</option>
-            <option value="read-only">read-only</option>
-            <option value="workspace-write">workspace-write</option>
-          </select>
+      <div class="two" id="pfKeyRow">
+        <div class="field" id="pfApiKeyEnvRow">
+          <label for="pfApiKeyEnv">环境变量名</label>
+          <input id="pfApiKeyEnv" placeholder="DEEPSEEK_API_KEY" />
         </div>
-        <div class="field" id="pfPermissionRow">
-          <label for="pfPermission">permissionMode</label>
-          <select id="pfPermission">
-            <option value="">默认</option>
-            <option value="plan">plan</option>
-            <option value="acceptEdits">acceptEdits</option>
-          </select>
+        <div class="field" id="pfApiKeyRow">
+          <label for="pfApiKey">API key</label>
+          <input id="pfApiKey" type="password" autocomplete="off" placeholder="sk-…（保存后不再回显）" />
         </div>
+      </div>
+      <div class="field" id="pfPullRow">
+        <div class="pull-bar">
+          <button type="button" id="pfPullModels">测试连接并拉取模型</button>
+          <span class="hint" id="pfPullHint">填好 baseUrl 与密钥后点这里：会调用 /v1/models 列出该账号可用的模型，勾选后写入模型目录。</span>
+        </div>
+        <div class="pull-list" id="pfPullList" hidden></div>
       </div>
       <div class="two">
         <div class="field"><label for="pfTimeout">超时（秒）</label><input id="pfTimeout" type="number" min="1" step="1" placeholder="600" /></div>
         <label class="check" style="align-self:end;"><input type="checkbox" id="pfEnabled" checked /><span>启用</span></label>
       </div>
-      <div class="hint" id="pfHint">CLI 平台用 harness 选择执行器；API 平台只需 baseUrl 和密钥环境变量名。</div>
+      <details class="adv" id="pfAdvanced">
+        <summary>高级：CLI 执行器、命令模板与权限</summary>
+        <div class="two">
+          <div class="field" id="pfHarnessRow">
+            <label for="pfHarness">harness（CLI 执行器）</label>
+            <select id="pfHarness">
+              <option value="codex">codex</option>
+              <option value="claude">claude</option>
+              <option value="opencode">opencode</option>
+              <option value="openclaw">openclaw</option>
+              <option value="hermes">hermes</option>
+            </select>
+            <div class="hint">默认按 id 自动识别；只有识别不对时才需要改。</div>
+          </div>
+          <div class="field" id="pfSandboxRow">
+            <label for="pfSandbox">sandboxMode</label>
+            <select id="pfSandbox">
+              <option value="">默认</option>
+              <option value="read-only">read-only</option>
+              <option value="workspace-write">workspace-write</option>
+            </select>
+          </div>
+        </div>
+        <div class="two">
+          <div class="field" id="pfPermissionRow">
+            <label for="pfPermission">permissionMode</label>
+            <select id="pfPermission">
+              <option value="">默认</option>
+              <option value="plan">plan</option>
+              <option value="acceptEdits">acceptEdits</option>
+            </select>
+          </div>
+          <div class="field"></div>
+        </div>
+        <div class="field">
+          <label for="pfTemplate">命令模板（填了就忽略 harness）</label>
+          <input id="pfTemplate" placeholder="my-agent --model {model} --prompt {prompt}" />
+          <div class="hint">占位符：{prompt} {model} {image}；命令的标准输出整段作为回复。这种接法拿不到增量流式和真实 token 数，费用按字数估算。</div>
+        </div>
+      </details>
+      <div class="hint" id="pfHint">—</div>
     </div>
     <div class="modal-foot">
       <button id="cancelPlatformSheet" type="button">取消</button>
@@ -1684,6 +1667,12 @@
       modelsQuery: "",
       modelsExpanded: [],
       modelsOnlyAvailable: false,
+      modelsLimit: {},
+      loadToken: 0,
+      platformPull: [],
+      platformPullSelection: new Set(),
+      platformPullDefault: "",
+      platformPullQuery: "",
     };
     const $ = (id) => document.getElementById(id);
     const AUTONOMY_LABELS = { low: "低自治", medium: "中自治", high: "高自治" };
@@ -1728,8 +1717,15 @@
       return state.platforms.find((platform) => platform.id === platformId);
     }
 
+    function platformDefaultModel(platformId) {
+      return findPlatform(platformId)?.config?.defaultModel || "";
+    }
+
     function modelsFor(platformId) {
-      return state.models.filter((model) => model.platformId === platformId && model.enabled !== false);
+      const preferred = platformDefaultModel(platformId);
+      return state.models
+        .filter((model) => model.platformId === platformId && model.enabled !== false)
+        .sort((left, right) => Number(right.modelId === preferred) - Number(left.modelId === preferred));
     }
 
     function findModel(platformId, modelId) {
@@ -3068,39 +3064,233 @@
 
     function syncPlatformFields() {
       const kind = $("pfKind").value;
-      const harness = $("pfHarness").value;
-      $("pfHarnessRow").hidden = kind !== "cli";
-      $("pfApiRow").hidden = kind !== "openai-compatible";
-      const cliModes = kind === "cli" && (harness === "codex" || harness === "claude");
-      $("pfModeRow").hidden = !cliModes;
-      $("pfSandboxRow").hidden = !(kind === "cli" && harness === "codex");
-      $("pfPermissionRow").hidden = !(kind === "cli" && harness === "claude");
+      const template = $("pfTemplate").value.trim();
+      const harness = $("pfHarness").value || inferHarness($("pfId").value);
+      const isApi = kind === "openai-compatible";
+      const keyMode = $("pfKeyMode").value;
+      $("pfApiRow").hidden = !isApi;
+      $("pfKeyRow").hidden = !isApi;
+      $("pfPullRow").hidden = !isApi;
+      $("pfApiKeyEnvRow").hidden = keyMode !== "env";
+      $("pfApiKeyRow").hidden = keyMode !== "local";
+      $("pfSandboxRow").hidden = !(kind === "cli" && !template && harness === "codex");
+      $("pfPermissionRow").hidden = !(kind === "cli" && !template && harness === "claude");
+      $("pfAdvanced").hidden = kind === "fake";
+      if (kind === "openai-compatible") {
+        $("pfAutoHint").textContent = "调用方式：OpenAI 兼容 chat/completions。";
+        $("pfHint").textContent = "填 baseUrl 与密钥后点「测试连接并拉取模型」，勾选要用的模型写入目录；未勾选的模型不会出现在成员绑定里。";
+      } else if (kind === "cli") {
+        $("pfAutoHint").textContent = template
+          ? `调用方式：自定义命令模板（${template.split(/\s+/)[0]}），harness 被忽略。`
+          : `调用方式：自动使用 ${harness} 执行器；不对就在高级里改。`;
+        $("pfHint").textContent = template
+          ? "命令模板：标准输出整段作为回复；拿不到增量流式和真实 token，费用按字数估算。"
+          : "CLI 平台按 harness 调用对应命令行工具；写入权限仍受房间与工作区围栏约束。";
+      } else {
+        $("pfAutoHint").textContent = "调用方式：假模型，只用于验证流程。";
+        $("pfHint").textContent = "测试用假模型不会调用任何真实服务。";
+      }
+    }
+
+    function renderPlatformPull() {
+      const box = $("pfPullList");
+      clearNode(box);
+      box.hidden = state.platformPull.length === 0;
+      if (state.platformPull.length === 0) return;
+      const bar = el("div", "pull-head");
+      bar.appendChild(el("span", "", `${state.platformPull.length} 个远端模型`));
+      const pickAll = el("button", "", "全选未收录");
+      pickAll.type = "button";
+      pickAll.addEventListener("click", () => {
+        state.platformPullSelection = new Set(
+          state.platformPull.filter((item) => !item.inCatalog).map((item) => item.id),
+        );
+        renderPlatformPull();
+      });
+      bar.appendChild(pickAll);
+      bar.appendChild(el("span", "spacer", ""));
+      const commit = el("button", "primary", "导入所选");
+      commit.type = "button";
+      commit.addEventListener("click", () => importPulledModels(commit));
+      bar.appendChild(commit);
+      box.appendChild(bar);
+
+      const search = document.createElement("input");
+      search.type = "search";
+      search.placeholder = "过滤模型 id";
+      search.value = state.platformPullQuery;
+      search.addEventListener("input", () => {
+        state.platformPullQuery = search.value;
+        renderPlatformPull();
+        const next = $("pfPullList input[type=search]");
+        if (next) {
+          next.focus();
+          next.setSelectionRange(next.value.length, next.value.length);
+        }
+      });
+      box.appendChild(search);
+
+      const needle = state.platformPullQuery.trim().toLowerCase();
+      const list = el("div", "pull-items");
+      for (const item of state.platformPull) {
+        if (needle && !item.id.toLowerCase().includes(needle)) continue;
+        const row = el("label", "pull-item");
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.checked = state.platformPullSelection.has(item.id);
+        check.disabled = item.inCatalog;
+        check.addEventListener("change", () => {
+          if (check.checked) state.platformPullSelection.add(item.id);
+          else state.platformPullSelection.delete(item.id);
+          renderPlatformPull();
+        });
+        row.appendChild(check);
+        row.appendChild(el("span", "pull-id", item.id));
+        if (item.inCatalog) row.appendChild(el("span", "mini-badge", "已收录"));
+        const useDefault = document.createElement("button");
+        useDefault.type = "button";
+        useDefault.className = state.platformPullDefault === item.id ? "pull-default on" : "pull-default";
+        useDefault.textContent = state.platformPullDefault === item.id ? "默认模型" : "设为默认";
+        useDefault.title = "新建成员与新建房间时优先使用这个模型";
+        useDefault.addEventListener("click", (event) => {
+          event.preventDefault();
+          state.platformPullDefault = item.id;
+          renderPlatformPull();
+        });
+        row.appendChild(useDefault);
+        list.appendChild(row);
+      }
+      box.appendChild(list);
+    }
+
+    async function pullPlatformModels(button) {
+      const baseUrl = $("pfBaseUrl").value.trim();
+      if (!baseUrl) {
+        setStatus("先填 baseUrl", "error");
+        return;
+      }
+      const keyMode = $("pfKeyMode").value;
+      const keyValue = $("pfApiKey").value.trim();
+      if (keyMode === "local" && !keyValue && !state.editingPlatformId) {
+        setStatus("先填 API key，或改用环境变量方式", "error");
+        return;
+      }
+      const id = $("pfId").value.trim();
+      if (!id) {
+        setStatus("先填平台 id", "error");
+        return;
+      }
+      button.disabled = true;
+      button.textContent = "拉取中…";
+      try {
+        const payload = {
+          id,
+          name: $("pfName").value.trim() || id,
+          kind: "openai-compatible",
+          baseUrl,
+          timeoutMs: String(Math.max(1, Math.floor(Number($("pfTimeout").value) || 600)) * 1000),
+          enabled: $("pfEnabled").checked,
+          apiKeyEnv: keyMode === "env" ? $("pfApiKeyEnv").value.trim() : `AGENTHUB_KEY_${id.replace(/[^a-zA-Z0-9_-]/g, "_").toUpperCase()}`,
+        };
+        const saved = state.editingPlatformId
+          ? await api.updatePlatform(payload)
+          : await api.addPlatform(payload);
+        if (saved.status !== "success") {
+          setStatus(saved.summary || "保存平台失败", "error");
+          return;
+        }
+        state.editingPlatformId = state.editingPlatformId || id;
+        $("pfId").disabled = true;
+        if (keyMode === "local" && keyValue) {
+          const stored = await api.secretSet({ platformId: id, value: keyValue });
+          if (stored.status !== "success") {
+            setStatus(stored.summary || "密钥保存失败", "error");
+            return;
+          }
+          $("pfApiKey").value = "";
+          setStatus(stored.summary || "密钥已保存", "ok");
+        }
+        const platforms = await api.platforms();
+        if (platforms.status === "success") state.platforms = platforms.data || [];
+        const pulled = await api.modelsPull({ platformId: id });
+        if (pulled.status !== "success") {
+          setStatus(pulled.summary || "拉取模型失败", "error");
+          return;
+        }
+        state.platformPull = pulled.data || [];
+        state.platformPullSelection = new Set();
+        renderPlatformPull();
+        setStatus(`拉到 ${state.platformPull.length} 个模型，勾选后点「导入所选」`, "ok");
+      } finally {
+        button.disabled = false;
+        button.textContent = "测试连接并拉取模型";
+      }
+    }
+
+    async function importPulledModels(button) {
+      const selected = [...state.platformPullSelection];
+      if (selected.length === 0) {
+        setStatus("先勾选要导入的模型", "error");
+        return;
+      }
+      button.disabled = true;
+      const result = await api.modelsAdd({
+        platformId: $("pfId").value.trim(),
+        models: selected,
+        defaultModel: state.platformPullDefault || undefined,
+      });
+      button.disabled = false;
+      if (result.status !== "success") {
+        setStatus(result.summary || "导入模型失败", "error");
+        return;
+      }
+      const modelsResult = await api.models();
+      if (modelsResult.status === "success") state.models = modelsResult.data || [];
+      renderModelCount();
+      state.platformPull = state.platformPull.map((item) => (
+        state.platformPullSelection.has(item.id) ? { ...item, inCatalog: true } : item
+      ));
+      state.platformPullSelection = new Set();
+      renderPlatformPull();
+      setStatus(result.summary || `已导入 ${selected.length} 个模型`, "ok");
     }
 
     function openPlatformSheet(platform = null) {
       state.editingPlatformId = platform?.id || "";
+      state.platformPull = [];
+      state.platformPullSelection = new Set();
+      state.platformPullDefault = platform?.config?.defaultModel || "";
+      state.platformPullQuery = "";
       $("platformSheetTitle").textContent = platform ? "编辑平台" : "新增平台";
       $("pfId").value = platform?.id || "";
       $("pfId").disabled = Boolean(platform);
       $("pfName").value = platform?.name || "";
-      $("pfKind").value = platform?.kind || "cli";
+      $("pfKind").value = platform?.kind || "openai-compatible";
       $("pfHarness").value = platform?.config?.harness || inferHarness(platform?.id || "");
+      $("pfTemplate").value = platform?.config?.commandTemplate || "";
       $("pfBaseUrl").value = platform?.config?.baseUrl || "";
-      $("pfApiKeyEnv").value = platform?.config?.apiKeyEnv || "";
+      const envName = platform?.config?.apiKeyEnv || "";
+      const usesLocalSecret = envName.startsWith("AGENTHUB_KEY_");
+      $("pfKeyMode").value = usesLocalSecret ? "local" : "env";
+      $("pfApiKeyEnv").value = usesLocalSecret ? "" : envName;
+      $("pfApiKey").value = "";
       $("pfSandbox").value = platform?.config?.sandboxMode || "";
       $("pfPermission").value = platform?.config?.permissionMode || "";
       $("pfTimeout").value = platform ? Math.round(Number(platform.config?.timeoutMs || 600_000) / 1000) : 600;
       $("pfEnabled").checked = platform ? platform.enabled !== false : true;
+      renderPlatformPull();
       syncPlatformFields();
       openOverlay("platformSheet");
     }
 
     async function savePlatformFlow() {
       const kind = $("pfKind").value;
+      const template = $("pfTemplate").value.trim();
       const harness = $("pfHarness").value;
       const timeoutSeconds = Math.max(1, Math.floor(Number($("pfTimeout").value) || 600));
+      const id = $("pfId").value.trim();
       const payload = {
-        id: $("pfId").value.trim(),
+        id,
         name: $("pfName").value.trim(),
         kind,
         timeoutMs: String(timeoutSeconds * 1000),
@@ -3108,12 +3298,15 @@
       };
       if (kind === "cli") {
         payload.harness = harness;
-        if (harness === "codex") payload.sandboxMode = $("pfSandbox").value || "none";
-        if (harness === "claude") payload.permissionMode = $("pfPermission").value || "none";
+        if (template) payload.commandTemplate = template;
+        if (!template && harness === "codex") payload.sandboxMode = $("pfSandbox").value || "none";
+        if (!template && harness === "claude") payload.permissionMode = $("pfPermission").value || "none";
       }
       if (kind === "openai-compatible") {
         payload.baseUrl = $("pfBaseUrl").value.trim();
-        payload.apiKeyEnv = $("pfApiKeyEnv").value.trim();
+        payload.apiKeyEnv = $("pfKeyMode").value === "local"
+          ? `AGENTHUB_KEY_${id.replace(/[^a-zA-Z0-9_-]/g, "_").toUpperCase()}`
+          : $("pfApiKeyEnv").value.trim();
       }
       if (!payload.name || (!state.editingPlatformId && !payload.id)) {
         setStatus("平台 id 和名称不能为空", "error");
@@ -3125,6 +3318,11 @@
       if (result.status !== "success") {
         setStatus(result.summary || "保存平台失败", "error");
         return;
+      }
+      if (kind === "openai-compatible" && $("pfKeyMode").value === "local" && $("pfApiKey").value.trim()) {
+        const stored = await api.secretSet({ platformId: payload.id, value: $("pfApiKey").value.trim() });
+        setStatus(stored.status === "success" ? stored.summary || "已保存" : stored.summary || "密钥保存失败",
+          stored.status === "success" ? "ok" : "error");
       }
       closeOverlays();
       const platforms = await api.platforms();
@@ -3212,19 +3410,9 @@
 
     function bindGlobalUi() {
       $("toggleLeft").addEventListener("click", toggleLeft);
-      $("workspaceSwitcher").addEventListener("click", toggleWorkspaceMenu);
-      $("viewWorkspacePath").addEventListener("click", openWorkspacePathPopover);
-      $("openWorkspace").addEventListener("click", openWorkspace);
       $("newRoom").addEventListener("click", () => openCreateRoomSheet());
       $("newMember").addEventListener("click", openMemberPicker);
-      $("newWorkspace").addEventListener("click", () => {
-        closeWorkspaceMenu();
-        openWorkspaceSheet();
-      });
-      $("manageWorkspaces").addEventListener("click", () => {
-        closeWorkspaceMenu();
-        openSettings({ focusWorkspaces: true });
-      });
+      $("newWorkspace").addEventListener("click", () => openWorkspaceSheet());
       $("closeWorkspaceSheet").addEventListener("click", closeOverlays);
       $("cancelWorkspaceSheet").addEventListener("click", closeOverlays);
       $("saveWorkspace").addEventListener("click", createWorkspaceFlow);
@@ -3269,30 +3457,15 @@
         closePathPopover();
       });
       $("copyWorkspacePath").addEventListener("click", copyPathPopoverValue);
-      $("workspaceMenu").addEventListener("click", (event) => {
-        const item = event.target.closest("[data-filter]");
-        if (item) setWorkspaceFilter(item.dataset.filter);
-      });
       document.addEventListener("click", (event) => {
-        if (!$("workspaceMenu").hidden
-          && !$("workspaceMenu").contains(event.target)
-          && !$("workspaceSwitcher").contains(event.target)) {
-          closeWorkspaceMenu();
-        }
         if (!$("pathPopover").hidden
           && !$("pathPopover").contains(event.target)
-          && !$("viewWorkspacePath").contains(event.target)) {
+          && !event.target.closest(".ws-row-btn")) {
           closePathPopover();
         }
       });
-      window.addEventListener("resize", () => {
-        closeWorkspaceMenu();
-        closePathPopover();
-      });
-      window.addEventListener("scroll", () => {
-        closeWorkspaceMenu();
-        closePathPopover();
-      }, true);
+      window.addEventListener("resize", closePathPopover);
+      window.addEventListener("scroll", closePathPopover, true);
       $("openRoomSettings").addEventListener("click", openRoomSettings);
       $("openSettings").addEventListener("click", openSettings);
       $("openPalette").addEventListener("click", openPalette);
@@ -3437,10 +3610,15 @@
       $("savePlatform").addEventListener("click", savePlatformFlow);
       $("pfKind").addEventListener("change", syncPlatformFields);
       $("pfHarness").addEventListener("change", syncPlatformFields);
+      $("pfKeyMode").addEventListener("change", syncPlatformFields);
+      $("pfTemplate").addEventListener("input", syncPlatformFields);
+      $("pfPullModels").addEventListener("click", (event) => pullPlatformModels(event.currentTarget));
       $("pfId").addEventListener("input", () => {
-        if (state.editingPlatformId) return;
-        const harness = inferHarness($("pfId").value);
-        if ($("pfId").value.toLowerCase().includes(harness)) $("pfHarness").value = harness;
+        if (!state.editingPlatformId) {
+          const harness = inferHarness($("pfId").value);
+          if ($("pfId").value.toLowerCase().includes(harness)) $("pfHarness").value = harness;
+        }
+        syncPlatformFields();
       });
       $("draftScope").addEventListener("input", () => {
         if (state.room) localStorage.setItem(`agenthub.draftScope.${state.room.id}`, $("draftScope").value);
@@ -3482,10 +3660,7 @@
           event.preventDefault();
           toggleLeft();
         } else if (event.key === "Escape") {
-          if (!$("workspaceMenu").hidden) {
-            event.preventDefault();
-            closeWorkspaceMenu();
-          } else if (!$("pathPopover").hidden) {
+          if (!$("pathPopover").hidden) {
             event.preventDefault();
             closePathPopover();
           } else if (state.overlays.length > 0) {
@@ -3522,11 +3697,16 @@
     }
 
     function closeOverlays() {
+      const hadOverlay = state.overlays.length > 0;
       for (const id of OVERLAY_IDS) $(id).classList.remove("open");
       $("scrim").classList.remove("show");
       state.overlays = [];
-      closeWorkspaceMenu();
       closePathPopover();
+      const active = document.activeElement;
+      if (hadOverlay && active && OVERLAY_IDS.some((id) => $(id).contains(active))) {
+        active.blur();
+        $("prompt").focus({ preventScroll: true });
+      }
     }
 
     function togglePalette() {
@@ -4749,7 +4929,8 @@
           if (platformModels.length === 0) {
             bodyBox.appendChild(el("div", "hint", state.modelsOnlyAvailable ? "没有满足条件的可用模型。" : "该平台在模型目录里没有条目，可先同步网关模型。"));
           }
-          for (const model of platformModels) {
+          const shown = platformModels.slice(0, state.modelsLimit[platform.id] ?? 50);
+          for (const model of shown) {
             const row = el("div", "model-row");
             const nameRow = el("div", "model-name-row");
             nameRow.appendChild(el("span", "model-name", model.displayName || model.modelId));
@@ -4776,6 +4957,16 @@
               row.appendChild(note);
             }
             bodyBox.appendChild(row);
+          }
+          if (platformModels.length > shown.length) {
+            const more = el("button", "", `显示更多（还有 ${platformModels.length - shown.length} 个）`);
+            more.type = "button";
+            more.style.marginTop = "6px";
+            more.addEventListener("click", () => {
+              state.modelsLimit = { ...state.modelsLimit, [platform.id]: (state.modelsLimit[platform.id] ?? 50) + 150 };
+              renderSettings();
+            });
+            bodyBox.appendChild(more);
           }
           card.appendChild(bodyBox);
         }
@@ -4957,84 +5148,103 @@
       return displayWorkspace()?.path || state.room?.workspace || "";
     }
 
-    function renderWorkspaceCard() {
-      const display = displayWorkspace();
-      const path = activeWorkspacePath();
-      const isChatFilter = state.workspaceFilter === "chat";
-      $("workspaceLabel").textContent = state.workspaceFilter === "all" ? "当前工作区" : isChatFilter ? "房间类型" : "工作区";
-      $("workspaceName").textContent = isChatFilter
-        ? "纯聊天"
-        : display?.name || (state.workspaceFilter === "all" ? (state.room ? "未绑定工作区" : "全部房间") : "工作区不存在");
-      $("workspacePath").textContent = path || "未绑定工作区";
-      $("workspacePath").title = path;
-      const unavailable = Boolean(display && display.available === false);
-      $("viewWorkspacePath").disabled = !path;
-      $("openWorkspace").disabled = !path || unavailable;
-      $("openWorkspace").title = unavailable ? "工作区目录不存在" : "在资源管理器中打开";
+    function readRecentWorkspaces() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem("agenthub.workspaceRecent") || "{}");
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
     }
 
-    function renderWorkspaceMenu() {
-      const all = state.rooms.length;
-      const chat = state.rooms.filter((room) => !roomWorkspace(room)).length;
-      $("wsAllCount").textContent = String(all);
-      $("wsChatCount").textContent = String(chat);
-      $("workspaceMenu").querySelectorAll("[data-filter]").forEach((node) => {
-        node.classList.toggle("active", node.dataset.filter === state.workspaceFilter);
+    function markWorkspaceUsed(id) {
+      if (!id || id === "all" || id === "chat") return;
+      const recent = readRecentWorkspaces();
+      recent[id] = Date.now();
+      localStorage.setItem("agenthub.workspaceRecent", JSON.stringify(recent));
+    }
+
+    function sortedWorkspaces() {
+      const recent = readRecentWorkspaces();
+      return [...state.workspaces].sort((left, right) => {
+        const delta = (recent[right.id] || 0) - (recent[left.id] || 0);
+        return delta !== 0 ? delta : left.name.localeCompare(right.name, "zh-CN");
       });
-      const list = $("workspaceMenuList");
+    }
+
+    function wsIconButton(title, icon, handler, disabled) {
+      const button = el("button", "ws-row-btn");
+      button.type = "button";
+      button.title = title;
+      button.setAttribute("aria-label", title);
+      button.innerHTML = icon;
+      if (disabled) button.disabled = true;
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        handler(event);
+      });
+      return button;
+    }
+
+    const WS_FOLDER_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>';
+    const WS_PATH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M4 12h13M4 18h7"/></svg>';
+
+    function renderWorkspaceCard() {
+      const list = $("wsList");
       clearNode(list);
-      if (state.workspaces.length === 0) {
-        list.appendChild(el("div", "form-hint", "还没有登记工作区。"));
-        return;
-      }
-      for (const workspace of [...state.workspaces].sort((left, right) => left.name.localeCompare(right.name, "zh-CN"))) {
-        const button = el("button", `ws-menu-item${state.workspaceFilter === workspace.id ? " active" : ""}`);
-        button.type = "button";
-        button.dataset.filter = workspace.id;
-        button.appendChild(el("span", `ws-menu-dot${workspace.available ? "" : " missing"}`, ""));
-        const text = el("span", "ws-menu-text");
-        text.appendChild(el("span", "ws-menu-name", workspace.name));
-        const path = el("span", "ws-menu-path", workspace.available ? workspace.path : `${workspace.path}（目录缺失）`);
-        path.title = workspace.path;
-        text.appendChild(path);
-        button.appendChild(text);
-        button.appendChild(el("span", "ws-menu-meta", String(workspace.roomCount ?? 0)));
-        list.appendChild(button);
-      }
-    }
+      $("wsCount").textContent = String(state.workspaces.length);
+      const chatCount = state.rooms.filter((room) => !roomWorkspace(room)).length;
 
-    function toggleWorkspaceMenu() {
-      if (!$("workspaceMenu").hidden) {
-        closeWorkspaceMenu();
-        return;
-      }
-      closePathPopover();
-      renderWorkspaceMenu();
-      const menu = $("workspaceMenu");
-      menu.hidden = false;
-      $("workspaceSwitcher").setAttribute("aria-expanded", "true");
-      const anchor = $("workspaceSwitcher").getBoundingClientRect();
-      const width = menu.offsetWidth;
-      const height = menu.offsetHeight;
-      const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8));
-      let top = anchor.bottom + 6;
-      if (top + height > window.innerHeight - 8) {
-        top = Math.max(8, anchor.top - height - 6);
-      }
-      menu.style.left = `${Math.round(left)}px`;
-      menu.style.top = `${Math.round(top)}px`;
-    }
+      const addRow = (filter, name, sub, count, options = {}) => {
+        const active = state.workspaceFilter === filter;
+        const row = el("div", `ws-row${active ? " active" : ""}`);
+        row.setAttribute("role", "option");
+        row.tabIndex = 0;
+        row.setAttribute("aria-selected", active ? "true" : "false");
+        row.appendChild(el("span", `ws-dot${options.missing ? " missing" : ""}`, ""));
+        const text = el("span", "ws-row-text");
+        const nameNode = el("span", "ws-row-name", name);
+        nameNode.title = name;
+        text.appendChild(nameNode);
+        const pathNode = el("span", "ws-row-path", sub);
+        pathNode.title = sub;
+        text.appendChild(pathNode);
+        row.appendChild(text);
+        row.appendChild(el("span", "ws-row-count", String(count)));
+        if (options.path) {
+          row.appendChild(wsIconButton("查看完整路径", WS_PATH_ICON, (event) => openWorkspacePathPopover(event, options.path)));
+          row.appendChild(wsIconButton(options.missing ? "工作区目录不存在" : "在资源管理器中打开", WS_FOLDER_ICON, () => {
+            if (!options.missing) api.openPath(options.path);
+          }, options.missing));
+        }
+        const select = () => {
+          markWorkspaceUsed(filter);
+          setWorkspaceFilter(filter);
+        };
+        row.addEventListener("click", select);
+        row.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            select();
+          }
+        });
+        list.appendChild(row);
+      };
 
-    function closeWorkspaceMenu() {
-      $("workspaceMenu").hidden = true;
-      $("workspaceSwitcher").setAttribute("aria-expanded", "false");
+      addRow("all", "全部房间", "所有工作区与纯聊天", state.rooms.length);
+      addRow("chat", "纯聊天", "没有绑定工作区的房间", chatCount);
+      for (const workspace of sortedWorkspaces()) {
+        addRow(workspace.id, workspace.name,
+          workspace.available === false ? `${workspace.path}（目录缺失）` : workspace.path,
+          workspace.roomCount ?? 0,
+          { path: workspace.path, missing: workspace.available === false });
+      }
     }
 
     async function setWorkspaceFilter(filter) {
       if (filter !== "all" && filter !== "chat" && !workspaceById(filter)) return;
       state.workspaceFilter = filter;
       localStorage.setItem("agenthub.workspaceFilter", filter);
-      closeWorkspaceMenu();
       renderWorkspaceCard();
       renderRooms();
       const rooms = filteredRooms();
@@ -5055,10 +5265,10 @@
       renderAll();
     }
 
-    function openWorkspacePathPopover(event) {
-      const path = activeWorkspacePath();
+    function openWorkspacePathPopover(event, targetPath) {
+      const path = targetPath || activeWorkspacePath();
       if (!path) return;
-      closeWorkspaceMenu();
+      closePathPopover();
       state.pathPopoverTarget = path;
       $("pathPopoverValue").textContent = path;
       const popover = $("pathPopover");
@@ -5068,8 +5278,8 @@
       const anchor = event.clientX || event.clientY
         ? { x: event.clientX, y: event.clientY }
         : (() => {
-          const rect = $("viewWorkspacePath").getBoundingClientRect();
-          return { x: rect.left, y: rect.bottom };
+          const rect = event.target.getBoundingClientRect();
+          return { x: rect.right, y: rect.bottom };
         })();
       let left = anchor.x + 10;
       let top = anchor.y + 12;
@@ -5673,13 +5883,20 @@
     }
 
     async function loadRoom(roomId) {
-      const result = await api.showRoom(roomId);
+      const token = ++state.loadToken;
+      if (!state.recoveredRooms.has(roomId)) {
+        state.recoveredRooms.add(roomId);
+        await api.recoverTasks(roomId);
+      }
+      const result = await api.roomFull(roomId);
+      if (token !== state.loadToken) return;
       if (result.status !== "success") {
         setStatus(result.summary || "加载房间失败", "error");
         return;
       }
+      const payload = result.data || {};
       const changed = state.room?.id !== roomId;
-      state.room = result.data;
+      state.room = payload.room;
       if (changed && state.inspectorOpen) closeInspector();
       if (changed) {
         state.boardQuery = "";
@@ -5688,35 +5905,19 @@
       if (!state.selectedMemberId || !state.room.members.some((member) => member.id === state.selectedMemberId)) {
         state.selectedMemberId = state.room.members[0]?.id || null;
       }
-      const eventsResult = await api.events(roomId);
-      state.events = eventsResult.status === "success" ? eventsResult.data : [];
+      state.events = payload.events || [];
       state.costYuan = sumCost(state.events);
       state.totalTokens = sumTokens(state.events);
       state.liveText = "";
       state.liveMemberId = null;
       state.taskDetail = null;
       state.taskDetailId = "";
-      if (!state.recoveredRooms.has(roomId)) {
-        state.recoveredRooms.add(roomId);
-        await api.recoverTasks(roomId);
-      }
-      const tasksResult = await api.listTasks(roomId);
-      state.tasks = tasksResult.status === "success" ? tasksResult.data || [] : [];
+      state.tasks = payload.tasks || [];
       updateTaskCosts();
-      state.workspaceIsGit = false;
-      if (state.room.workspace) {
-        const gitResult = await api.inspect({ roomId, sub: "git-status" });
-        state.workspaceIsGit = gitResult.status === "success";
-      }
-      state.openDrafts = new Set();
-      if (state.room.workspaceId) {
-        const drafts = await api.draftList({ workspaceId: state.room.workspaceId });
-        if (drafts.status === "success") {
-          for (const draft of drafts.data || []) {
-            if (draft.status === "open") state.openDrafts.add(draft.runId);
-          }
-        }
-      }
+      state.workspaceIsGit = payload.workspaceIsGit === true;
+      state.openDrafts = new Set(
+        (payload.drafts || []).filter((draft) => draft.status === "open").map((draft) => draft.runId),
+      );
       if (state.view !== "chat" && !state.room.workspace) {
         state.view = "chat";
       }
@@ -5732,7 +5933,6 @@
 
     function renderAll() {
       renderWorkspaceCard();
-      if (!$("workspaceMenu").hidden) renderWorkspaceMenu();
       renderRooms();
       renderMembers();
       renderChat();
@@ -6310,11 +6510,12 @@
       };
       platformSelect.addEventListener("change", () => {
         const models = modelsFor(platformSelect.value);
+        const preferred = platformDefaultModel(platformSelect.value);
         clearNode(modelSelect);
         for (const model of models) {
           const option = document.createElement("option");
           option.value = model.modelId;
-          option.textContent = `${model.displayName} · ${formatContext(model.contextWindow)}`;
+          option.textContent = `${model.displayName} · ${formatContext(model.contextWindow)}${model.modelId === preferred ? "（平台默认）" : ""}`;
           modelSelect.appendChild(option);
         }
         if (models.length > 0) modelSelect.value = models[0].modelId;

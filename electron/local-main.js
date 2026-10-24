@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage } = require("electron");
 const { spawn } = require("node:child_process");
 const os = require("node:os");
 const fs = require("node:fs");
@@ -12,6 +12,7 @@ const LOCAL_OUTPUT_DIR = path.join(USER_DATA_DIR, "runs");
 const LOG_FILE = path.join(USER_DATA_DIR, "agent-space-local-desktop.log");
 const ROOM_DATA_DIR = path.join(USER_DATA_DIR, "rooms");
 const APP_SETTINGS_PATH = path.join(USER_DATA_DIR, "app-settings.json");
+const SECRETS_PATH = path.join(USER_DATA_DIR, "secrets.json");
 const ATTACHMENTS_DIR = path.join(USER_DATA_DIR, "attachments");
 
 function readAppSettings() {
@@ -28,6 +29,43 @@ function writeAppSettings(patch) {
   fs.mkdirSync(path.dirname(APP_SETTINGS_PATH), { recursive: true });
   fs.writeFileSync(APP_SETTINGS_PATH, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
   return settings;
+}
+
+function secretEnvName(platformId) {
+  const safe = String(platformId || "").replace(/[^a-zA-Z0-9_-]/g, "_").toUpperCase();
+  return `AGENTHUB_KEY_${safe}`;
+}
+
+function readSecrets() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(SECRETS_PATH, "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSecrets(patch) {
+  const secrets = { ...readSecrets(), ...patch };
+  for (const [key, value] of Object.entries(secrets)) {
+    if (!value) delete secrets[key];
+  }
+  fs.writeFileSync(SECRETS_PATH, `${JSON.stringify(secrets, null, 2)}\n`, "utf8");
+  return secrets;
+}
+
+function decryptedSecrets() {
+  const out = {};
+  if (!safeStorage.isEncryptionAvailable()) return out;
+  for (const [platformId, stored] of Object.entries(readSecrets())) {
+    if (typeof stored !== "string" || !stored) continue;
+    try {
+      out[secretEnvName(platformId)] = safeStorage.decryptString(Buffer.from(stored, "base64"));
+    } catch {
+      // A secret written on another machine cannot be opened here; ignore it.
+    }
+  }
+  return out;
 }
 
 const TOOL_SPECS = {
@@ -56,6 +94,7 @@ function roomEnv() {
   if (typeof settings.everythingPath === "string" && settings.everythingPath.trim()) {
     env.ES_BIN = settings.everythingPath.trim();
   }
+  Object.assign(env, decryptedSecrets());
   return env;
 }
 
@@ -411,20 +450,63 @@ ipcMain.handle("local:open-path", async (_event, targetPath) => {
   return error ? { status: "error", summary: error } : { status: "success", summary: "Opened." };
 });
 
-async function runRoomJson(command, args = []) {
-  const result = await spawnRoomCli(command, [...args, "--data-dir", ROOM_DATA_DIR]);
-  if (result.exitCode !== 0) {
-    return {
-      status: "error",
-      summary: result.error || result.stderr || result.stdout || "Room command failed.",
-      raw: result,
+// Every room call starts a fresh Node process (~190ms). Without a cap, rapid
+// clicking queues dozens of them and the window stops responding.
+const ROOM_CLI_MAX_CONCURRENT = 3;
+const ROOM_CLI_UNQUEUED = new Set(["compact", "graph"]);
+const roomCliQueue = [];
+const roomCliInflight = new Map();
+let roomCliActive = 0;
+
+function pumpRoomCli() {
+  while (roomCliActive < ROOM_CLI_MAX_CONCURRENT && roomCliQueue.length > 0) {
+    const start = roomCliQueue.shift();
+    roomCliActive += 1;
+    start();
+  }
+}
+
+function enqueueRoomCli(task) {
+  return new Promise((resolve) => {
+    const run = () => {
+      task()
+        .then(resolve)
+        .finally(() => {
+          roomCliActive -= 1;
+          pumpRoomCli();
+        });
     };
-  }
-  try {
-    return { status: "success", data: JSON.parse(result.stdout) };
-  } catch {
-    return { status: "warning", summary: "Room command output was not JSON.", raw: result };
-  }
+    roomCliQueue.push(run);
+    pumpRoomCli();
+  });
+}
+
+function runRoomCliJson(command, args) {
+  return spawnRoomCli(command, [...args, "--data-dir", ROOM_DATA_DIR]).then((result) => {
+    if (result.exitCode !== 0) {
+      return {
+        status: "error",
+        summary: result.error || result.stderr || result.stdout || "Room command failed.",
+        raw: result,
+      };
+    }
+    try {
+      return { status: "success", data: JSON.parse(result.stdout) };
+    } catch {
+      return { status: "warning", summary: "Room command output was not JSON.", raw: result };
+    }
+  });
+}
+
+async function runRoomJson(command, args = []) {
+  if (ROOM_CLI_UNQUEUED.has(command)) return runRoomCliJson(command, args);
+  const key = `${command} ${args.join(" ")}`;
+  const existing = roomCliInflight.get(key);
+  if (existing) return existing;
+  const promise = enqueueRoomCli(() => runRoomCliJson(command, args));
+  roomCliInflight.set(key, promise);
+  promise.finally(() => roomCliInflight.delete(key));
+  return promise;
 }
 
 async function runRoomLines(command, args = []) {
@@ -508,6 +590,48 @@ ipcMain.handle("room:set-tool", async (_event, input) => {
     available: true,
     version: probe.version,
   };
+});
+
+ipcMain.handle("room:secret-set", async (_event, input) => {
+  const platformId = String(input?.platformId || "").trim();
+  const value = String(input?.value || "");
+  if (!platformId) return { status: "error", summary: "平台 id 不能为空。" };
+  const envName = secretEnvName(platformId);
+  if (!value) {
+    writeSecrets({ [platformId]: "" });
+    return { status: "success", summary: "密钥已删除", envName: "" };
+  }
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { status: "error", summary: "本机加密存储不可用，请改用环境变量方式。" };
+  }
+  writeSecrets({ [platformId]: safeStorage.encryptString(value).toString("base64") });
+  const updated = await runRoomJson("platform", ["update", "--id", platformId, "--api-key-env", envName, "--json"]);
+  return updated.status === "success"
+    ? { status: "success", summary: `密钥已加密保存（Windows 登录用户绑定），变量名 ${envName}`, envName }
+    : { status: "warning", summary: `密钥已保存，但平台变量名未更新：${updated.summary || ""}`, envName };
+});
+
+ipcMain.handle("room:secret-status", (_event, platformId) => {
+  const id = String(platformId || "").trim();
+  return { status: "success", saved: Boolean(readSecrets()[id]), envName: secretEnvName(id) };
+});
+
+ipcMain.handle("room:models-pull", (_event, input) => {
+  const platformId = String(input?.platformId || "").trim();
+  if (!platformId) return { status: "error", summary: "平台 id 不能为空。" };
+  return runRoomJson("models", ["pull", "--platform", platformId, "--json"]);
+});
+
+ipcMain.handle("room:models-add", (_event, input) => {
+  const platformId = String(input?.platformId || "").trim();
+  const selected = Array.isArray(input?.models) ? input.models.map((id) => String(id)) : [];
+  if (!platformId || selected.length === 0) return { status: "error", summary: "平台和模型不能为空。" };
+  const args = ["add", "--platform", platformId, "--json"];
+  for (const id of selected) args.push("--select", id);
+  if (input?.defaultModel) args.push("--default-model", String(input.defaultModel));
+  if (input?.context) args.push("--context", String(input.context));
+  if (input?.input) args.push("--input", String(input.input));
+  return runRoomJson("models", args);
 });
 
 function attachmentRoomDir(roomId) {
@@ -647,6 +771,14 @@ ipcMain.handle("room:show", (_event, roomId) => {
     return { status: "error", summary: "Room id is required." };
   }
   return runRoomJson("show", ["--json", "--room", id]);
+});
+
+ipcMain.handle("room:full", (_event, roomId) => {
+  const id = String(roomId || "").trim();
+  if (!id) {
+    return { status: "error", summary: "Room id is required." };
+  }
+  return runRoomJson("full", ["--json", "--room", id]);
 });
 
 ipcMain.handle("room:events", (_event, roomId) => {
@@ -1165,6 +1297,8 @@ ipcMain.handle("room:platform-add", (_event, input) => {
     ["apiKeyEnv", "--api-key-env"],
     ["sandboxMode", "--sandbox-mode"],
     ["permissionMode", "--permission-mode"],
+    ["commandTemplate", "--command-template"],
+    ["defaultModel", "--default-model"],
     ["timeoutMs", "--timeout"],
   ]) {
     if (input?.[key] !== undefined && input[key] !== "") args.push(flag, String(input[key]));
@@ -1185,6 +1319,8 @@ ipcMain.handle("room:platform-update", (_event, input) => {
     ["apiKeyEnv", "--api-key-env"],
     ["sandboxMode", "--sandbox-mode"],
     ["permissionMode", "--permission-mode"],
+    ["commandTemplate", "--command-template"],
+    ["defaultModel", "--default-model"],
     ["timeoutMs", "--timeout"],
   ]) {
     if (input?.[key] !== undefined && input[key] !== "") args.push(flag, String(input[key]));

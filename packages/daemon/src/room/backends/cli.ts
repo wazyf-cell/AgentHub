@@ -1,6 +1,7 @@
-import { spawnSync } from "node:child_process";
 import { isAgentRouterHarness, runAgentRouter } from "../../agent-router/router.ts";
 import type { AgentRouterEvent, AgentRouterRunRequest } from "../../agent-router/types.ts";
+import { estimateTokens } from "../transcript.ts";
+import { killProcessTree, runCustomCliTurn } from "./custom-cli.ts";
 import { readPlatformNumber, readPlatformString } from "../platforms.ts";
 import type { SessionStore } from "../sessions.ts";
 import type {
@@ -32,6 +33,10 @@ export class CliBackend implements AgentBackend {
 
   async runTurn(request: AgentTurnRequest): Promise<AgentTurnResult> {
     const { platform, model, sessionStore } = this.options;
+    const template = readPlatformString(platform.config, "commandTemplate");
+    if (template) {
+      return this.runCustom(request, template);
+    }
     const harness = readPlatformString(platform.config, "harness") ?? platform.id;
     if (!isAgentRouterHarness(harness)) {
       return {
@@ -87,6 +92,40 @@ export class CliBackend implements AgentBackend {
       costYuan,
       sessionId: result.sessionId,
       usedBinding: { platformId: platform.id, modelId: model.modelId },
+    };
+  }
+
+  private async runCustom(request: AgentTurnRequest, template: string): Promise<AgentTurnResult> {
+    const { platform, model } = this.options;
+    const usedBinding = { platformId: platform.id, modelId: model.modelId };
+    const result = await runCustomCliTurn({
+      template,
+      prompt: request.prompt,
+      model: model.modelId,
+      images: request.images,
+      cwd: request.cwd ?? request.room.workspace,
+      platformEnv: readPlatformEnv(platform.config?.env),
+      timeoutMs: this.options.timeoutMs
+        ?? readPlatformNumber(platform.config, "timeoutMs")
+        ?? 600_000,
+      onDelta: request.onDelta,
+      signal: request.signal,
+    });
+    // The template contract has no usage report, so estimate from the text we saw.
+    const inputTokens = estimateTokens(request.prompt);
+    const outputTokens = estimateTokens(result.text);
+    const usage: TokenUsage = {
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+    };
+    return {
+      text: result.text,
+      status: result.status,
+      usage,
+      costYuan: estimateCostYuan(usage, model, platform, this.options.baseYuanPerMillion),
+      error: result.error,
+      usedBinding,
     };
   }
 
@@ -257,20 +296,4 @@ function readPlatformRecord(config: Record<string, unknown> | undefined, key: st
 
 function numberValue(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function killProcessTree(pid: number): void {
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
-    return;
-  }
-  try {
-    process.kill(-pid, "SIGTERM");
-  } catch {
-    try {
-      process.kill(pid, "SIGTERM");
-    } catch {
-      // The process may already be gone.
-    }
-  }
 }

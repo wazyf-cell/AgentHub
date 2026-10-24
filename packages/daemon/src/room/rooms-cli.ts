@@ -7,7 +7,7 @@ import { createDemoFakeBackend } from "./backends/fake.ts";
 import { RoomBackendRouter } from "./backends/router.ts";
 import { scanCapabilities } from "./capabilities.ts";
 import { describeImage } from "./vision.ts";
-import { findModel, loadModels, syncModelsFromAiWorkGate } from "./catalog.ts";
+import { findModel, loadModels, saveModels, syncModelsFromAiWorkGate } from "./catalog.ts";
 import { graphImpact, graphQuery, graphStatus, graphSync } from "./codegraph.ts";
 import { createRoomFromInput } from "./create-room.ts";
 import { createDemoRoom } from "./demo.ts";
@@ -105,6 +105,7 @@ const HELP = `AgentHub room CLI
   room platform remove --id <id>
   room list [--json]
   room show [--json] [--room <id>]
+  room full [--json] [--room <id>]
   room update --json-file <room.json> [--room <id>]
   room replay [--room <id>] [--json]
   room stats [--room <id>] [--since 7d] [--json]
@@ -114,6 +115,9 @@ const HELP = `AgentHub room CLI
   room platforms [--json] [--health]
   room models [--json] [--platform <id>]
   room models sync [--data-dir <dir>]
+  room models pull --platform <id> [--json]
+  room models add --platform <id> --select <model> [--select ...] [--default-model <id>] [--context 200000] [--input text,image]
+  room models remove --platform <id> [--model <id>] [--json]
   room capabilities [--json]
   room vision --image <path> [--prompt "..."] [--command modlens] [--json]
 
@@ -127,7 +131,7 @@ const HELP = `AgentHub room CLI
   inspect      只读检查器：文件树、文本/图片预览、git 状态/diff、ripgrep 查找、外部工具检测。
   graph        可选 codegraph：status / query / impact / sync；不可用时降级。
   btw          只读侧问：不打断主对话，可提升为普通用户消息。
-  platform     平台新增/更新/移除；密钥仍走环境变量名，不写明文。
+  platform     平台新增/更新/移除；CLI 平台可用 --command-template 接任意命令行（{prompt} {model} {image}），密钥仍走环境变量名，不写明文。
   run          默认自动选择后端：成员全是 fake 时用假后端，否则走平台路由。
   run --image  附带图片；只有声明支持图片的模型会收到图片，其他成员只收到附件说明。
   stats        按天、成员、模型聚合 token 与费用；--since 支持 24h、7d、all 或 ISO 日期。
@@ -214,6 +218,12 @@ async function main(): Promise<number> {
       "base-url": { type: "string" },
       "api-key-env": { type: "string" },
       harness: { type: "string" },
+      "command-template": { type: "string" },
+      "default-model": { type: "string" },
+      select: { type: "string", multiple: true },
+      input: { type: "string" },
+      context: { type: "string" },
+      "max-output": { type: "string" },
       "sandbox-mode": { type: "string" },
       "permission-mode": { type: "string" },
       enabled: { type: "boolean", default: false },
@@ -431,6 +441,33 @@ async function main(): Promise<number> {
       process.stdout.write(`${JSON.stringify(room, null, 2)}\n`);
       return 0;
     }
+    case "full": {
+      try {
+        const room = store.readRoom(roomId);
+        let git: ReturnType<typeof gitStatus> | undefined;
+        if (room.workspace) {
+          try {
+            git = gitStatus(room.workspace);
+          } catch {
+            git = undefined;
+          }
+        }
+        const payload = {
+          room,
+          events: store.readEvents(roomId),
+          tasks: loadTasks(store, roomId),
+          drafts: room.workspaceId ? listDrafts(store, room.workspaceId) : [],
+          workspaceIsGit: git !== undefined,
+          git,
+        };
+        if (parsed.values.json) writeJson(payload);
+        else process.stdout.write(`${room.name}\t${payload.events.length} 条事件\t${payload.tasks.length} 个任务\n`);
+        return 0;
+      } catch (error) {
+        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+        return 1;
+      }
+    }
     case "update": {
       const filePath = parsed.values["json-file"];
       if (!filePath) {
@@ -496,6 +533,15 @@ async function main(): Promise<number> {
         const result = syncModelsFromAiWorkGate(store);
         process.stdout.write(`模型目录已同步: 新增 ${result.added}，跳过 ${result.skipped}，总数 ${result.total}\n`);
         return 0;
+      }
+      if (parsed.positionals[1] === "pull") {
+        return await modelsPull(store, parsed.values);
+      }
+      if (parsed.positionals[1] === "add") {
+        return modelsAdd(store, parsed.values);
+      }
+      if (parsed.positionals[1] === "remove") {
+        return modelsRemove(store, parsed.values);
       }
       const models = loadModels(store);
       const filtered = parsed.values.platform
@@ -593,6 +639,13 @@ interface CliValues {
   json?: boolean;
   prompt?: string;
   image?: string[];
+  platform?: string;
+  select?: string[];
+  input?: string;
+  context?: string;
+  "max-output"?: string;
+  "command-template"?: string;
+  "default-model"?: string;
   "json-events"?: boolean;
   autonomy?: string;
   "max-handoffs"?: string;
@@ -1194,6 +1247,8 @@ function platformCommand(store: RoomStore, values: CliValues, sub: string): numb
       if (values["api-key-env"]) config.apiKeyEnv = values["api-key-env"];
       if (values["sandbox-mode"] && values["sandbox-mode"] !== "none") config.sandboxMode = values["sandbox-mode"];
       if (values["permission-mode"] && values["permission-mode"] !== "none") config.permissionMode = values["permission-mode"];
+      if (values["command-template"]) config.commandTemplate = String(values["command-template"]);
+      if (values["default-model"]) config.defaultModel = String(values["default-model"]);
       if (values.timeout) config.timeoutMs = Number(values.timeout);
       platforms.push({ id, name, kind: kind as never, enabled: values.disabled !== true, config });
       savePlatforms(store, platforms);
@@ -1215,6 +1270,9 @@ function platformCommand(store: RoomStore, values: CliValues, sub: string): numb
       else if (values["sandbox-mode"]) platform.config.sandboxMode = values["sandbox-mode"];
       if (values["permission-mode"] === "none") delete platform.config.permissionMode;
       else if (values["permission-mode"]) platform.config.permissionMode = values["permission-mode"];
+      if (values["command-template"] === "none") delete platform.config.commandTemplate;
+      else if (values["command-template"]) platform.config.commandTemplate = String(values["command-template"]);
+      if (values["default-model"]) platform.config.defaultModel = String(values["default-model"]);
       if (values.timeout) platform.config.timeoutMs = Number(values.timeout);
       if (values.enabled === true) platform.enabled = true;
       if (values.disabled === true) platform.enabled = false;
@@ -1453,6 +1511,111 @@ async function compactCommand(store: RoomStore, roomId: string, values: CliValue
     } else {
       process.stdout.write(`上下文已压缩（${summary.summary.length} 字），事件 ${event.id}\n`);
     }
+    return 0;
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+}
+
+function requirePlatform(store: RoomStore, platformId: string | undefined) {
+  const id = String(platformId || "").trim();
+  if (!id) throw new Error("缺少 --platform <id>。");
+  const platform = loadPlatforms(store).find((item) => item.id === id);
+  if (!platform) throw new Error(`平台 ${id} 不存在。`);
+  return platform;
+}
+
+async function modelsPull(store: RoomStore, values: CliValues): Promise<number> {
+  try {
+    const platform = requirePlatform(store, values.platform);
+    const baseUrl = readPlatformString(platform.config, "baseUrl");
+    if (!baseUrl) throw new Error("该平台没有 baseUrl，无法拉取模型列表。");
+    const envName = readPlatformString(platform.config, "apiKeyEnv");
+    const apiKey = envName ? process.env[envName] : undefined;
+    if (!apiKey) {
+      throw new Error(`缺少 API key${envName ? `（环境变量 ${envName}）` : ""}，无法拉取模型。`);
+    }
+    const response = await fetch(`${baseUrl.replace(/\/+$/, "")}/models`, {
+      headers: { authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) throw new Error(`拉取失败：HTTP ${response.status}`);
+    const body = await response.json() as { data?: unknown };
+    const rows = Array.isArray(body.data) ? body.data : [];
+    const remote = rows
+      .map((row) => String((row as { id?: unknown }).id ?? "").trim())
+      .filter(Boolean)
+      .sort((left, right) => left.localeCompare(right));
+    const known = new Set(loadModels(store).filter((model) => model.platformId === platform.id).map((model) => model.modelId));
+    const result = remote.map((id) => ({ id, inCatalog: known.has(id) }));
+    if (values.json) writeJson(result);
+    else {
+      process.stdout.write(`远端 ${result.length} 个模型（已在目录 ${result.filter((item) => item.inCatalog).length} 个）\n`);
+      for (const item of result) process.stdout.write(`${item.inCatalog ? "已收录" : "可导入"}\t${item.id}\n`);
+    }
+    return 0;
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+}
+
+function modelsAdd(store: RoomStore, values: CliValues): number {
+  try {
+    const platform = requirePlatform(store, values.platform);
+    const selected = (values.select ?? []).map((id) => String(id).trim()).filter(Boolean);
+    if (selected.length === 0) throw new Error("没有要导入的模型（用 --select <id>）。");
+    const input = (values.input ?? "text").split(",").map((item) => item.trim()).filter(Boolean);
+    const contextWindow = values.context ? Number(values.context) : undefined;
+    const maxOutput = values["max-output"] ? Number(values["max-output"]) : undefined;
+    const models = loadModels(store);
+    let added = 0;
+    for (const id of selected) {
+      if (models.some((model) => model.platformId === platform.id && model.modelId === id)) continue;
+      models.push({
+        platformId: platform.id,
+        modelId: id,
+        displayName: id.split("/").pop() ?? id,
+        contextWindow: Number.isFinite(contextWindow) ? contextWindow : undefined,
+        maxOutput: Number.isFinite(maxOutput) ? maxOutput : undefined,
+        input: input.length > 0 ? input as Array<"text" | "image"> : ["text"],
+        enabled: true,
+        source: "sync",
+        notes: `从 ${platform.id} 的 /models 拉取；上下文与能力未验证，可在成员里手填。`,
+      });
+      added += 1;
+    }
+    saveModels(store, models);
+    const defaultModel = String(values["default-model"] ?? "").trim();
+    if (defaultModel) {
+      const platforms = loadPlatforms(store);
+      const target = platforms.find((item) => item.id === platform.id);
+      if (target) {
+        target.config = { ...(target.config || {}), defaultModel };
+        savePlatforms(store, platforms);
+      }
+    }
+    if (values.json) writeJson({ added, total: models.filter((model) => model.platformId === platform.id).length, defaultModel: defaultModel || undefined });
+    else process.stdout.write(`已导入 ${added} 个模型${defaultModel ? `，默认模型：${defaultModel}` : ""}\n`);
+    return 0;
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+}
+
+function modelsRemove(store: RoomStore, values: CliValues): number {
+  try {
+    const platformId = String(values.platform || "").trim();
+    if (!platformId) throw new Error("缺少 --platform <id>。");
+    const models = loadModels(store);
+    const only = values.model ? String(values.model) : undefined;
+    const kept = models.filter((model) => !(model.platformId === platformId && (!only || model.modelId === only)));
+    const removed = models.length - kept.length;
+    saveModels(store, kept);
+    if (values.json) writeJson({ removed, total: kept.length });
+    else process.stdout.write(`已移除 ${removed} 个模型\n`);
     return 0;
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

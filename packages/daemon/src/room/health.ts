@@ -1,4 +1,5 @@
 import { findExecutableOnPath } from "../agent-router/utils.ts";
+import { splitCommandTemplate } from "./backends/custom-cli.ts";
 import { readPlatformString } from "./platforms.ts";
 import type { ModelDescriptor, PlatformConfig } from "./types.ts";
 
@@ -46,6 +47,14 @@ export class HealthChecker {
       return { ...base, status: "ok" };
     }
     if (platform.kind === "cli") {
+      const template = readPlatformString(platform.config, "commandTemplate");
+      if (template) {
+        const command = splitCommandTemplate(template)[0] ?? "";
+        const executable = command ? await findExecutableOnPath(command) : undefined;
+        return executable
+          ? { ...base, status: "ok", detail: executable }
+          : { ...base, status: "missing", detail: `${command || "(空模板)"} 未找到（命令模板）` };
+      }
       const harness = readPlatformString(platform.config, "harness") ?? platform.id;
       const executable = await findExecutableOnPath(harness);
       return executable

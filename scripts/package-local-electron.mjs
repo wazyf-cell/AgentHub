@@ -7,24 +7,35 @@ const electronDistDir = join(rootDir, "node_modules", "electron", "dist");
 const electronExe = join(electronDistDir, "electron.exe");
 const outputDir = join(rootDir, "dist-electron-local-out", "win-unpacked");
 const appDir = join(outputDir, "resources", "app");
+const targetElectronExe = join(outputDir, "AgentSpaceLocal.exe");
 
 if (!existsSync(electronExe)) {
   throw new Error(`Electron runtime is missing: ${electronExe}. Run node node_modules/electron/install.js first.`);
 }
 
-rmSync(outputDir, { recursive: true, force: true });
+let reusedRuntime = false;
+try {
+  rmSync(outputDir, { recursive: true, force: true });
+} catch (error) {
+  // A still-running instance (or a lingering handle) locks the Electron runtime
+  // files. The app payload is ours to replace, so refresh only that.
+  if (!["EPERM", "EBUSY", "ENOTEMPTY"].includes(error?.code)) throw error;
+  rmSync(appDir, { recursive: true, force: true });
+  reusedRuntime = true;
+}
 mkdirSync(outputDir, { recursive: true });
 
-cpSync(electronDistDir, outputDir, {
-  recursive: true,
-  filter: (source) => !source.includes(`${String.raw`\resources\default_app.asar`}`),
-});
+if (!reusedRuntime) {
+  cpSync(electronDistDir, outputDir, {
+    recursive: true,
+    filter: (source) => !source.includes(`${String.raw`\resources\default_app.asar`}`),
+  });
 
-const sourceElectronExe = join(outputDir, "electron.exe");
-const targetElectronExe = join(outputDir, "AgentSpaceLocal.exe");
-if (existsSync(sourceElectronExe)) {
-  copyFileSync(sourceElectronExe, targetElectronExe);
-  rmSync(sourceElectronExe, { force: true });
+  const sourceElectronExe = join(outputDir, "electron.exe");
+  if (existsSync(sourceElectronExe)) {
+    copyFileSync(sourceElectronExe, targetElectronExe);
+    rmSync(sourceElectronExe, { force: true });
+  }
 }
 
 copyDir("electron", join(appDir, "electron"));
