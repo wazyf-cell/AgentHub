@@ -136,7 +136,7 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
     const turnId = `turn-${randomUUID()}`;
     const contextWindow = member.binding.contextWindow;
     const maxInputTokens = member.binding.contextBudget
-      ?? (contextWindow ? Math.floor(contextWindow * (room.rules.summarizeAt ?? 0.7)) : undefined);
+      ?? (contextWindow ? Math.floor(contextWindow * (room.rules.hardStopAt ?? 0.85)) : undefined);
     const fileAppendix = options.fileRefMode?.(member) === "inline"
       ? buildFileReferenceAppendix(room.workspace, options.prompt)
       : undefined;

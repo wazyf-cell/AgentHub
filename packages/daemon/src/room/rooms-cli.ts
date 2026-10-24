@@ -36,7 +36,7 @@ import {
 import { createRealRoom } from "./real-room.ts";
 import { SessionStore } from "./sessions.ts";
 import { RoomStore, resolveRoomDataDir } from "./store.ts";
-import { createRoomSummarizer } from "./summary.ts";
+import { createFallbackSummarizer, createRoomSummarizer } from "./summary.ts";
 import { computeRoomStats, cacheHitRate, roomSpent } from "./stats.ts";
 import {
   archiveTask,
@@ -1303,8 +1303,10 @@ async function runCommand(
   const allFake = room.members.every((member) => member.binding.platformId === "fake");
   const useFake = values.fake === true || allFake;
   const backend = useFake ? createDemoFakeBackend() : router;
-  const summaryMember = useFake ? undefined : buildSummaryMembers(models)[0];
-  const summarizer = summaryMember ? createRoomSummarizer(router, summaryMember) : undefined;
+  const summaryMembers = useFake ? [] : buildSummaryMembers(models);
+  const summarizer = summaryMembers.length > 0
+    ? createFallbackSummarizer(router, summaryMembers)
+    : undefined;
   const fileRefMode = (member: RoomMember): "inline" | "path" => {
     const platform = platforms.find((candidate) => candidate.id === member.binding.platformId);
     return platform?.kind === "openai-compatible" ? "inline" : "path";

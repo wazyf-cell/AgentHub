@@ -49,12 +49,14 @@ export interface GitFileStatus {
 }
 
 function run(command: string, args: string[], cwd: string, timeoutMs = 30_000): { ok: boolean; stdout: string; stderr: string } {
-  const result = spawnSync(command, args, {
+  const needsShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
+  const result = spawnSync(needsShell ? `"${command}"` : command, args, {
     cwd,
     encoding: "utf8",
     windowsHide: true,
     timeout: timeoutMs,
     maxBuffer: 10 * 1024 * 1024,
+    shell: needsShell,
   });
   return {
     ok: result.status === 0,
@@ -339,7 +341,7 @@ export function detectTools(): Array<{ id: string; label: string; available: boo
     { id: "git", label: "git", command: "git", args: ["--version"] },
     { id: "rg", label: "ripgrep", command: "rg", args: ["--version"] },
     { id: "codegraph", label: "codegraph", command: process.env.CODEGRAPH_BIN || "codegraph", args: ["--version"] },
-    { id: "es", label: "Everything es.exe", command: process.env.ES_BIN || "es", args: ["-version"] },
+    { id: "es", label: "Everything es.exe（命令行）", command: process.env.ES_BIN || "es", args: ["-version"] },
   ];
   return probes.map((probe) => {
     const result = run(probe.command, probe.args, process.cwd(), 5000);

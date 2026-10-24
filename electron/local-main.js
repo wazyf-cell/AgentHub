@@ -30,13 +30,76 @@ function writeAppSettings(patch) {
   return settings;
 }
 
+const TOOL_SPECS = {
+  codegraph: {
+    settingKey: "codegraphPath",
+    envKey: "CODEGRAPH_BIN",
+    label: "codegraph",
+    command: "codegraph",
+    args: ["--version"],
+  },
+  es: {
+    settingKey: "everythingPath",
+    envKey: "ES_BIN",
+    label: "Everything es.exe",
+    command: "es",
+    args: ["-version"],
+  },
+};
+
 function roomEnv() {
   const env = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
   const settings = readAppSettings();
   if (typeof settings.codegraphPath === "string" && settings.codegraphPath.trim()) {
     env.CODEGRAPH_BIN = settings.codegraphPath.trim();
   }
+  if (typeof settings.everythingPath === "string" && settings.everythingPath.trim()) {
+    env.ES_BIN = settings.everythingPath.trim();
+  }
   return env;
+}
+
+function probeBinary(command, args, timeoutMs = 6000) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const needsShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
+    let child;
+    try {
+      child = spawn(needsShell ? `"${command}"` : command, args, { windowsHide: true, shell: needsShell });
+    } catch (error) {
+      finish({ ok: false, detail: error.message });
+      return;
+    }
+    const chunks = [];
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        // ignore
+      }
+      finish({ ok: false, detail: "检测超时" });
+    }, timeoutMs);
+    child.stdout?.on("data", (chunk) => chunks.push(chunk));
+    child.stderr?.on("data", (chunk) => chunks.push(chunk));
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      finish({ ok: false, detail: error.code === "ENOENT" ? "未找到可执行文件" : error.message });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      // Windows CLI errors are usually GBK; version banners are ASCII.
+      const decoder = new TextDecoder(process.platform === "win32" ? "gbk" : "utf-8");
+      const output = decoder.decode(Buffer.concat(chunks));
+      const line = output.split(/\r?\n/).map((item) => item.trim()).find(Boolean) || "";
+      if (code === 0) finish({ ok: true, version: line || "可用" });
+      else finish({ ok: false, detail: line || `退出码 ${code}` });
+    });
+  });
 }
 
 let mainWindow = null;
@@ -389,19 +452,62 @@ ipcMain.handle("room:settings", () => ({
   appVersion: app.getVersion(),
   attachmentsDir: ATTACHMENTS_DIR,
   codegraphPath: readAppSettings().codegraphPath || "",
+  everythingPath: readAppSettings().everythingPath || "",
 }));
 
-ipcMain.handle("room:set-tool", (_event, input) => {
+ipcMain.handle("room:pick-tool-path", async (_event, input) => {
   const tool = String(input?.tool || "").trim();
+  const spec = TOOL_SPECS[tool];
+  if (!spec) return { status: "error", summary: "不支持的工具。" };
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: `选择 ${spec.label} 可执行文件`,
+    properties: ["openFile"],
+    filters: process.platform === "win32"
+      ? [{ name: "可执行文件", extensions: ["exe", "cmd", "bat"] }, { name: "全部文件", extensions: ["*"] }]
+      : [{ name: "全部文件", extensions: ["*"] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return { status: "warning", summary: "未选择文件" };
+  }
+  return { status: "success", path: result.filePaths[0] };
+});
+
+ipcMain.handle("room:set-tool", async (_event, input) => {
+  const tool = String(input?.tool || "").trim();
+  const spec = TOOL_SPECS[tool];
+  if (!spec) {
+    return { status: "error", summary: "不支持的工具。当前支持 codegraph 与 Everything（es）。" };
+  }
   const target = String(input?.path || "").trim();
-  if (tool !== "codegraph") {
-    return { status: "error", summary: "不支持的工具。当前只支持 codegraph。" };
+  if (target && path.isAbsolute(target) && !fs.existsSync(target)) {
+    return { status: "error", summary: `路径不存在：${target}。未保存。`, tool, path: target, available: false };
   }
-  if (target && !fs.existsSync(target)) {
-    return { status: "error", summary: `路径不存在：${target}` };
+  if (!target) writeAppSettings({ [spec.settingKey]: "" });
+  const effective = target || process.env[spec.envKey] || spec.command;
+  const probe = await probeBinary(effective, spec.args);
+  if (!probe.ok) {
+    const detail = String(probe.detail || "未知错误").replace(/[。.!！]+$/u, "");
+    return {
+      status: "error",
+      summary: target
+        ? `${spec.label} 未连通：${detail}。路径未保存。`
+        : `已清空路径，但自动检测未找到 ${spec.label}：${detail}。`,
+      tool,
+      path: target,
+      available: false,
+    };
   }
-  writeAppSettings({ codegraphPath: target });
-  return { status: "success", summary: target ? "codegraph 路径已保存" : "已恢复为自动检测", codegraphPath: target };
+  writeAppSettings({ [spec.settingKey]: target });
+  return {
+    status: "success",
+    summary: target
+      ? `${spec.label} 已连通（${probe.version}），路径已保存。`
+      : `已恢复为自动检测（${probe.version}）。`,
+    tool,
+    path: target,
+    available: true,
+    version: probe.version,
+  };
 });
 
 function attachmentRoomDir(roomId) {

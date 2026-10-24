@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld("agentHub", {
   removePlatform: (id) => ipcRenderer.invoke("room:platform-remove", id),
   doctor: (roomId) => ipcRenderer.invoke("room:doctor", roomId),
   setToolPath: (input) => ipcRenderer.invoke("room:set-tool", input),
+  pickToolPath: (input) => ipcRenderer.invoke("room:pick-tool-path", input),
   pickImages: (input) => ipcRenderer.invoke("room:pick-images", input),
   saveImage: (input) => ipcRenderer.invoke("room:save-image", input),
   stats: (input) => ipcRenderer.invoke("room:stats", input),

@@ -494,6 +494,9 @@
     .badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 5px 0 8px; }
     .badge { border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; font-size: 10.5px; color: #b1b6bc; background: var(--panel-2); }
     .badge.warn { border-color: rgba(227, 163, 85, .4); color: #e0b77c; }
+    .badge.ok { border-color: rgba(76, 175, 130, .38); color: #86d3aa; }
+    .badge.muted { color: var(--dim); }
+    .check-inline { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; white-space: nowrap; }
     .hint { color: var(--dim); font-size: 10.5px; margin-top: 4px; line-height: 1.55; }
     .fallback-row { display: grid; grid-template-columns: 1fr 1fr 30px; gap: 6px; margin-bottom: 6px; }
     .fallback-row button { padding: 0; min-height: 32px; }
@@ -501,6 +504,20 @@
     .save-bar button { width: 100%; }
     .chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
     .chip { border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; font-size: 10.5px; color: #b8bdc3; background: var(--panel-2); }
+    .cap-field { min-width: 0; }
+    .cap-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .cap-head label { margin: 0; }
+    .cap-count { margin-left: auto; color: var(--dim); font: 10px/1 var(--font-mono); }
+    .cap-head button { min-height: 24px; padding: 2px 8px; font-size: 10.5px; }
+    .cap-list { display: flex; flex-wrap: wrap; gap: 5px; max-height: 168px; overflow: auto; padding: 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); }
+    .cap-list:empty { display: none; }
+    .cap-chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; background: transparent; color: #b8bdc3; font-size: 10.5px; cursor: pointer; }
+    .cap-chip small { color: var(--dim); font: 9px/1 var(--font-mono); }
+    .cap-chip:hover { border-color: var(--line-2); color: var(--text); }
+    .cap-chip.on { border-color: rgba(227, 163, 85, .55); color: var(--amber-strong); background: var(--amber-soft); }
+    .cap-chip.on small { color: #c99b5e; }
+    .cap-chip.on::before { content: "✓"; font-size: 10px; }
+    .cap-group { width: 100%; color: var(--dim); font-size: 10px; margin: 2px 0; }
     .editor button + button { margin-left: 0; }
     .editor-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
     .editor-tabs button { flex: 1; min-height: 28px; background: transparent; border-color: transparent; color: var(--muted); font-size: 11.5px; }
@@ -714,6 +731,36 @@
     .path-input-row { display: flex; gap: 6px; }
     .path-input-row input { flex: 1; }
     .path-input-row button { flex: none; min-height: 32px; }
+    .tool-path-item { border-bottom: 1px solid rgba(36, 40, 47, .6); padding: 8px 0; }
+    .tool-path-item:last-of-type { border-bottom: 0; }
+    .tool-path-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .tool-path-name { font-size: 11.5px; color: var(--text); }
+    .tool-path-state { margin-left: auto; font: 10px/1 var(--font-mono); border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; color: var(--dim); }
+    .tool-path-state.ok { color: var(--ok); border-color: rgba(76, 175, 130, .35); }
+    .tool-path-state.warn { color: var(--amber-strong); border-color: rgba(227, 163, 85, .35); }
+    .model-platform { border: 1px solid var(--line); border-radius: 8px; margin: 7px 0; background: rgba(255, 255, 255, .012); overflow: hidden; }
+    .model-platform-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; }
+    .model-platform-head:hover { background: rgba(255, 255, 255, .03); }
+    .model-platform-head:focus-visible { outline: 1px solid var(--amber); outline-offset: -1px; }
+    .model-platform-name { font-size: 12px; color: var(--text); }
+    .model-platform-count { color: var(--dim); font-size: 10.5px; }
+    .model-platform-status { margin-left: auto; font-size: 10px; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--line); color: var(--dim); }
+    .model-platform-status.ok { color: var(--ok); border-color: rgba(76, 175, 130, .35); }
+    .model-platform-status.warn { color: var(--amber-strong); border-color: rgba(227, 163, 85, .35); }
+    .model-platform-status.error { color: var(--danger); border-color: rgba(221, 107, 95, .4); }
+    .model-chevron { color: var(--dim); font-size: 14px; transition: transform .15s ease; }
+    .model-platform.open .model-chevron { transform: rotate(90deg); }
+    .model-platform-detail { padding: 0 10px 6px; color: var(--dim); font: 10px/1.4 var(--font-mono); overflow-wrap: anywhere; }
+    .model-platform-body { border-top: 1px solid rgba(36, 40, 47, .7); padding: 2px 10px 8px; }
+    .model-row { padding: 7px 0; border-bottom: 1px solid rgba(36, 40, 47, .55); }
+    .model-row:last-child { border-bottom: 0; }
+    .model-name-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
+    .model-name { font-size: 11.5px; color: var(--text); }
+    .model-id { font: 10px/1.4 var(--font-mono); color: var(--dim); }
+    .model-name-row .badge { margin-left: auto; }
+    .model-meta { display: flex; flex-wrap: wrap; gap: 4px; }
+    .model-meta .badge { padding: 1px 7px; font-size: 10px; }
+    .model-note { margin-top: 4px; color: var(--dim); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .form-hint { color: var(--dim); font-size: 10.5px; margin-top: 4px; line-height: 1.5; }
     .ws-settings-row {
       display: flex; align-items: center; gap: 8px;
@@ -954,7 +1001,7 @@
         <button type="button" data-view="chat" class="active">对话</button>
         <button type="button" data-view="board" id="boardTab">任务板<span class="count" id="taskCount"></span></button>
         <span class="spacer"></span>
-        <button type="button" id="openInspector" title="文件 / Git / 查找 / 图谱">检查器</button>
+        <button type="button" id="openInspector" title="文件 / Git / 查找 / 图谱">侧边栏</button>
         <button type="button" id="openBtw" title="只读侧问，不打断主对话">BTW</button>
       </div>
       <div class="chat" id="chat" aria-live="polite"></div>
@@ -1011,14 +1058,14 @@
       <div class="preview-body" id="previewBody"></div>
     </section>
 
-    <aside class="inspector-panel" id="inspectorDrawer" aria-label="检查器" hidden>
+    <aside class="inspector-panel" id="inspectorDrawer" aria-label="侧边栏" hidden>
       <div class="drawer-head">
         <div>
-          <div class="drawer-title">检查器（只读）</div>
+          <div class="drawer-title">侧边栏（只读）</div>
           <div class="drawer-sub" id="inspectorPath">—</div>
         </div>
         <div class="spacer"></div>
-        <button class="icon-btn" id="closeInspector" title="关闭" aria-label="关闭检查器">
+        <button class="icon-btn" id="closeInspector" title="关闭" aria-label="关闭侧边栏">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
         </button>
       </div>
@@ -1083,6 +1130,10 @@
         <label for="rsBudget">房间预算（元，留空不限）</label>
         <input id="rsBudget" type="number" min="0" step="0.5" placeholder="例如 20" />
         <div class="hint">达到 80% 时状态栏提醒；达到预算后本轮停止。</div>
+      </div>
+      <div class="field">
+        <label>上下文压缩</label>
+        <div class="hint" id="rsContextHint">—</div>
       </div>
       <div class="field">
         <label>工作区</label>
@@ -1628,6 +1679,11 @@
       overviewQuery: "",
       overviewStatus: "all",
       overviewArchived: false,
+      tools: null,
+      toolsLoading: false,
+      modelsQuery: "",
+      modelsExpanded: [],
+      modelsOnlyAvailable: false,
     };
     const $ = (id) => document.getElementById(id);
     const AUTONOMY_LABELS = { low: "低自治", medium: "中自治", high: "高自治" };
@@ -1635,6 +1691,7 @@
       cli: "CLI 子进程",
       "openai-compatible": "OpenAI 兼容 API",
       fake: "测试用假模型",
+      unknown: "平台配置缺失",
     };
     const USAGE_COLORS = ["#f5a623", "#6fb3ff", "#7ad3a1", "#d18cff", "#ff8a80", "#9aa4b2"];
     const TASK_STATUS_LABELS = {
@@ -2077,7 +2134,7 @@
       }
       if (task.worktreePath) {
         actions.appendChild(taskAction("打开 worktree", () => api.openPath(task.worktreePath)));
-        actions.appendChild(taskAction("检查器", () => openInspector(task.worktreePath)));
+        actions.appendChild(taskAction("侧边栏", () => openInspector(task.worktreePath)));
       }
       if (task.sourceMessageId) {
         actions.appendChild(taskAction("回到来源消息", () => locateMessage(task.sourceMessageId)));
@@ -3834,6 +3891,107 @@
       body.appendChild(intro);
     }
 
+    function capabilityOptions(kind) {
+      const capabilities = state.capabilities || { skills: [], mcpServers: [] };
+      const seen = new Set();
+      const result = [];
+      if (kind === "skills") {
+        for (const skill of capabilities.skills || []) {
+          const value = String(skill.name || "").trim();
+          if (!value || seen.has(value)) continue;
+          seen.add(value);
+          result.push({ value, hint: skill.source, title: skill.id || skill.path || value });
+        }
+        return result;
+      }
+      for (const server of capabilities.mcpServers || []) {
+        const value = String(server.name || "").trim();
+        if (!value || seen.has(value)) continue;
+        seen.add(value);
+        result.push({ value, hint: server.source, title: server.name });
+      }
+      return result;
+    }
+
+    function buildCapabilityPicker(props) {
+      const field = el("div", "field cap-field");
+      const head = el("div", "cap-head");
+      head.appendChild(el("label", "", props.label));
+      const count = el("span", "cap-count", "");
+      const refresh = el("button", "", "刷新清单");
+      refresh.type = "button";
+      head.appendChild(count);
+      head.appendChild(refresh);
+      field.appendChild(head);
+
+      const search = document.createElement("input");
+      search.type = "search";
+      search.placeholder = props.kind === "skills" ? "搜索本机技能" : "搜索 MCP 服务";
+      field.appendChild(search);
+      const list = el("div", "cap-list");
+      field.appendChild(list);
+      const hint = el("div", "hint", "");
+      field.appendChild(hint);
+      let query = "";
+
+      const repaint = () => {
+        clearNode(list);
+        const options = capabilityOptions(props.kind);
+        const optionMap = new Map(options.map((option) => [option.value, option]));
+        const selected = props.getSelected();
+        const extras = selected.filter((value) => !optionMap.has(value));
+        count.textContent = `已选 ${selected.length}`;
+        hint.textContent = "";
+        if (options.length === 0 && extras.length === 0) {
+          list.appendChild(el("div", "hint", props.emptyHint));
+          return;
+        }
+        const addChip = (value, hintText, title) => {
+          const chip = el("button", `cap-chip${selected.includes(value) ? " on" : ""}`);
+          chip.type = "button";
+          chip.title = title || "";
+          chip.appendChild(el("span", "", value));
+          if (hintText) chip.appendChild(el("small", "", hintText));
+          chip.addEventListener("click", () => {
+            const now = props.getSelected();
+            props.setSelected(now.includes(value)
+              ? now.filter((item) => item !== value)
+              : [...now, value]);
+            repaint();
+          });
+          list.appendChild(chip);
+        };
+        if (extras.length > 0) {
+          list.appendChild(el("div", "cap-group", "已选（不在本机清单）"));
+          for (const value of extras) addChip(value, "未扫描到", "保存后仍会保留");
+        }
+        const needle = query.trim().toLowerCase();
+        const filtered = options.filter((option) => !needle
+          || option.value.toLowerCase().includes(needle)
+          || String(option.hint || "").toLowerCase().includes(needle));
+        if (filtered.length > 0) {
+          if (extras.length > 0) list.appendChild(el("div", "cap-group", "本机可用"));
+          for (const option of filtered) addChip(option.value, option.hint, option.title);
+        } else {
+          hint.textContent = "没有匹配项";
+        }
+      };
+
+      search.addEventListener("input", () => {
+        query = search.value;
+        repaint();
+      });
+      refresh.addEventListener("click", async () => {
+        refresh.disabled = true;
+        hint.textContent = "正在重新扫描…";
+        await refreshCapabilities();
+        refresh.disabled = false;
+        repaint();
+      });
+      repaint();
+      return field;
+    }
+
     function openLibraryMemberSheet(member = null, options = {}) {
       state.editingLibraryMemberId = member?.id || "";
       state.libraryAfterSave = options.afterSave || null;
@@ -3956,24 +4114,25 @@
       body.appendChild(instructionsField);
 
       body.appendChild(el("div", "form-section-title", "可选能力"));
+      state.librarySkillSelection = [...(draft.skills || [])];
+      state.libraryMcpSelection = [...(draft.mcps || [])];
       const caps = el("div", "form-grid-2");
-      const skillsField = el("div", "field");
-      skillsField.appendChild(el("label", "", "技能（逗号分隔）"));
-      const skillsInput = document.createElement("input");
-      skillsInput.id = "lmSkills";
-      skillsInput.value = (draft.skills || []).join(", ");
-      skillsInput.placeholder = "例如：code-review, pdf";
-      skillsField.appendChild(skillsInput);
-      caps.appendChild(skillsField);
-      const mcpsField = el("div", "field");
-      mcpsField.appendChild(el("label", "", "MCP 服务（逗号分隔）"));
-      const mcpsInput = document.createElement("input");
-      mcpsInput.id = "lmMcps";
-      mcpsInput.value = (draft.mcps || []).join(", ");
-      mcpsInput.placeholder = "例如：github, filesystem";
-      mcpsField.appendChild(mcpsInput);
-      caps.appendChild(mcpsField);
+      caps.appendChild(buildCapabilityPicker({
+        kind: "skills",
+        label: "技能（多选）",
+        emptyHint: "本机没有扫描到技能。可点刷新重新扫描 .claude/skills 与 .skill-library。",
+        getSelected: () => state.librarySkillSelection,
+        setSelected: (next) => { state.librarySkillSelection = next; },
+      }));
+      caps.appendChild(buildCapabilityPicker({
+        kind: "mcp",
+        label: "MCP 服务（多选）",
+        emptyHint: "本机没有扫描到 MCP 服务。可点刷新重新扫描 codex / claude 配置。",
+        getSelected: () => state.libraryMcpSelection,
+        setSelected: (next) => { state.libraryMcpSelection = next; },
+      }));
       body.appendChild(caps);
+      body.appendChild(el("div", "hint", "这里只登记能力名称，供成员卡展示与后续按角色附加；不会自动读取或执行技能。选取项会随成员复制进房间。"));
 
       function paintAvatarPreview() {
         previewAvatar.textContent = avatarInput.value.trim() || "🙂";
@@ -4011,8 +4170,8 @@
         description: $("lmDescription").value.trim(),
         instructions,
         tags: splitList($("lmTags").value),
-        skills: splitList($("lmSkills").value),
-        mcps: splitList($("lmMcps").value),
+        skills: [...state.librarySkillSelection],
+        mcps: [...state.libraryMcpSelection],
       };
       $("saveLibraryMember").disabled = true;
       const result = state.editingLibraryMemberId
@@ -4091,6 +4250,16 @@
       body.appendChild(paths);
 
       const toolsSection = settingsGroup("本机工具");
+      if (!state.tools && !state.toolsLoading) {
+        state.toolsLoading = true;
+        api.doctor(state.room?.id).then((result) => {
+          state.toolsLoading = false;
+          if (result.status === "success") {
+            state.tools = result.data || [];
+            if (state.settingsSection === "environment") renderSettings();
+          }
+        });
+      }
       const doctorRow = el("div", "stat-row");
       doctorRow.appendChild(el("span", "", "git / ripgrep / codegraph / Everything"));
       doctorRow.appendChild(el("span", "spacer", ""));
@@ -4120,30 +4289,90 @@
       }
       body.appendChild(toolsSection);
 
-      const graphSection = settingsGroup("codegraph（可选）");
-      const graphRow = el("div", "path-input-row");
-      const graphInput = document.createElement("input");
-      graphInput.value = settings.codegraphPath || "";
-      graphInput.placeholder = "留空自动检测；或填写 codegraph 可执行文件完整路径";
-      graphRow.appendChild(graphInput);
-      const saveGraph = el("button", "", "保存");
-      saveGraph.type = "button";
-      saveGraph.addEventListener("click", async () => {
-        const result = await api.setToolPath({ tool: "codegraph", path: graphInput.value.trim() });
-        if (result.status !== "success") {
-          setStatus(result.summary || "保存失败", "error");
-          return;
-        }
-        state.settings = await api.settings();
-        const tools = await api.doctor(state.room?.id);
-        if (tools.status === "success") state.tools = tools.data || [];
-        renderSettings();
-        setStatus(result.summary || "已保存", "ok");
-      });
-      graphRow.appendChild(saveGraph);
-      graphSection.appendChild(graphRow);
-      graphSection.appendChild(el("div", "hint", "保存后对新启动的检查器、任务和图谱查询生效。安装：npm i -g codegraph（需联网，本应用不代装）。"));
-      body.appendChild(graphSection);
+      const toolPathSection = settingsGroup("工具路径");
+      toolPathSection.appendChild(el(
+        "div",
+        "hint",
+        "保存前会实际执行一次版本检测：只有能正常运行才会写入，并在这里显示连通状态。留空表示改用 PATH 自动检测；两项都会在启动任务和侧边栏时生效。",
+      ));
+      const toolPaths = [
+        {
+          tool: "codegraph",
+          label: "codegraph",
+          key: "codegraphPath",
+          placeholder: "例如：C:\\Users\\you\\AppData\\Roaming\\npm\\codegraph.cmd",
+        },
+        {
+          tool: "es",
+          label: "Everything（es.exe 命令行）",
+          key: "everythingPath",
+          placeholder: "例如：C:\\Tools\\Everything\\es.exe（注意不是 Everything.exe）",
+        },
+      ];
+      for (const item of toolPaths) {
+        const wrapper = el("div", "tool-path-item");
+        const head = el("div", "tool-path-head");
+        head.appendChild(el("span", "tool-path-name", item.label));
+        const current = (state.tools || []).find((tool) => tool.id === item.tool);
+        const stateText = current
+          ? (current.available ? `已连通 · ${current.version || "可用"}` : "未连通")
+          : "未检测";
+        const stateBadge = el("span", `tool-path-state ${current?.available ? "ok" : "warn"}`, stateText);
+        head.appendChild(stateBadge);
+        wrapper.appendChild(head);
+
+        const row = el("div", "path-input-row");
+        const input = document.createElement("input");
+        input.value = settings[item.key] || "";
+        input.placeholder = item.placeholder;
+        row.appendChild(input);
+        const browse = el("button", "", "浏览");
+        browse.type = "button";
+        browse.addEventListener("click", async () => {
+          const picked = await api.pickToolPath({ tool: item.tool });
+          if (picked.status === "success") {
+            input.value = picked.path;
+            input.focus();
+          } else if (picked.status === "error") {
+            setStatus(picked.summary || "选择文件失败", "error");
+          }
+        });
+        row.appendChild(browse);
+        const save = el("button", "", "保存并检测");
+        save.type = "button";
+        save.addEventListener("click", async () => {
+          save.disabled = true;
+          save.textContent = "检测中…";
+          const result = await api.setToolPath({ tool: item.tool, path: input.value.trim() });
+          save.disabled = false;
+          save.textContent = "保存并检测";
+          state.settings = await api.settings();
+          const tools = await api.doctor(state.room?.id);
+          if (tools.status === "success") state.tools = tools.data || [];
+          renderSettings();
+          if (result.status === "success") {
+            setStatus(result.summary || "已保存", "ok");
+          } else {
+            setStatus(result.summary || "未连通，路径未保存", "error");
+          }
+        });
+        row.appendChild(save);
+        wrapper.appendChild(row);
+        wrapper.appendChild(el(
+          "div",
+          "hint",
+          settings[item.key]
+            ? `当前使用指定路径：${settings[item.key]}`
+            : "当前使用自动检测（PATH）；没检测到就填写完整路径再保存。",
+        ));
+        toolPathSection.appendChild(wrapper);
+      }
+      toolPathSection.appendChild(el(
+        "div",
+        "hint",
+        "安装提示：codegraph 用 npm i -g codegraph（需联网）。es.exe 是 Everything 的独立命令行工具，需要单独下载解压，装好 Everything 主程序本身并不包含它；本应用不代装。",
+      ));
+      body.appendChild(toolPathSection);
 
       const cleanupSection = settingsGroup("磁盘清理");
       const cleanupRow = el("div", "stat-row");
@@ -4369,18 +4598,190 @@
       return svg;
     }
 
+    function platformHealth(platform) {
+      if (platform.enabled === false) {
+        return { tone: "warn", label: "平台已停用", detail: "成员不会使用该平台" };
+      }
+      const health = platform.health || {};
+      if (health.status === "ok") {
+        return { tone: "ok", label: "平台可用", detail: health.detail || "" };
+      }
+      if (health.status === "missing") {
+        return { tone: "warn", label: "CLI 未找到", detail: health.detail || "" };
+      }
+      if (health.status === "error") {
+        return { tone: "error", label: "平台不可用", detail: health.detail || "" };
+      }
+      return { tone: "unknown", label: "未检测", detail: health.detail || "" };
+    }
+
     function renderModelsSettings(body) {
       const modelsSection = settingsGroup("模型目录");
+      const enabledModels = state.models.filter((model) => model.enabled !== false);
+      const imported = state.models.filter((model) => model.source === "import").length;
+      const manual = state.models.filter((model) => model.source === "manual").length;
+      const healthyPlatforms = state.platforms.filter((platform) => platformHealth(platform).tone === "ok").length;
+
       const modelRow = el("div", "stat-row");
       modelRow.appendChild(el("span", "num", String(state.models.length)));
       modelRow.appendChild(el("span", "", "个模型"));
+      modelRow.appendChild(el("span", "hint", `可用 ${enabledModels.length} · 平台 ${healthyPlatforms}/${state.platforms.length}`));
       modelRow.appendChild(el("span", "spacer", ""));
-      const sync = el("button", "", "同步 AI Work 网关");
+      const sync = el("button", "", "从 AI Work 网关同步");
       sync.type = "button";
+      sync.title = "读取本机 AIWorkGate 模型库，把尚未收录的模型导入模型目录";
       sync.addEventListener("click", () => syncModels());
       modelRow.appendChild(sync);
+      const refreshHealth = el("button", "", "刷新平台检测");
+      refreshHealth.type = "button";
+      refreshHealth.addEventListener("click", async () => {
+        refreshHealth.disabled = true;
+        setStatus("正在检测平台可用性…", "busy");
+        const result = await api.platforms();
+        refreshHealth.disabled = false;
+        if (result.status === "success") {
+          state.platforms = result.data || [];
+          renderSettings();
+          setStatus("平台检测完成", "ok");
+        } else {
+          setStatus(result.summary || "平台检测失败", "error");
+        }
+      });
+      modelRow.appendChild(refreshHealth);
       modelsSection.appendChild(modelRow);
-      modelsSection.appendChild(el("div", "hint", "同步会更新本机模型目录；成员绑定不会自动改变。"));
+      modelsSection.appendChild(el(
+        "div",
+        "hint",
+        `来源：手工维护 ${manual} 个，网关导入 ${imported} 个。点击平台展开模型；"可用" 需要平台健康且模型未停用。网关导入表示本机 AIWorkGate 模型库里有这条、可再次同步拉取，但未逐个实跑验证。`,
+      ));
+
+      const searchRow = el("div", "stat-row");
+      const search = document.createElement("input");
+      search.type = "search";
+      search.placeholder = "搜索模型名或 id";
+      search.value = state.modelsQuery;
+      search.style.flex = "1";
+      search.addEventListener("input", () => {
+        state.modelsQuery = search.value;
+        window.clearTimeout(state.modelsQueryTimer);
+        state.modelsQueryTimer = window.setTimeout(() => {
+          renderSettings();
+          const next = document.querySelector("#settingsBody input[type=search]");
+          if (next) {
+            next.focus();
+            next.setSelectionRange(next.value.length, next.value.length);
+          }
+        }, 180);
+      });
+      searchRow.appendChild(search);
+      const onlyAvailable = document.createElement("label");
+      onlyAvailable.className = "check-inline";
+      const availableInput = document.createElement("input");
+      availableInput.type = "checkbox";
+      availableInput.checked = state.modelsOnlyAvailable;
+      availableInput.addEventListener("change", () => {
+        state.modelsOnlyAvailable = availableInput.checked;
+        renderSettings();
+      });
+      onlyAvailable.appendChild(availableInput);
+      onlyAvailable.appendChild(document.createTextNode("只看可用"));
+      searchRow.appendChild(onlyAvailable);
+      modelsSection.appendChild(searchRow);
+
+      const query = state.modelsQuery.trim().toLowerCase();
+      const platforms = [...state.platforms];
+      const known = new Set(platforms.map((platform) => platform.id));
+      const orphanIds = [...new Set(state.models.map((model) => model.platformId).filter((id) => !known.has(id)))];
+      for (const id of orphanIds) {
+        platforms.push({ id, name: `${id}（未登记平台）`, kind: "unknown", enabled: false, health: { status: "error", detail: "平台配置已不存在" } });
+      }
+
+      if (platforms.length === 0) {
+        modelsSection.appendChild(el("div", "hint", "还没有平台，先在「平台配置」里新增。"));
+      }
+      for (const platform of platforms) {
+        const status = platformHealth(platform);
+        const platformModels = state.models
+          .filter((model) => model.platformId === platform.id)
+          .filter((model) => !query
+            || String(model.displayName || "").toLowerCase().includes(query)
+            || String(model.modelId || "").toLowerCase().includes(query))
+          .filter((model) => !state.modelsOnlyAvailable || (model.enabled !== false && status.tone === "ok"))
+          .sort((left, right) => left.displayName.localeCompare(right.displayName));
+        if (query && platformModels.length === 0) continue;
+        const expanded = state.modelsExpanded.includes(platform.id) || Boolean(query);
+        const enabledCount = platformModels.filter((model) => model.enabled !== false).length;
+
+        const card = el("div", `model-platform${expanded ? " open" : ""}`);
+        const head = el("div", "model-platform-head");
+        head.setAttribute("role", "button");
+        head.setAttribute("tabindex", "0");
+        head.setAttribute("aria-expanded", expanded ? "true" : "false");
+        head.appendChild(el("span", `platform-dot ${status.tone === "unknown" ? "" : status.tone}`, ""));
+        head.appendChild(el("span", "model-platform-name", platform.name));
+        head.appendChild(el("span", "platform-kind", PLATFORM_KIND_LABELS[platform.kind] || platform.kind));
+        head.appendChild(el("span", "model-platform-count", `${platformModels.length} 个模型 · ${enabledCount} 可用`));
+        head.appendChild(el("span", `model-platform-status ${status.tone}`, status.label));
+        head.appendChild(el("span", "model-chevron", "›"));
+        const toggle = () => {
+          const open = state.modelsExpanded.includes(platform.id);
+          state.modelsExpanded = open
+            ? state.modelsExpanded.filter((id) => id !== platform.id)
+            : [...state.modelsExpanded, platform.id];
+          renderSettings();
+        };
+        head.addEventListener("click", toggle);
+        head.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggle();
+          }
+        });
+        card.appendChild(head);
+
+        if (expanded) {
+          const detailRow = el("div", "model-platform-detail");
+          const harness = platform.config?.harness ? `harness ${platform.config.harness}` : "";
+          detailRow.appendChild(el("span", "", [status.detail, harness].filter(Boolean).join(" · ") || "无额外信息"));
+          card.appendChild(detailRow);
+
+          const bodyBox = el("div", "model-platform-body");
+          if (platformModels.length === 0) {
+            bodyBox.appendChild(el("div", "hint", state.modelsOnlyAvailable ? "没有满足条件的可用模型。" : "该平台在模型目录里没有条目，可先同步网关模型。"));
+          }
+          for (const model of platformModels) {
+            const row = el("div", "model-row");
+            const nameRow = el("div", "model-name-row");
+            nameRow.appendChild(el("span", "model-name", model.displayName || model.modelId));
+            nameRow.appendChild(el("span", "model-id", model.modelId));
+            const available = model.enabled !== false && status.tone === "ok";
+            nameRow.appendChild(el("span", `badge${available ? " ok" : " muted"}`, available ? "可用" : (model.enabled === false ? "已停用" : "平台不可用")));
+            row.appendChild(nameRow);
+
+            const meta = el("div", "model-meta");
+            if (model.contextWindow) meta.appendChild(el("span", "badge", `上下文 ${formatContext(model.contextWindow)}`));
+            if (model.maxOutput) meta.appendChild(el("span", "badge", `输出 ${formatContext(model.maxOutput)}`));
+            const input = model.input || ["text"];
+            meta.appendChild(el("span", "badge", input.includes("image") ? "文本 + 图片" : "仅文本"));
+            const levels = model.thinkingLevels || [];
+            meta.appendChild(el("span", "badge", levels.length ? `推理 ${levels.join(" / ")}` : "无推理档位"));
+            if (model.defaultThinking) meta.appendChild(el("span", "badge muted", `默认 ${model.defaultThinking}`));
+            if (model.costMultiplier !== undefined) meta.appendChild(el("span", "badge", `费用 ×${model.costMultiplier}`));
+            if (model.toolCalling) meta.appendChild(el("span", "badge", "工具调用"));
+            meta.appendChild(el("span", "badge muted", model.source === "manual" ? "手工维护" : model.source === "import" ? "网关导入" : "已同步"));
+            row.appendChild(meta);
+            if (model.notes) {
+              const note = el("div", "model-note", model.notes);
+              note.title = model.notes;
+              row.appendChild(note);
+            }
+            bodyBox.appendChild(row);
+          }
+          card.appendChild(bodyBox);
+        }
+        modelsSection.appendChild(card);
+      }
+      modelsSection.appendChild(el("div", "hint", "成员绑定默认使用主模型和备用模型；这里只展示目录与可用性，不会自动改成员。"));
       body.appendChild(modelsSection);
 
       const capabilitiesSection = settingsGroup("本机能力（只读扫描）");
@@ -4461,7 +4862,7 @@
       about.appendChild(settingsPathRow("数据目录", settings.dataDir));
       about.appendChild(settingsPathRow("附件目录", settings.attachmentsDir));
       about.appendChild(settingsPathRow("日志文件", settings.logFile));
-      about.appendChild(el("div", "hint", "AgentHub 本地房间：对话、草稿、任务与检查器都只在本机运行。"));
+      about.appendChild(el("div", "hint", "AgentHub 本地房间：对话、草稿、任务与侧边栏都只在本机运行。"));
       body.appendChild(about);
     }
 
@@ -6164,6 +6565,9 @@
       $("rsAllowTaskWrites").disabled = !state.room.workspace;
       $("rsAllowAutoMerge").checked = rules.allowAutoMerge !== false;
       $("rsAllowAutoMerge").disabled = !state.room.workspace;
+      const summarizeAt = Math.round((rules.summarizeAt ?? 0.7) * 100);
+      const hardStopAt = Math.round((rules.hardStopAt ?? 0.85) * 100);
+      $("rsContextHint").textContent = `自动：提示词达到模型上下文窗口 ${summarizeAt}% 时生成滚动摘要，${hardStopAt}% 时停止本轮。每轮只带最近约 15 条原始消息，摘要会替代更早内容；也可随时输入 /compact 手动压缩。`;
       $("rsWorkspace").textContent = state.room.workspace || "—";
       $("rsWorkspace").title = state.room.workspace || "";
       $("roomSheetSub").textContent = `${state.room.name || state.room.id} · 影响下一回合`;

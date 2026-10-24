@@ -268,6 +268,42 @@ test("the summarizer runs once the prompt crosses the summarize threshold", asyn
   }
 });
 
+test("auto compaction triggers from conversation history without an explicit context budget", async () => {
+  const { store, cleanup } = createStore();
+  try {
+    const room = store.readRoom("demo");
+    room.members[0].binding.contextWindow = 4_000;
+    room.members[0].binding.contextBudget = undefined;
+    store.writeRoom(room);
+    store.writeBrief("demo", "简报。".repeat(40));
+    for (let index = 0; index < 12; index += 1) {
+      store.appendEvent("demo", {
+        type: "user_message",
+        messageId: `history-${index}`,
+        text: "历史消息。".repeat(120),
+      });
+    }
+
+    let calls = 0;
+    await runRoom({
+      store,
+      roomId: "demo",
+      prompt: "继续",
+      backend: createDemoFakeBackend(),
+      rulesOverride: { maxHandoffs: 1, planOrder: ["planner"], summarizeAt: 0.7, hardStopAt: 0.9 },
+      summarizer: async () => {
+        calls += 1;
+        return { summary: "自动压缩摘要" };
+      },
+    });
+
+    assert.equal(calls, 1);
+    assert.match(store.readSummary("demo"), /自动压缩摘要/);
+  } finally {
+    cleanup();
+  }
+});
+
 test("an abort before the first turn records a human stop", async () => {
   const { store, cleanup } = createStore();
   try {
