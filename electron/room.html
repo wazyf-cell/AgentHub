@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentHub Room</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0f14;
+      --panel: #111821;
+      --panel-2: #17212c;
+      --line: #23303d;
+      --text: #e6edf3;
+      --muted: #8b9bab;
+      --accent: #4ea1ff;
+      --accent-2: #2f81f7;
+      --ok: #3fb950;
+      --warn: #d29922;
+      --danger: #f85149;
+      --user: #1f6feb;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      overflow: hidden;
+    }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button {
+      background: #1b2632;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    button:hover { border-color: #35506b; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button.primary { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+    button.danger { border-color: rgba(248,81,73,.45); color: #ffd6d6; }
+    input, select, textarea {
+      background: #0e141b;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 7px 9px;
+      width: 100%;
+    }
+    textarea { resize: vertical; min-height: 74px; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    #app { display: grid; grid-template-columns: 248px minmax(0, 1fr) 360px; height: 100%; }
+    aside { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+    aside.right { border-right: 0; border-left: 1px solid var(--line); }
+    .side-head { padding: 14px 14px 10px; border-bottom: 1px solid var(--line); }
+    .brand { font-weight: 700; letter-spacing: .2px; }
+    .brand small { display: block; color: var(--muted); font-weight: 400; margin-top: 2px; }
+    .side-actions { display: flex; gap: 6px; padding: 10px 12px; }
+    .side-actions button { flex: 1; padding: 6px 4px; font-size: 12px; }
+    .create-row { display: none; gap: 6px; padding: 0 12px 10px; }
+    .create-row.show { display: flex; }
+    .create-row input { flex: 1; }
+    .section-title { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; padding: 12px 14px 6px; }
+    .rooms, .members { overflow: auto; padding: 0 8px 8px; }
+    .rooms { max-height: 30%; }
+    .members { flex: 1; }
+    .room-item, .member-item {
+      width: 100%; text-align: left; border: 1px solid transparent; background: transparent;
+      border-radius: 8px; padding: 8px 9px; margin-bottom: 3px; cursor: pointer;
+    }
+    .room-item:hover, .member-item:hover { background: var(--panel-2); }
+    .room-item.active, .member-item.active { background: #172536; border-color: #24425f; }
+    .item-title { display: flex; justify-content: space-between; gap: 6px; }
+    .item-title strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .item-sub { color: var(--muted); font-size: 11px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .center { display: flex; flex-direction: column; min-width: 0; }
+    .chat-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .chat-title { font-weight: 600; }
+    .muted { color: var(--muted); }
+    .chat-actions { display: flex; gap: 6px; }
+    .chat { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .bubble { max-width: 88%; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; white-space: pre-wrap; word-break: break-word; background: #111a24; }
+    .bubble.user { align-self: flex-end; background: #123154; border-color: #1f4f80; }
+    .bubble.agent { align-self: flex-start; }
+    .bubble.system { align-self: center; max-width: 96%; background: transparent; border-style: dashed; color: var(--muted); font-size: 12px; }
+    .bubble.error { align-self: center; border-color: rgba(248,81,73,.5); background: rgba(248,81,73,.08); color: #ffb4ae; }
+    .bubble .who { font-weight: 600; font-size: 12px; color: #9fc2e8; margin-bottom: 3px; }
+    .bubble.user .who { color: #cfe3ff; text-align: right; }
+    .live { opacity: .85; }
+    .log { display: none; max-height: 90px; overflow: auto; border-top: 1px solid var(--line); padding: 6px 12px; color: var(--muted); font: 11px/1.4 Consolas, monospace; }
+    .log.show { display: block; }
+    .composer { border-top: 1px solid var(--line); padding: 10px 12px 12px; background: var(--panel); }
+    .composer-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+    .composer-controls select, .composer-controls input { width: auto; }
+    .composer-controls input[type="number"] { width: 64px; }
+    .composer-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 7px; }
+    .editor { flex: 1; overflow: auto; padding: 12px 14px 20px; }
+    .editor h3 { font-size: 13px; margin: 15px 0 8px; color: #b7c8d8; }
+    .editor h3:first-child { margin-top: 0; }
+    .field { margin-bottom: 9px; }
+    .field label { display: block; color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .check { display: flex; align-items: center; gap: 7px; color: #c4d1dd; margin: 6px 0; }
+    .check input { width: auto; }
+    .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+    .badge { border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; font-size: 11px; color: #a9bccd; background: #0f1720; }
+    .badge.warn { border-color: rgba(210,153,34,.5); color: #e3c06b; }
+    .hint { color: var(--muted); font-size: 11px; margin-top: 4px; }
+    .fallback-row { display: grid; grid-template-columns: 1fr 1fr 28px; gap: 6px; margin-bottom: 6px; }
+    .fallback-row button { padding: 0; }
+    .save-bar { position: sticky; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 14px; }
+    .empty { margin: auto; text-align: center; color: var(--muted); max-width: 420px; }
+    .empty h2 { color: var(--text); font-size: 18px; margin-bottom: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .chip { border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; font-size: 11px; color: #b8c8d6; }
+    @media (max-width: 1120px) {
+      #app { grid-template-columns: 220px minmax(0, 1fr) 320px; }
+    }
+    @media (max-width: 920px) {
+      #app { grid-template-columns: 200px minmax(0, 1fr); }
+      aside.right { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside class="left">
+      <div class="side-head">
+        <div class="brand">AgentHub Room<small>本地多模型群聊</small></div>
+      </div>
+      <div class="side-actions">
+        <button id="newRoom">新建房间</button>
+        <button id="legacy">批处理</button>
+      </div>
+      <div class="create-row" id="createRow">
+        <input id="workspace" placeholder="工作区路径" />
+        <button id="pickWorkspace" type="button">浏览</button>
+        <button class="primary" id="createRoom">创建</button>
+      </div>
+      <div class="section-title">房间</div>
+      <div class="rooms" id="rooms"></div>
+      <div class="section-title">成员</div>
+      <div class="members" id="members"></div>
+    </aside>
+
+    <main class="center">
+      <div class="chat-head">
+        <div>
+          <div class="chat-title" id="roomName">未选择房间</div>
+          <div class="muted" id="roomMeta"></div>
+        </div>
+        <div class="chat-actions">
+          <button id="replay">回放</button>
+          <button id="stop" class="danger" disabled>停止</button>
+        </div>
+      </div>
+      <div class="chat" id="chat" aria-live="polite"></div>
+      <div class="log" id="log"></div>
+      <div class="composer">
+        <div class="composer-controls">
+          <select id="autonomy" title="自治程度">
+            <option value="low">低自治</option>
+            <option value="medium" selected>中自治</option>
+            <option value="high">高自治</option>
+          </select>
+          <input id="maxHandoffs" type="number" min="1" max="20" value="6" title="最多 agent 回合" />
+          <span class="badge" id="cost">¥0.00 · 0 tok</span>
+        </div>
+        <textarea id="prompt" placeholder="输入任务。用 @成员名 可以定向；成员写 @成员名 会自动交接。"></textarea>
+        <div class="composer-actions">
+          <span class="muted" id="status">待命</span>
+          <button class="primary" id="run">运行</button>
+        </div>
+      </div>
+    </main>
+
+    <aside class="right">
+      <div class="side-head">
+        <div class="brand">成员配置<small id="editorHint">选择左侧成员</small></div>
+      </div>
+      <div class="editor" id="editor"><div class="muted">先选择一个房间和成员。</div></div>
+    </aside>
+  </div>
+
+  <script>
+    const api = window.agentHub;
+    const state = {
+      rooms: [],
+      room: null,
+      platforms: [],
+      models: [],
+      capabilities: { skills: [], mcpServers: [], missing: [] },
+      events: [],
+      selectedMemberId: null,
+      running: false,
+      costYuan: 0,
+      totalTokens: 0,
+      liveText: "",
+      liveMemberId: null,
+    };
+    const $ = (id) => document.getElementById(id);
+
+    function setStatus(text, kind = "") {
+      const node = $("status");
+      node.textContent = text;
+      node.style.color = kind === "error" ? "var(--danger)" : kind === "ok" ? "var(--ok)" : "var(--muted)";
+    }
+
+    function appendLog(line) {
+      const log = $("log");
+      log.classList.add("show");
+      log.textContent = `${log.textContent}${log.textContent ? "\n" : ""}${line}`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function modelKey(model) {
+      return `${model.platformId}/${model.modelId}`;
+    }
+
+    function findPlatform(platformId) {
+      return state.platforms.find((platform) => platform.id === platformId);
+    }
+
+    function modelsFor(platformId) {
+      return state.models.filter((model) => model.platformId === platformId && model.enabled !== false);
+    }
+
+    function findModel(platformId, modelId) {
+      return state.models.find((model) => model.platformId === platformId && model.modelId === modelId);
+    }
+
+    function memberColor(index) {
+      const colors = ["#9fc2e8", "#b6e3a8", "#e3c06b", "#e2a8d8", "#9ad9d0", "#d8b59a"];
+      return colors[index % colors.length];
+    }
+
+    function clearNode(node) {
+      while (node.firstChild) node.removeChild(node.firstChild);
+    }
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    async function boot() {
+      const settings = await api.settings();
+      $("workspace").value = settings.homeDir || settings.appRoot || "";
+      const [roomsResult, platformsResult, modelsResult, capabilitiesResult] = await Promise.all([
+        api.listRooms(),
+        api.platforms(),
+        api.models(),
+        api.capabilities(),
+      ]);
+      if (roomsResult.status === "success") state.rooms = roomsResult.data || [];
+      if (platformsResult.status === "success") state.platforms = platformsResult.data || [];
+      if (modelsResult.status === "success") state.models = modelsResult.data || [];
+      if (capabilitiesResult.status === "success" && capabilitiesResult.data) {
+        state.capabilities = capabilitiesResult.data;
+      }
+      renderRooms();
+      if (state.rooms.length > 0) {
+        await loadRoom(state.rooms[0].id);
+      } else {
+        renderEmpty();
+      }
+      api.onRunEvent(handleRunEvent);
+      api.onRunLog((line) => appendLog(line));
+      api.onRunFinished((payload) => {
+        state.running = false;
+        $("run").disabled = false;
+        $("stop").disabled = true;
+        setStatus(payload.exitCode === 0 ? "运行结束" : `运行结束（exit ${payload.exitCode}）`, payload.exitCode === 0 ? "ok" : "error");
+        if (payload.stderr) appendLog(payload.stderr.trim());
+      });
+    }
+
+    function renderEmpty() {
+      $("roomName").textContent = "还没有房间";
+      $("roomMeta").textContent = "创建一个真实房间开始";
+      clearNode($("chat"));
+      const box = el("div", "empty");
+      box.appendChild(el("h2", "", "还没有房间"));
+      box.appendChild(el("p", "", "点击左侧「新建房间」，会创建一个包含三个真实模型的房间：架构师（DeepSeek）、实现者（GLM）、前端优化（Kimi）。"));
+      const button = el("button", "primary", "新建真实房间");
+      button.addEventListener("click", () => $("createRow").classList.add("show"));
+      box.appendChild(button);
+      $("chat").appendChild(box);
+    }
+
+    function renderRooms() {
+      const list = $("rooms");
+      clearNode(list);
+      if (state.rooms.length === 0) {
+        list.appendChild(el("div", "muted", "（空）"));
+        return;
+      }
+      for (const room of state.rooms) {
+        const button = el("button", `room-item${state.room?.id === room.id ? " active" : ""}`);
+        const title = el("div", "item-title");
+        title.appendChild(el("strong", "", room.name || room.id));
+        title.appendChild(el("span", "muted", `${room.members.length}`));
+        const sub = el("div", "item-sub", `${room.id} · ${room.workspace}`);
+        button.appendChild(title);
+        button.appendChild(sub);
+        button.addEventListener("click", () => loadRoom(room.id));
+        list.appendChild(button);
+      }
+    }
+
+    function renderMembers() {
+      const list = $("members");
+      clearNode(list);
+      if (!state.room) return;
+      const order = state.room.rules?.planOrder?.length
+        ? state.room.rules.planOrder
+        : state.room.members.map((member) => member.id);
+      const byId = new Map(state.room.members.map((member) => [member.id, member]));
+      const ordered = [...order.map((id) => byId.get(id)).filter(Boolean), ...state.room.members.filter((member) => !order.includes(member.id))];
+      for (const member of ordered) {
+        const model = findModel(member.binding.platformId, member.binding.modelId);
+        const button = el("button", `member-item${state.selectedMemberId === member.id ? " active" : ""}`);
+        const title = el("div", "item-title");
+        title.appendChild(el("strong", "", member.name));
+        title.appendChild(el("span", "muted", (member.behavior?.weight ?? 1) > 0 ? `w${member.behavior?.weight ?? 1}` : "静默"));
+        const sub = el("div", "item-sub", `${member.role} · ${model?.displayName || member.binding.modelId}`);
+        button.appendChild(title);
+        button.appendChild(sub);
+        button.addEventListener("click", () => selectMember(member.id));
+        list.appendChild(button);
+      }
+    }
+
+    async function loadRoom(roomId) {
+      const result = await api.showRoom(roomId);
+      if (result.status !== "success") {
+        setStatus(result.summary || "加载房间失败", "error");
+        return;
+      }
+      state.room = result.data;
+      if (!state.selectedMemberId || !state.room.members.some((member) => member.id === state.selectedMemberId)) {
+        state.selectedMemberId = state.room.members[0]?.id || null;
+      }
+      const eventsResult = await api.events(roomId);
+      state.events = eventsResult.status === "success" ? eventsResult.data : [];
+      state.costYuan = sumCost(state.events);
+      state.totalTokens = sumTokens(state.events);
+      renderAll();
+    }
+
+    function renderAll() {
+      renderRooms();
+      renderMembers();
+      renderChat();
+      renderCost();
+      renderEditor();
+      if (state.room) {
+        $("roomName").textContent = state.room.name || state.room.id;
+        $("roomMeta").textContent = `${state.room.id} · ${state.room.workspace}`;
+        $("autonomy").value = state.room.rules?.autonomy || "medium";
+        $("maxHandoffs").value = state.room.rules?.maxHandoffs || 6;
+      }
+    }
+
+    function sumCost(events) {
+      return events.reduce((total, event) => total + (event.type === "turn_finished" ? Number(event.costYuan || 0) : 0), 0);
+    }
+
+    function sumTokens(events) {
+      return events.reduce((total, event) => {
+        if (event.type !== "turn_finished" || !event.usage) return total;
+        return total + Number(event.usage.totalTokens || 0);
+      }, 0);
+    }
+
+    function renderCost() {
+      $("cost").textContent = `¥${state.costYuan.toFixed(2)} · ${state.totalTokens.toLocaleString()} tok`;
+    }
+
+    function renderChat() {
+      const chat = $("chat");
+      clearNode(chat);
+      if (!state.room) {
+        renderEmpty();
+        return;
+      }
+      for (const event of state.events) {
+        if (event.type === "user_message") {
+          chat.appendChild(bubble("user", "你", event.text));
+        } else if (event.type === "agent_message") {
+          const index = state.room.members.findIndex((member) => member.id === event.memberId);
+          const node = bubble("agent", event.memberName, event.text);
+          node.querySelector(".who").style.color = memberColor(Math.max(index, 0));
+          chat.appendChild(node);
+        } else if (event.type === "handoff") {
+          chat.appendChild(systemBubble(`↪ ${event.fromMemberId} → ${event.toMemberId}（${event.reason}）`));
+        } else if (event.type === "binding_used") {
+          chat.appendChild(systemBubble(`⚠ 模型切换：${event.requested.platformId}/${event.requested.modelId} → ${event.used.platformId}/${event.used.modelId}`));
+        } else if (event.type === "summary_updated") {
+          chat.appendChild(systemBubble("房间摘要已更新"));
+        } else if (event.type === "room_stopped") {
+          chat.appendChild(systemBubble(`停止：${event.reason}${event.detail ? ` · ${event.detail}` : ""}`));
+        } else if (event.type === "error") {
+          chat.appendChild(bubble("error", "错误", event.message));
+        }
+      }
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function bubble(kind, who, text) {
+      const node = el("div", `bubble ${kind}`);
+      if (who) node.appendChild(el("div", "who", who));
+      node.appendChild(el("div", "", text));
+      return node;
+    }
+
+    function systemBubble(text) {
+      return el("div", "bubble system", text);
+    }
+
+    function selectMember(memberId) {
+      state.selectedMemberId = memberId;
+      renderMembers();
+      renderEditor();
+    }
+
+    function renderEditor() {
+      const editor = $("editor");
+      clearNode(editor);
+      if (!state.room || !state.selectedMemberId) {
+        editor.appendChild(el("div", "muted", "先选择一个房间和成员。"));
+        return;
+      }
+      const member = state.room.members.find((item) => item.id === state.selectedMemberId);
+      if (!member) return;
+      $("editorHint").textContent = `${member.name} · ${member.id}`;
+
+      const identity = section("身份");
+      identity.appendChild(field("名称", input("name", member.name)));
+      identity.appendChild(field("角色", input("role", member.role)));
+      identity.appendChild(field("系统提示词", textarea("instructions", member.instructions)));
+
+      const binding = section("模型绑定");
+      const platformOptions = state.platforms.map((platform) => ({
+        value: platform.id,
+        label: `${platform.name}${platform.enabled === false ? "（禁用）" : ""}`,
+        disabled: platform.enabled === false,
+      }));
+      if (!state.platforms.some((platform) => platform.id === member.binding.platformId)) {
+        platformOptions.unshift({
+          value: member.binding.platformId,
+          label: `${member.binding.platformId}（不在平台列表）`,
+        });
+      }
+      const platformSelect = select("platformId", platformOptions, member.binding.platformId);
+      binding.appendChild(field("平台", platformSelect));
+      const modelOptions = modelsFor(member.binding.platformId).map((model) => ({
+        value: model.modelId,
+        label: `${model.displayName} · ${formatContext(model.contextWindow)}`,
+      }));
+      if (!findModel(member.binding.platformId, member.binding.modelId)) {
+        modelOptions.unshift({
+          value: member.binding.modelId,
+          label: `${member.binding.modelId}（模型目录中未找到）`,
+        });
+      }
+      const modelSelect = select("modelId", modelOptions, member.binding.modelId);
+      let allModelOptions = modelOptions;
+      if (modelsFor(member.binding.platformId).length > 40) {
+        const filter = input("modelFilter", "");
+        filter.placeholder = "输入关键字筛选模型";
+        filter.addEventListener("input", () => {
+          const keyword = filter.value.trim().toLowerCase();
+          const current = modelSelect.value;
+          const matches = allModelOptions.filter((option) =>
+            !keyword || option.value.toLowerCase().includes(keyword) || option.label.toLowerCase().includes(keyword));
+          const visible = matches.slice(0, 80);
+          const currentOption = allModelOptions.find((option) => option.value === current);
+          if (currentOption && !visible.some((option) => option.value === current)) {
+            visible.unshift(currentOption);
+          }
+          clearNode(modelSelect);
+          if (visible.length === 0) {
+            const empty = document.createElement("option");
+            empty.value = "";
+            empty.textContent = "无匹配模型";
+            empty.disabled = true;
+            modelSelect.appendChild(empty);
+            return;
+          }
+          for (const option of visible) {
+            const item = document.createElement("option");
+            item.value = option.value;
+            item.textContent = option.label;
+            modelSelect.appendChild(item);
+          }
+          if (currentOption) modelSelect.value = current;
+          modelSelect.dispatchEvent(new Event("change"));
+        });
+        platformSelect.addEventListener("change", () => {
+          allModelOptions = modelsFor(platformSelect.value).map((model) => ({
+            value: model.modelId,
+            label: `${model.displayName} · ${formatContext(model.contextWindow)}`,
+          }));
+        });
+        binding.appendChild(field("筛选模型", filter));
+      }
+      binding.appendChild(field("模型", modelSelect));
+      const thinking = select("thinking", thinkingOptions(member.binding.platformId, member.binding.modelId), member.binding.thinking || "");
+      binding.appendChild(field("思考强度", thinking));
+      const caps = el("div", "badges");
+      binding.appendChild(caps);
+      const budgetRow = el("div", "two");
+      budgetRow.appendChild(field("上下文窗口", numberInput("contextWindow", member.binding.contextWindow)));
+      budgetRow.appendChild(field("上下文预算", numberInput("contextBudget", member.binding.contextBudget)));
+      binding.appendChild(budgetRow);
+      binding.appendChild(el("div", "hint", "窗口以模型目录为准；预算建议不超过窗口的 70%。"));
+      const syncButton = el("button", "", "同步模型目录（AI Work 网关）");
+      syncButton.type = "button";
+      syncButton.addEventListener("click", async () => {
+        syncButton.disabled = true;
+        setStatus("正在同步模型目录…");
+        const result = await api.syncModels();
+        const modelsResult = await api.models();
+        if (modelsResult.status === "success") state.models = modelsResult.data || [];
+        setStatus(
+          result.status === "success" ? (result.summary || "模型目录已同步") : (result.summary || "同步失败"),
+          result.status === "success" ? "ok" : "error",
+        );
+        renderEditor();
+      });
+      binding.appendChild(syncButton);
+
+      const behavior = section("参与度与权限");
+      behavior.appendChild(field("发言权重（0 为静默）", numberInput("weight", member.behavior?.weight ?? 1)));
+      behavior.appendChild(check("canInitiate", "可以在没人点名时主动发言", member.behavior?.canInitiate !== false));
+      behavior.appendChild(check("write", "允许写入（仅提示模型，不是强制沙箱）", member.permissions?.write === true));
+
+      const fallback = section("备用模型链");
+      const fallbackList = el("div", "fallback-list");
+      renderFallbacks(fallbackList, member);
+      fallback.appendChild(fallbackList);
+      const addFallback = el("button", "", "添加备用模型");
+      addFallback.type = "button";
+      addFallback.addEventListener("click", () => {
+        captureDraft(member);
+        if (!member.binding.fallback) member.binding.fallback = [];
+        member.binding.fallback.push({
+          platformId: member.binding.platformId,
+          modelId: member.binding.modelId,
+          thinking: member.binding.thinking,
+        });
+        renderEditor();
+      });
+      fallback.appendChild(addFallback);
+
+      const order = section("发言顺序");
+      const orderText = (state.room.rules?.planOrder || state.room.members.map((item) => item.id)).join(" → ");
+      order.appendChild(el("div", "hint", orderText));
+      const orderButtons = el("div", "two");
+      const up = el("button", "", "上移");
+      up.type = "button";
+      up.addEventListener("click", () => moveMember(member.id, -1));
+      const down = el("button", "", "下移");
+      down.type = "button";
+      down.addEventListener("click", () => moveMember(member.id, 1));
+      orderButtons.appendChild(up);
+      orderButtons.appendChild(down);
+      order.appendChild(orderButtons);
+
+      const capabilities = section("技能 / MCP（只读）");
+      capabilities.appendChild(renderManifest(member));
+
+      const saveBar = el("div", "save-bar");
+      const save = el("button", "primary", "保存成员配置");
+      save.type = "button";
+      save.style.width = "100%";
+      save.addEventListener("click", () => saveMember(member.id));
+      saveBar.appendChild(save);
+      saveBar.appendChild(el("div", "hint", "保存后下一回合生效；修改 ID 或运行中换模型不被允许。"));
+      editor.appendChild(saveBar);
+
+      syncBindingControls(platformSelect, modelSelect, thinking, caps, member);
+    }
+
+    function section(title) {
+      const node = el("div", "");
+      node.appendChild(el("h3", "", title));
+      $("editor").appendChild(node);
+      return node;
+    }
+
+    function field(label, control) {
+      const node = el("div", "field");
+      node.appendChild(el("label", "", label));
+      node.appendChild(control);
+      return node;
+    }
+
+    function input(name, value) {
+      const node = document.createElement("input");
+      node.dataset.field = name;
+      node.value = value || "";
+      return node;
+    }
+
+    function textarea(name, value) {
+      const node = document.createElement("textarea");
+      node.dataset.field = name;
+      node.value = value || "";
+      return node;
+    }
+
+    function numberInput(name, value) {
+      const node = document.createElement("input");
+      node.type = "number";
+      node.min = "0";
+      node.dataset.field = name;
+      node.value = value === undefined || value === null ? "" : String(value);
+      return node;
+    }
+
+    function select(name, options, value) {
+      const node = document.createElement("select");
+      node.dataset.field = name;
+      for (const option of options) {
+        const item = document.createElement("option");
+        item.value = option.value;
+        item.textContent = option.label;
+        item.disabled = option.disabled === true;
+        if (option.value === value) item.selected = true;
+        node.appendChild(item);
+      }
+      if (!node.value && options.length > 0) node.value = options[0].value;
+      return node;
+    }
+
+    function check(name, label, checked) {
+      const node = el("label", "check");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.dataset.field = name;
+      box.checked = checked;
+      node.appendChild(box);
+      node.appendChild(el("span", "", label));
+      return node;
+    }
+
+    function thinkingOptions(platformId, modelId) {
+      const model = findModel(platformId, modelId);
+      const levels = model?.thinkingLevels || [];
+      return [{ value: "", label: levels.length ? "（默认）" : "（不支持）" }, ...levels.map((level) => ({ value: level, label: level }))];
+    }
+
+    function formatContext(value) {
+      if (!value) return "?";
+      if (value >= 1_000_000) return `${Math.round(value / 1_000_000)}M`;
+      return `${Math.round(value / 1000)}k`;
+    }
+
+    function syncBindingControls(platformSelect, modelSelect, thinking, caps, member) {
+      const updateCaps = () => {
+        const model = findModel(platformSelect.value, modelSelect.value);
+        clearNode(caps);
+        if (!model) return;
+        caps.appendChild(el("span", "badge", `${formatContext(model.contextWindow)} 上下文`));
+        if (model.input?.includes("image")) caps.appendChild(el("span", "badge", "图片"));
+        if (model.thinkingLevels?.length) caps.appendChild(el("span", "badge", `思考 ${model.thinkingLevels.join("/")}`));
+        if (model.costMultiplier !== undefined) caps.appendChild(el("span", "badge", `倍率 ${model.costMultiplier}`));
+        if (model.notes) caps.appendChild(el("span", "badge warn", model.notes.slice(0, 40)));
+      };
+      platformSelect.addEventListener("change", () => {
+        const models = modelsFor(platformSelect.value);
+        clearNode(modelSelect);
+        for (const model of models) {
+          const option = document.createElement("option");
+          option.value = model.modelId;
+          option.textContent = `${model.displayName} · ${formatContext(model.contextWindow)}`;
+          modelSelect.appendChild(option);
+        }
+        if (models.length > 0) modelSelect.value = models[0].modelId;
+        refreshThinking();
+        updateCaps();
+      });
+      modelSelect.addEventListener("change", () => { refreshThinking(); updateCaps(); });
+      function refreshThinking() {
+        const model = findModel(platformSelect.value, modelSelect.value);
+        const current = thinking.value;
+        clearNode(thinking);
+        const levels = model?.thinkingLevels || [];
+        const defaultValue = model?.defaultThinking || "";
+        const options = [{ value: "", label: levels.length ? "（默认）" : "（不支持）" }, ...levels.map((level) => ({ value: level, label: level }))];
+        for (const option of options) {
+          const item = document.createElement("option");
+          item.value = option.value;
+          item.textContent = option.label;
+          if (option.value === (current || defaultValue)) item.selected = true;
+          if (option.value === defaultValue && !current) item.selected = true;
+          thinking.appendChild(item);
+        }
+        thinking.disabled = levels.length === 0;
+      }
+      updateCaps();
+    }
+
+    function renderFallbacks(container, member) {
+      clearNode(container);
+      const fallbacks = member.binding.fallback || [];
+      fallbacks.forEach((fallback, index) => {
+        const row = el("div", "fallback-row");
+        const platform = select(`fallbackPlatform-${index}`, state.platforms.map((item) => ({ value: item.id, label: item.name })), fallback.platformId);
+        const model = select(`fallbackModel-${index}`, modelsFor(fallback.platformId).map((item) => ({ value: item.modelId, label: item.displayName })), fallback.modelId);
+        platform.addEventListener("change", () => {
+          captureDraft(member);
+          fallback.platformId = platform.value;
+          fallback.modelId = modelsFor(platform.value)[0]?.modelId || "";
+          renderEditor();
+        });
+        model.addEventListener("change", () => { fallback.modelId = model.value; });
+        const remove = el("button", "danger", "×");
+        remove.type = "button";
+        remove.title = "移除备用模型";
+        remove.addEventListener("click", () => {
+          captureDraft(member);
+          member.binding.fallback.splice(index, 1);
+          renderEditor();
+        });
+        row.appendChild(platform);
+        row.appendChild(model);
+        row.appendChild(remove);
+        container.appendChild(row);
+      });
+      if (fallbacks.length === 0) {
+        container.appendChild(el("div", "hint", "未配置备用模型；主模型失败时会直接停下。"));
+      }
+    }
+
+    function renderManifest(member) {
+      const box = el("div", "");
+      const capabilities = state.capabilities || { skills: [], mcpServers: [] };
+      const selectedSkills = member.skills || [];
+      const selectedMcps = member.mcps || [];
+      box.appendChild(el("div", "hint",
+        `本机可用：${capabilities.skills.length} 个技能 · ${capabilities.mcpServers.length} 个 MCP（只读扫描，不读取密钥）`));
+      if (selectedSkills.length > 0 || selectedMcps.length > 0) {
+        const selected = el("div", "chips");
+        for (const skill of selectedSkills) selected.appendChild(el("span", "chip", skill));
+        for (const mcp of selectedMcps) selected.appendChild(el("span", "chip", `MCP: ${mcp}`));
+        box.appendChild(selected);
+      }
+      const chips = el("div", "chips");
+      for (const skill of capabilities.skills.slice(0, 6)) {
+        chips.appendChild(el("span", "chip", `${skill.name} · ${skill.source}`));
+      }
+      for (const server of capabilities.mcpServers.slice(0, 6)) {
+        chips.appendChild(el("span", "chip", `MCP: ${server.name}`));
+      }
+      if (chips.childElementCount === 0) {
+        chips.appendChild(el("span", "muted", "未发现本机技能或 MCP 清单"));
+      }
+      box.appendChild(chips);
+      const refresh = el("button", "", "刷新本机清单");
+      refresh.type = "button";
+      refresh.addEventListener("click", async () => {
+        refresh.disabled = true;
+        setStatus("正在扫描本机技能 / MCP…");
+        const result = await api.capabilities();
+        if (result.status === "success" && result.data) {
+          state.capabilities = result.data;
+          setStatus("清单已刷新", "ok");
+        } else {
+          setStatus(result.summary || "扫描失败", "error");
+        }
+        renderEditor();
+      });
+      box.appendChild(refresh);
+      return box;
+    }
+
+    function readEditorValues() {
+      const editor = $("editor");
+      const value = (name) => {
+        const node = editor.querySelector(`[data-field="${name}"]`);
+        if (!node) return undefined;
+        return node.type === "checkbox" ? node.checked : node.value;
+      };
+      return {
+        name: String(value("name") || "").trim(),
+        role: String(value("role") || "").trim(),
+        instructions: String(value("instructions") || ""),
+        platformId: String(value("platformId") || ""),
+        modelId: String(value("modelId") || ""),
+        thinking: String(value("thinking") || ""),
+        contextWindow: numberOrUndefined(value("contextWindow")),
+        contextBudget: numberOrUndefined(value("contextBudget")),
+        weight: numberOrZero(value("weight")),
+        canInitiate: value("canInitiate") === true,
+        write: value("write") === true,
+      };
+    }
+
+    function numberOrUndefined(value) {
+      const number = Number(value);
+      return Number.isFinite(number) && number > 0 ? Math.floor(number) : undefined;
+    }
+
+    function numberOrZero(value) {
+      const number = Number(value);
+      return Number.isFinite(number) && number >= 0 ? Math.floor(number) : undefined;
+    }
+
+    function captureDraft(member) {
+      const values = readEditorValues();
+      if (values.name) member.name = values.name;
+      if (values.role) member.role = values.role;
+      member.instructions = values.instructions;
+      if (values.platformId) member.binding.platformId = values.platformId;
+      if (values.modelId) member.binding.modelId = values.modelId;
+      member.binding.thinking = values.thinking || undefined;
+      member.binding.contextWindow = values.contextWindow;
+      member.binding.contextBudget = values.contextBudget;
+      member.behavior = {
+        ...(member.behavior || {}),
+        weight: values.weight ?? member.behavior?.weight ?? 1,
+        canInitiate: values.canInitiate,
+      };
+      member.permissions = { ...(member.permissions || {}), write: values.write };
+    }
+
+    async function saveMember(memberId) {
+      const member = state.room.members.find((item) => item.id === memberId);
+      if (!member) return;
+      const values = readEditorValues();
+      if (!values.name || !values.role) {
+        setStatus("名称和角色不能为空", "error");
+        return;
+      }
+      if (state.room.members.some((item) => item.id !== memberId && item.name === values.name)) {
+        setStatus("成员名称必须唯一，否则 @ 提及会歧义", "error");
+        return;
+      }
+      const model = findModel(values.platformId, values.modelId);
+      if (!model) {
+        setStatus("请选择一个有效模型", "error");
+        return;
+      }
+      if (values.thinking && !(model.thinkingLevels || []).includes(values.thinking)) {
+        setStatus("思考强度不在该模型的能力列表里", "error");
+        return;
+      }
+      if (values.contextWindow && values.contextBudget && values.contextBudget > values.contextWindow) {
+        setStatus("上下文预算不能超过上下文窗口", "error");
+        return;
+      }
+      const fallbacks = member.binding.fallback || [];
+      for (const fallback of fallbacks) {
+        if (!findModel(fallback.platformId, fallback.modelId)) {
+          setStatus("备用模型链里有无效模型", "error");
+          return;
+        }
+      }
+      member.name = values.name;
+      member.role = values.role;
+      member.instructions = values.instructions;
+      member.binding = {
+        ...member.binding,
+        platformId: values.platformId,
+        modelId: values.modelId,
+        thinking: values.thinking || undefined,
+        contextWindow: values.contextWindow,
+        contextBudget: values.contextBudget,
+        fallback: fallbacks,
+      };
+      member.behavior = { weight: values.weight ?? 1, canInitiate: values.canInitiate };
+      member.permissions = { ...(member.permissions || {}), write: values.write };
+      if (!state.room.members.some((item) => (item.behavior?.weight ?? 1) > 0)) {
+        setStatus("至少保留一名有权重的成员", "error");
+        return;
+      }
+      state.room.updatedAt = new Date().toISOString();
+      const result = await api.updateRoom(state.room.id, state.room);
+      if (result.status !== "success") {
+        setStatus(result.summary || "保存失败", "error");
+        return;
+      }
+      setStatus("已保存", "ok");
+      await loadRoom(state.room.id);
+    }
+
+    function moveMember(memberId, delta) {
+      const selected = state.room.members.find((member) => member.id === state.selectedMemberId);
+      if (selected) captureDraft(selected);
+      const order = state.room.rules?.planOrder?.length
+        ? [...state.room.rules.planOrder]
+        : state.room.members.map((member) => member.id);
+      const index = order.indexOf(memberId);
+      const target = index + delta;
+      if (index < 0 || target < 0 || target >= order.length) return;
+      [order[index], order[target]] = [order[target], order[index]];
+      state.room.rules = { ...(state.room.rules || {}), planOrder: order };
+      api.updateRoom(state.room.id, state.room).then((result) => {
+        if (result.status !== "success") {
+          setStatus(result.summary || "排序保存失败", "error");
+          return;
+        }
+        renderMembers();
+        renderEditor();
+      });
+    }
+
+    function handleRunEvent(event) {
+      state.events.push(event);
+      if (event.type === "turn_finished") {
+        state.costYuan += Number(event.costYuan || 0);
+        state.totalTokens += Number(event.usage?.totalTokens || 0);
+        renderCost();
+      }
+      if (event.type === "agent_delta") {
+        state.liveMemberId = event.memberId;
+        state.liveText += event.text;
+        renderLive();
+        return;
+      }
+      if (event.type === "agent_message") {
+        state.liveText = "";
+        state.liveMemberId = null;
+      }
+      if (event.type === "turn_started") {
+        setStatus(`${event.memberName} 正在思考…`);
+      }
+      if (event.type === "room_stopped") {
+        setStatus(`停止：${event.reason}`, event.reason === "done" ? "ok" : "");
+      }
+      if (event.type === "error") {
+        setStatus(event.message, "error");
+      }
+      renderChat();
+    }
+
+    function renderLive() {
+      const chat = $("chat");
+      chat.querySelectorAll(".bubble.live").forEach((node) => node.remove());
+      if (!state.liveText) return;
+      const index = state.room?.members.findIndex((member) => member.id === state.liveMemberId) ?? 0;
+      const member = state.room?.members.find((item) => item.id === state.liveMemberId);
+      const node = bubble("agent live", member?.name || "正在输出", state.liveText);
+      node.querySelector(".who").style.color = memberColor(Math.max(index, 0));
+      chat.appendChild(node);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    async function runRoom() {
+      if (!state.room) {
+        setStatus("先创建或选择一个房间", "error");
+        return;
+      }
+      const prompt = $("prompt").value.trim();
+      if (!prompt) {
+        setStatus("请输入任务", "error");
+        return;
+      }
+      state.running = true;
+      state.costYuan = 0;
+      state.totalTokens = 0;
+      state.liveText = "";
+      state.liveMemberId = null;
+      state.events = [];
+      renderChat();
+      renderCost();
+      $("run").disabled = true;
+      $("stop").disabled = false;
+      setStatus("运行中…");
+      const result = await api.run({
+        roomId: state.room.id,
+        prompt,
+        autonomy: $("autonomy").value,
+        maxHandoffs: Number($("maxHandoffs").value) || 6,
+      });
+      state.running = false;
+      $("run").disabled = false;
+      $("stop").disabled = true;
+      if (result.status !== "success") {
+        setStatus(result.summary || "运行失败", "error");
+        if (result.stderr) appendLog(result.stderr);
+      } else {
+        setStatus("运行结束", "ok");
+      }
+      await loadRoom(state.room.id);
+    }
+
+    $("newRoom").addEventListener("click", () => $("createRow").classList.toggle("show"));
+    $("pickWorkspace").addEventListener("click", async () => {
+      const result = await api.pickWorkspace();
+      if (result.status === "success" && result.path) {
+        $("workspace").value = result.path;
+      }
+    });
+    $("createRoom").addEventListener("click", async () => {
+      const workspace = $("workspace").value.trim();
+      setStatus("正在创建房间…");
+      const result = await api.initRoom({ real: true, workspace });
+      if (result.status !== "success") {
+        setStatus(result.summary || "创建失败", "error");
+        return;
+      }
+      const rooms = await api.listRooms();
+      if (rooms.status === "success") state.rooms = rooms.data || [];
+      $("createRow").classList.remove("show");
+      renderRooms();
+      const real = state.rooms.find((room) => room.id === "real");
+      if (real) await loadRoom(real.id);
+      else if (state.rooms.length > 0) await loadRoom(state.rooms[0].id);
+      setStatus("房间已创建", "ok");
+    });
+    $("legacy").addEventListener("click", () => api.openLegacy());
+    $("run").addEventListener("click", runRoom);
+    $("stop").addEventListener("click", async () => {
+      const result = await api.stop();
+      setStatus(result.summary || "已发送停止", result.status === "success" ? "ok" : "error");
+    });
+    $("replay").addEventListener("click", async () => {
+      if (!state.room) return;
+      const result = await api.events(state.room.id);
+      if (result.status === "success") {
+        state.events = result.data;
+        state.costYuan = sumCost(state.events);
+        state.totalTokens = sumTokens(state.events);
+        renderChat();
+        renderCost();
+        setStatus("已回放", "ok");
+      }
+    });
+    $("prompt").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        runRoom();
+      }
+    });
+
+    boot().catch((error) => {
+      setStatus(error.message || String(error), "error");
+    });
+  </script>
+</body>
+</html>

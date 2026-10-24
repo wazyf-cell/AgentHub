@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { createDemoFakeBackend } from "./backends/fake.ts";
 import { RoomBackendRouter } from "./backends/router.ts";
+import { scanCapabilities } from "./capabilities.ts";
+import { describeImage } from "./vision.ts";
 import { findModel, loadModels, syncModelsFromAiWorkGate } from "./catalog.ts";
 import { createDemoRoom } from "./demo.ts";
 import { runRoom } from "./engine.ts";
@@ -18,7 +21,7 @@ const HELP = `AgentHub room CLI
 
 用法:
   room init [--real] [--data-dir <dir>] [--workspace <path>]
-  room run --prompt "..." [--room real] [--data-dir <dir>] [--autonomy low|medium|high] [--max-handoffs 8] [--fake] [--json-events]
+  room run --prompt "..." [--room real] [--data-dir <dir>] [--autonomy low|medium|high] [--max-handoffs 8] [--image <path> ...] [--fake] [--json-events]
   room list [--json]
   room show [--json] [--room <id>]
   room update --json-file <room.json> [--room <id>]
@@ -27,11 +30,16 @@ const HELP = `AgentHub room CLI
   room platforms [--json] [--health]
   room models [--json] [--platform <id>]
   room models sync [--data-dir <dir>]
+  room capabilities [--json]
+  room vision --image <path> [--prompt "..."] [--command modlens] [--json]
 
 说明:
   init         创建假后端演示房间；加 --real 创建三个真实模型的房间。
   run          默认自动选择后端：成员全是 fake 时用假后端，否则走平台路由。
+  run --image  附带图片；只有声明支持图片的模型会收到图片，其他成员只收到附件说明。
   models sync  从 AIWorkGate 的本地目录导入模型能力（需要 Node 24 的 node:sqlite）。
+  capabilities 只读扫描本机 Claude skills、Codex/Claude 的 MCP 服务名，供角色卡参考。
+  vision       调用本机 ModLens（需自行安装）把图片转成文字证据，结果按图片+提示词缓存；不随应用打包。
 `;
 
 async function main(): Promise<number> {
@@ -47,6 +55,9 @@ async function main(): Promise<number> {
       "json-events": { type: "boolean", default: false },
       autonomy: { type: "string" },
       "max-handoffs": { type: "string" },
+      image: { type: "string", multiple: true },
+      command: { type: "string" },
+      timeout: { type: "string" },
       out: { type: "string" },
       "json-file": { type: "string" },
       platform: { type: "string" },
@@ -181,6 +192,47 @@ async function main(): Promise<number> {
       }
       return 0;
     }
+    case "capabilities": {
+      const manifest = scanCapabilities();
+      if (parsed.values.json) {
+        process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
+        return 0;
+      }
+      const bySource = new Map<string, number>();
+      for (const skill of manifest.skills) {
+        bySource.set(skill.source, (bySource.get(skill.source) ?? 0) + 1);
+      }
+      process.stdout.write(
+        `技能 ${manifest.skills.length} 个（${[...bySource].map(([source, count]) => `${source} ${count}`).join("，")}），MCP ${manifest.mcpServers.length} 个\n`,
+      );
+      for (const server of manifest.mcpServers) {
+        process.stdout.write(`MCP\t${server.name}\t${server.source}\n`);
+      }
+      return 0;
+    }
+    case "vision": {
+      const imagePath = parsed.values.image?.[0] ?? parsed.positionals[1];
+      if (!imagePath) {
+        process.stderr.write("缺少 --image <图片路径>。\n");
+        return 2;
+      }
+      const timeoutMs = parsed.values.timeout ? Number(parsed.values.timeout) : undefined;
+      const result = await describeImage({
+        imagePath,
+        prompt: parsed.values.prompt,
+        command: parsed.values.command,
+        timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : undefined,
+        cacheDir: join(store.profilesDir, "vision-cache"),
+      });
+      if (parsed.values.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      } else if (result.status === "completed") {
+        process.stdout.write(`${result.description}\n`);
+      } else {
+        process.stderr.write(`${result.error ?? "vision failed"}\n`);
+      }
+      return result.status === "completed" ? 0 : 1;
+    }
     case "help":
     default:
       process.stdout.write(HELP);
@@ -199,6 +251,7 @@ async function runCommand(
     "json-events"?: boolean;
     autonomy?: string;
     "max-handoffs"?: string;
+    image?: string[];
   },
 ): Promise<number> {
   if (!values.prompt?.trim()) {
@@ -262,6 +315,7 @@ async function runCommand(
       store,
       roomId,
       prompt: values.prompt,
+      images: values.image,
       backend,
       rulesOverride,
       signal: controller.signal,

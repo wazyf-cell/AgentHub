@@ -117,7 +117,10 @@ export class CliBackend implements AgentBackend {
         reasoningEffort: this.options.thinking ?? model.defaultThinking,
         sessionId,
         env: readPlatformEnv(platform.config?.env),
-        imagePaths: readPlatformStringArray(platform.config, "imagePaths"),
+        imagePaths: [
+          ...(readPlatformStringArray(platform.config, "imagePaths") ?? []),
+          ...(request.images ?? []),
+        ],
         claudeMcpConfigPaths: readPlatformStringArray(platform.config, "claudeMcpConfigPaths"),
         configOverrides: readPlatformRecord(platform.config, "configOverrides"),
         timeoutMs: this.options.timeoutMs

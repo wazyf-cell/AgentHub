@@ -12,6 +12,7 @@ import type {
 } from "../types.ts";
 import type { RoomStore } from "../store.ts";
 import { CliBackend } from "./cli.ts";
+import { OpenAiBackend } from "./openai.ts";
 
 export interface RoomBackendRouterOptions {
   store: RoomStore;
@@ -78,7 +79,15 @@ export class RoomBackendRouter implements AgentBackend {
 
       try {
         const backend = this.createBackend(platform, model, binding);
-        const result = await backend.runTurn(request);
+        const supportsImage = model.input?.includes("image") === true;
+        const effectiveRequest = request.images?.length && !supportsImage
+          ? {
+            ...request,
+            prompt: `${request.prompt}\n\n[附件说明] 用户附带了 ${request.images.length} 张图片，但当前模型不支持图片输入；请勿臆测图片内容。`,
+            images: undefined,
+          }
+          : request;
+        const result = await backend.runTurn(effectiveRequest);
         if (result.status === "completed") {
           return {
             ...result,
@@ -132,6 +141,13 @@ export class RoomBackendRouter implements AgentBackend {
         platform,
         model,
         sessionStore: this.options.sessions,
+        thinking: binding.thinking,
+      });
+    }
+    if (platform.kind === "openai-compatible") {
+      return new OpenAiBackend({
+        platform,
+        model,
         thinking: binding.thinking,
       });
     }

@@ -37,3 +37,10 @@ GOOGLE_WORKSPACE_SETUP.md
 POSTGRESQL_SETUP.md
 scripts/loadtest/
 scripts/record
+.agentspace/
+.tmp/
+.qoder/
+dist-electron-local-out/
+dist-electron-out/
+agentspace.local.json
+reasonix.toml

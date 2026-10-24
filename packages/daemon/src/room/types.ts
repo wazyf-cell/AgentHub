@@ -122,6 +122,7 @@ export type RoomEvent =
       type: "user_message";
       messageId: string;
       text: string;
+      images?: string[];
     })
   | (RoomEventBase & {
       type: "turn_started";
@@ -196,6 +197,7 @@ export interface AgentTurnRequest {
   member: RoomMember;
   prompt: string;
   turnId: string;
+  images?: string[];
   signal?: AbortSignal;
   onDelta?: (text: string) => void;
 }

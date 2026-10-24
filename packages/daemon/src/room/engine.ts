@@ -30,6 +30,7 @@ export interface RunRoomOptions {
   store: RoomStore;
   roomId: string;
   prompt: string;
+  images?: string[];
   backend: AgentBackend;
   rulesOverride?: Partial<RoomRules>;
   signal?: AbortSignal;
@@ -67,6 +68,7 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
     type: "user_message",
     messageId: `msg-${randomUUID()}`,
     text: options.prompt,
+    ...(options.images && options.images.length > 0 ? { images: options.images } : {}),
   });
   if (userMessage.type !== "user_message") {
     throw new Error("Failed to append the user message.");
@@ -174,6 +176,7 @@ export async function runRoom(options: RunRoomOptions): Promise<RoomRunResult> {
         member,
         prompt,
         turnId,
+        images: options.images,
         signal: options.signal,
         onDelta: (text) => {
           if (!text) {

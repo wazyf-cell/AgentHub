@@ -36,7 +36,7 @@ export function formatConversation(events: RoomEvent[], limit = DEFAULT_RECENT_L
     .slice(-limit)
     .map((message) => {
       if (message.type === "user_message") {
-        return `[你] ${message.text}`;
+        return `[你] ${formatUserText(message)}`;
       }
       return `[${message.memberName}] ${message.text}`;
     })
@@ -60,7 +60,7 @@ export function composeTurnPrompt(input: ComposeTurnPromptInput): string {
   const build = (): string => {
     const conversation = recent
       .map((message) =>
-        message.type === "user_message" ? `[你] ${message.text}` : `[${message.memberName}] ${message.text}`,
+        message.type === "user_message" ? `[你] ${formatUserText(message)}` : `[${message.memberName}] ${message.text}`,
       )
       .join("\n\n");
     const permissionNote =
@@ -93,4 +93,11 @@ export function composeTurnPrompt(input: ComposeTurnPromptInput): string {
 function buildDefaultBrief(room: RoomConfig): string {
   const members = room.members.map((member) => `- ${member.name}：${member.role}`).join("\n");
   return `目标：围绕当前任务协作。\n成员：\n${members}\n约束：v1 只读，不修改工作区文件。`;
+}
+
+function formatUserText(message: { text: string; images?: string[] }): string {
+  const images = message.images ?? [];
+  return images.length > 0
+    ? `${message.text}\n[图片附件: ${images.join(", ")}]`
+    : message.text;
 }
